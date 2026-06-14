@@ -279,6 +279,18 @@
         draw: function (ctx, t) { self.drawShelf(ctx, t, 596, 512, 516, 168); },
         onTap: function () { PLS.go('shelf', { pet: self.petId }); }
       });
+      // 測試版:預覽獎勵按鈕(右下角,低調)
+      if (ST.isTest()) {
+        PLS.addButton({
+          x: W - 240, y: H - 68, w: 210, h: 50,
+          draw: function (ctx) {
+            ctx.globalAlpha = 0.88;
+            A.pill(ctx, W - 135, H - 43, '🎁 預覽獎勵', '#C2591E', 'rgba(255,240,210,0.95)', 22);
+            ctx.globalAlpha = 1;
+          },
+          onTap: function () { PLS.go('rewardPreview', { pet: self.petId }); }
+        });
+      }
     },
     drawShelf: function (ctx, t, x, y, w, h) {
       const d = ST.load(this.petId);
@@ -388,6 +400,7 @@
       this.scrollY = 0;
       this._pdown = false;
       this._drag = false;
+      this._enteredAt = Date.now(); // 防止切換畫面時誤觸節點
       this.nodes = CFG.math.map(function (lv, i) {
         return { lv: lv, i: i, x: MAP_XS[i % 4], y: MAP_Y0 + i * MAP_STEP };
       });
@@ -410,6 +423,8 @@
         this._pdown = false;
         if (this._drag) { this._drag = false; return; }
         if (y < TOP_BAND - 6) return;
+        // 剛進入畫面 350ms 內忽略 tap，防止「吃飽收工」誤觸下一關
+        if (Date.now() - (this._enteredAt || 0) < 350) return;
         const cy = y + this.scrollY;
         for (let k = 0; k < this.nodes.length; k++) {
           const n = this.nodes[k];
@@ -627,8 +642,74 @@
     }
   };
 
+  // ════════════════════════════════════════════════════
+  // 測試版:獎勵預覽畫面
+  // ════════════════════════════════════════════════════
+  const rewardPreview = {
+    petId: 'rabbit',
+    enter: function (params) {
+      const self = this;
+      this.petId = params.pet || 'rabbit';
+      backBtn('rewardPreview', { pet: this.petId });
+      // 返回房間
+      PLS.addButton({
+        x: 30, y: 30, w: 84, h: 84,
+        draw: function (ctx) {
+          ctx.fillStyle = 'rgba(255,255,255,0.9)'; A.rr(ctx, 30, 30, 84, 84, 26); ctx.fill();
+          A.drawIcon(ctx, 'back', 72, 72, 1.1, '#9A7B5C');
+        },
+        onTap: function () { PLS.go('room', { pet: self.petId }); }
+      });
+      var btns = [
+        { label: '基礎版大餐', sub: '答對 90% 以上拿到', color: '#C2791E', bg: '#FFF7EA',
+          cb: function () { PLS.go('feast', { pet: self.petId, levelIdx: 0, deluxe: false, clears: 1 }); } },
+        { label: '豪華版大餐', sub: '同一關過關滿 10 次', color: '#B03B10', bg: '#FFF0D8',
+          cb: function () { PLS.go('feast', { pet: self.petId, levelIdx: 0, deluxe: true, clears: 10 }); } },
+        { label: '基礎版玩具', sub: '英文關卡過關獎勵', color: '#3A8A5A', bg: '#EEF6EC',
+          cb: function () { PLS.go('etoy', { pet: self.petId, levelIdx: 0, deluxe: false, clears: 1 }); } },
+        { label: '豪華版玩具', sub: '同一英文關滿 10 次', color: '#1A6A50', bg: '#E4F4F0',
+          cb: function () { PLS.go('etoy', { pet: self.petId, levelIdx: 0, deluxe: true, clears: 10 }); } }
+      ];
+      var BW = 456, BH = 188, GAP = 28;
+      var startX = (W - BW * 2 - GAP) / 2;
+      var startY = 290;
+      btns.forEach(function (btn, i) {
+        var col = i % 2, row = Math.floor(i / 2);
+        var bx = startX + col * (BW + GAP);
+        var by = startY + row * (BH + GAP);
+        PLS.addButton({
+          x: bx, y: by, w: BW, h: BH,
+          draw: function (ctx, t) {
+            ctx.save();
+            ctx.shadowColor = 'rgba(150,100,60,0.18)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+            ctx.fillStyle = btn.bg; A.rr(ctx, bx, by, BW, BH, 30); ctx.fill();
+            ctx.restore();
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = '800 44px ' + FONT; ctx.fillStyle = btn.color;
+            ctx.fillText(btn.label, bx + BW / 2, by + BH / 2 - 20);
+            ctx.font = '24px ' + FONT; ctx.fillStyle = '#A8927A';
+            ctx.fillText(btn.sub, bx + BW / 2, by + BH / 2 + 30);
+          },
+          onTap: btn.cb
+        });
+      });
+    },
+    draw: function (ctx, t) {
+      ctx.fillStyle = '#FBF1E2'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(214,178,146,0.14)';
+      for (var yy = 60; yy < H; yy += 90)
+        for (var xx = Math.floor(yy / 90) % 2 ? 50 : 95; xx < W; xx += 90) { A.el(ctx, xx, yy, 7, 7); ctx.fill(); }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '50px ' + FONT;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('獎勵預覽', W / 2, 92);
+      ctx.fillStyle = '#8A6242'; ctx.fillText('獎勵預覽', W / 2, 88);
+      A.pill(ctx, W / 2, 152, '測試版限定 · 點選直接預覽各種獎勵畫面', '#9A7B5C', 'rgba(255,255,255,0.9)', 24);
+    }
+  };
+
   PLS.register('home', home);
   PLS.register('room', room);
   PLS.register('map', map);
   PLS.register('shelf', shelf);
+  PLS.register('rewardPreview', rewardPreview);
 })();

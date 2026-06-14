@@ -13,7 +13,13 @@
     return a;
   }
   const UP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-  const WORDS = ['cat', 'dog', 'sun', 'hat', 'pig', 'cup', 'bus', 'bed', 'box', 'pen', 'bag', 'fox'];
+  const WORDS = [
+    // 原有單字
+    'cat', 'dog', 'sun', 'hat', 'pig', 'cup', 'bus', 'bed', 'box', 'pen', 'bag', 'fox',
+    // 擴充單字(可以繼續往後加)
+    'ant', 'bee', 'cow', 'egg', 'fan', 'hen', 'jam', 'kite', 'leg', 'map',
+    'net', 'owl', 'pot', 'rat', 'sit', 'top', 'van', 'wet', 'yak', 'zip'
+  ];
   function sayWord(w) { if (w) PLS.say(w.toLowerCase(), 'en-US'); }
 
   const MAP_XS = [330, 600, 870, 600];
@@ -56,6 +62,7 @@
       this.petId = params.pet || 'rabbit';
       this.note = '';
       this.scrollY = 0; this._pdown = false; this._drag = false; this._sbdrag = false;
+      this._enteredAt = Date.now(); // 防止切換畫面時誤觸節點
       this.nodes = CFG.english.map(function (lv, i) {
         return { lv: lv, i: i, x: MAP_XS[i % 4], y: MAP_Y0 + i * MAP_STEP };
       });
@@ -78,6 +85,8 @@
         this._pdown = false;
         if (this._drag) { this._drag = false; return; }
         if (y < TOP_BAND - 6) return;
+        // 剛進入畫面 350ms 內忽略 tap，防止「收下玩具」誤觸下一關
+        if (Date.now() - (this._enteredAt || 0) < 350) return;
         const cy = y + this.scrollY;
         for (let k = 0; k < this.nodes.length; k++) {
           const n = this.nodes[k], dx = x - n.x, dyy = cy - n.y;
