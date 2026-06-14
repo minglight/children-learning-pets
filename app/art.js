@@ -192,7 +192,7 @@
   }
 
   // ── 形狀(m6)──────────────────────────────────────────
-  const SHAPE_COLORS = { circle: '#F4A8A0', triangle: '#8FC9A8', square: '#92B8E0', rect: '#C5A8E0', star: '#F6C95E' };
+  const SHAPE_COLORS = { circle: '#F4A8A0', triangle: '#8FC9A8', square: '#92B8E0', rect: '#C5A8E0', star: '#F6C95E', oval: '#B8E0F4', diamond: '#D4B8E0', heart: '#F4B8C8' };
   function drawShape(ctx, id, x, y, s, color) {
     ctx.save(); ctx.translate(x, y); ctx.scale(s || 1, s || 1);
     ctx.fillStyle = color || SHAPE_COLORS[id] || '#999';
@@ -209,6 +209,18 @@
         ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
       }
       ctx.closePath(); ctx.fill();
+    }
+    else if (id === 'oval') { el(ctx, 0, 0, 44, 26); ctx.fill(); }
+    else if (id === 'diamond') {
+      ctx.beginPath(); ctx.moveTo(0, -36); ctx.lineTo(28, 0); ctx.lineTo(0, 32); ctx.lineTo(-28, 0); ctx.closePath(); ctx.fill();
+    }
+    else if (id === 'heart') {
+      const r = 28;
+      ctx.beginPath();
+      ctx.moveTo(0, r * 0.9);
+      ctx.bezierCurveTo(-r * 1.3, 0, -r * 0.7, -r, 0, -r * 0.35);
+      ctx.bezierCurveTo(r * 0.7, -r, r * 1.3, 0, 0, r * 0.9);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -248,6 +260,27 @@
       ctx.fillStyle = '#E89BB0';
       ctx.beginPath(); ctx.moveTo(-40, 24); ctx.lineTo(-16, -24); ctx.lineTo(8, 24); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.arc(30, 0, 24, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fill();
+    },
+    // ── 額外正解組合(同一個目標多種拼法,避免被死背)──────
+    tri2b: function (ctx) { // 兩個直角三角形 → 正方形(沿另一條對角線切開)
+      ctx.fillStyle = '#7FB6D6';
+      ctx.beginPath(); ctx.moveTo(-30, -30); ctx.lineTo(26, -30); ctx.lineTo(-30, 26); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(30, -26); ctx.lineTo(30, 30); ctx.lineTo(-26, 30); ctx.closePath(); ctx.fill();
+    },
+    semi2h: function (ctx) { // 兩個半圓(上下切)→ 圓形
+      ctx.fillStyle = '#F4B86A';
+      ctx.beginPath(); ctx.arc(0, -4, 30, Math.PI, Math.PI * 2); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, 4, 30, 0, Math.PI); ctx.closePath(); ctx.fill();
+    },
+    rect2v: function (ctx) { // 兩個寬扁長方形(上下疊)→ 長方形
+      ctx.fillStyle = '#9FD09A';
+      rr(ctx, -38, -22, 76, 19, 5); ctx.fill();
+      rr(ctx, -38, 3, 76, 19, 5); ctx.fill();
+    },
+    tri2L: function (ctx) { // 兩個直角三角形(不對稱切)→ 大三角形
+      ctx.fillStyle = '#E0A6D6';
+      ctx.beginPath(); ctx.moveTo(-1, -28); ctx.lineTo(-44, 28); ctx.lineTo(10, 28); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(1, -28); ctx.lineTo(14, 28); ctx.lineTo(44, 28); ctx.closePath(); ctx.fill();
     }
   };
   function drawPair(ctx, key, x, y, s) {

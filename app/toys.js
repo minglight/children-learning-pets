@@ -141,6 +141,33 @@
     },
 
     // ── 進階單字關卡的玩具 ──────────────────────────────
+    wand: function (ctx) { // 魔法棒(兔兔 e7b)
+      ctx.strokeStyle = '#C9A06A'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 38); ctx.lineTo(0, -10); ctx.stroke();
+      ctx.fillStyle = '#F6C95E';
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const r = i % 2 ? 9 : 22;
+        const a = -Math.PI / 2 + i * Math.PI / 5;
+        ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r - 18);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      [[16, -8], [20, -26], [-14, -22]].forEach(function (p) {
+        ctx.beginPath(); ctx.arc(p[0], p[1], 3, 0, Math.PI * 2); ctx.fill();
+      });
+    },
+    rocket: function (ctx) { // 小火箭(倉倉 e7b)
+      ctx.fillStyle = '#9FC3E8';
+      ctx.beginPath(); ctx.moveTo(0, -40); ctx.quadraticCurveTo(17, -8, 14, 24); ctx.lineTo(-14, 24); ctx.quadraticCurveTo(-17, -8, 0, -40); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(0, -12, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#BCD8F2'; ctx.beginPath(); ctx.arc(0, -12, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#6E97C4';
+      ctx.beginPath(); ctx.moveTo(14, 18); ctx.lineTo(28, 34); ctx.lineTo(14, 34); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-14, 18); ctx.lineTo(-28, 34); ctx.lineTo(-14, 34); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#F6C95E';
+      ctx.beginPath(); ctx.moveTo(-8, 26); ctx.lineTo(0, 46); ctx.lineTo(8, 26); ctx.closePath(); ctx.fill();
+    },
     dollhouse: function (ctx) { // 玩具屋(兔兔 e7)
       ctx.fillStyle = '#FCEAF0'; rr(ctx, -30, -6, 60, 44, 8); ctx.fill();      // 屋身
       ctx.fillStyle = '#F2A9B8';

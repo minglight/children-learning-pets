@@ -67,14 +67,13 @@
         },
         onTap: function () { if (self.q) PLS.say(self.q.say); }
       });
-      // 三張答案卡
-      const x0 = (QC.x + QC.w / 2) - (TILE.w * 3 + TILE.gap * 2) / 2;
-      for (let i = 0; i < 3; i++) {
+      // 答案卡(最多 4 張;第 4 張在連勝後才顯示,由 next() 動態設定位置)
+      for (let i = 0; i < 4; i++) {
         (function (i) {
-          const bx = x0 + i * (TILE.w + TILE.gap);
           const b = PLS.addButton({
-            x: bx, y: TILE.y, w: TILE.w, h: TILE.h,
-            draw: function (ctx, t) { self.drawTile(ctx, t, i, bx, TILE.y, TILE.w, TILE.h); },
+            x: 0, y: TILE.y, w: TILE.w, h: TILE.h,
+            hidden: function () { return i >= 3 && (!self.q || self.q.options.length < 4); },
+            draw: function (ctx, t) { self.drawTile(ctx, t, i, b.x, b.y, b.w, b.h); },
             disabled: function () { return self.locked || !self.q || self.wrong.has(i); },
             onTap: function () { self.answer(i); }
           });
@@ -96,6 +95,23 @@
       const diff = this.streak >= 4 ? 2 : this.streak >= 2 ? 1 : 0;
       this.q = this.lv.bank ? this.pickBank() : G.gen[this.lv.gen](diff);
       this.locked = false;
+      // 中後段關卡連勝 3 題 → 加第 4 個選項,提升挑戰
+      if (!this.lv.bank && this.levelIdx >= 5 && this.streak >= 3 &&
+          this.q && this.q.kind === 'number' && this.q.options.length === 3) {
+        const ans = this.q.answer, existing = new Set(this.q.options);
+        let extra = null;
+        for (let d = 1; d <= 30 && extra === null; d++) {
+          const c = ans + (d % 2 === 1 ? d : -d);
+          if (c >= 0 && c <= 99 && !existing.has(c)) extra = c;
+        }
+        if (extra !== null) this.q.options = G.shuffle(this.q.options.concat([extra]));
+      }
+      // 動態調整答案卡寬度與位置(3 選項:230px × 3;4 選項:175px × 4)
+      const n = this.q && this.q.options.length >= 4 ? 4 : 3;
+      const tCx = QC.x + QC.w / 2;
+      const tw = n === 4 ? 175 : TILE.w, tgap = n === 4 ? 20 : TILE.gap;
+      const tx0 = tCx - (tw * n + tgap * (n - 1)) / 2;
+      this.tiles.forEach(function (b, i) { b.x = tx0 + i * (tw + tgap); b.y = TILE.y; b.w = tw; b.h = TILE.h; });
       if (this.q) PLS.say(this.q.say);
     },
 
@@ -246,6 +262,12 @@
         A.drawShape(ctx, q.display.target, cx, cy - 30, 1.25);
         ctx.font = '40px ' + FONT; ctx.fillStyle = '#8A6242';
         ctx.fillText('哪兩塊積木合起來,會變成它?', cx, cy + 96);
+      } else if (q.kind === 'repeatadd') {
+        const chainFit = A.fitText(ctx, q.display.chain + '  =  ?', QC.w - 120, 110, 66, 42);
+        A.drawLines(ctx, chainFit.lines, chainFit.size, cx, cy - 28, '#5E4A36');
+        ctx.font = '34px ' + FONT; ctx.fillStyle = '#A8927A';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(G.numZh(q.display.b) + ' 個 ' + G.numZh(q.display.a) + ' 相加，一共是多少?', cx, cy + 66);
       } else if (q.kind === 'text') {
         if (q.visual) {
           const fit = A.fitText(ctx, q.display.text, QC.w - 120, 96, 40, 24);

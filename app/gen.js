@@ -176,7 +176,10 @@
     { id: 'triangle', zh: '三角形' },
     { id: 'square', zh: '正方形' },
     { id: 'rect', zh: '長方形' },
-    { id: 'star', zh: '星星' }
+    { id: 'star', zh: '星星' },
+    { id: 'oval', zh: '橢圓形' },
+    { id: 'diamond', zh: '菱形' },
+    { id: 'heart', zh: '愛心' }
   ];
   gen.shapeFind = function () {
     const target = pick(SHAPES);
@@ -193,10 +196,10 @@
   // m7 圖形拼補:哪兩塊合起來是這個形狀?
   // pieces 由 art.js 依 key 繪製
   const COMPOSE = [
-    { target: 'square', zh: '正方形', good: ['tri2', 'rect2'], bad: ['semi2', 'triCir', 'sq2'] },
-    { target: 'circle', zh: '圓形', good: ['semi2'], bad: ['tri2', 'rect2', 'triCir'] },
-    { target: 'rect', zh: '長方形', good: ['sq2'], bad: ['semi2', 'triCir', 'tri2w'] },
-    { target: 'triangle', zh: '三角形', good: ['tri2w'], bad: ['semi2', 'sq2', 'triCir'] }
+    { target: 'square', zh: '正方形', good: ['tri2', 'rect2', 'tri2b'], bad: ['semi2', 'triCir', 'sq2', 'rect2v'] },
+    { target: 'circle', zh: '圓形', good: ['semi2', 'semi2h'], bad: ['tri2', 'rect2', 'triCir', 'sq2'] },
+    { target: 'rect', zh: '長方形', good: ['sq2', 'rect2v'], bad: ['semi2', 'triCir', 'tri2w', 'tri2'] },
+    { target: 'triangle', zh: '三角形', good: ['tri2w', 'tri2L'], bad: ['semi2', 'sq2', 'triCir', 'rect2'] }
   ];
   gen.shapeCompose = function () {
     const c = pick(COMPOSE);
@@ -227,6 +230,22 @@
   gen.mulIntro = function () { // 乘法初體驗(幾個幾)
     const a = ri(2, 5), b = ri(2, 5), ans = a * b;
     return { kind: 'number', display: { a: a, op: '×', b: b }, say: numZh(a) + ' 乘 ' + numZh(b) + ',等於多少?', answer: ans, options: numOptions(ans, 1) };
+  };
+
+  // 同數連加過渡(乘法預備)— 先呈現加法串,再統計答案
+  gen.mulBridge = function () {
+    const a = ri(2, 4), b = ri(2, 4);
+    const ans = a * b;
+    const parts = [];
+    for (var k = 0; k < b; k++) parts.push(String(a));
+    const chain = parts.join(' + ');
+    return {
+      kind: 'repeatadd',
+      display: { a: a, b: b, chain: chain },
+      say: numZh(b) + '個' + numZh(a) + '相加,一共是多少?',
+      answer: ans,
+      options: numOptions(ans, 1)
+    };
   };
 
   window.PLS_GEN = { gen: gen, numZh: numZh, ri: ri, pick: pick, shuffle: shuffle };

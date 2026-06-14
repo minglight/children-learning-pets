@@ -45,6 +45,23 @@
     ctx.restore();
   };
 
+  // 在 (cx,cy) 置中畫一顆「關卡編號」圓徽章(永遠顯示,不受 locked 變暗影響)
+  window.PLS_NUMBADGE = function (ctx, cx, cy, num, fill) {
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.shadowColor = 'rgba(150,100,40,0.30)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+    ctx.fillStyle = fill || '#B98A4F';
+    A.el(ctx, cx, cy, 20, 20); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2.5;
+    A.el(ctx, cx, cy, 20, 20); ctx.stroke();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '800 22px ' + FONT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(num), cx, cy + 1);
+    ctx.restore();
+  };
+
   // ── 食物中文名(展示用)──────────────────────────────
   const FOOD_NAMES = {
     apple: '蘋果', strawberry: '草莓', orange: '橘子', banana: '香蕉',
@@ -494,10 +511,12 @@
         ctx.globalAlpha = 1;
         ctx.save();
         ctx.shadowColor = 'rgba(150,100,60,0.18)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
-        ctx.fillStyle = '#FFF7EA'; A.el(ctx, x - 40, y - 36, 18, 18); ctx.fill();
+        ctx.fillStyle = '#FFF7EA'; A.el(ctx, x + 40, y - 36, 18, 18); ctx.fill();
         ctx.restore();
-        A.drawIcon(ctx, 'lock', x - 40, y - 36, 0.92, '#A0876E');
+        A.drawIcon(ctx, 'lock', x + 40, y - 36, 0.92, '#A0876E');
       }
+      // 關卡編號(永遠顯示在左上角)
+      window.PLS_NUMBADGE(ctx, x - 40, y - 40, n.i + 1, '#C2924F');
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '26px ' + FONT; ctx.fillStyle = '#7A5C3E';
       ctx.fillText(n.lv.name, x, y + 80);

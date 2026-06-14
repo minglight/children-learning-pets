@@ -13,12 +13,14 @@
     return a;
   }
   const UP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-  const WORDS = [
-    // 原有單字
+  const WORDS_CVC = [
     'cat', 'dog', 'sun', 'hat', 'pig', 'cup', 'bus', 'bed', 'box', 'pen', 'bag', 'fox',
-    // 擴充單字(可以繼續往後加)
-    'ant', 'bee', 'cow', 'egg', 'fan', 'hen', 'jam', 'kite', 'leg', 'map',
+    'ant', 'bee', 'cow', 'egg', 'fan', 'hen', 'jam', 'leg', 'map',
     'net', 'owl', 'pot', 'rat', 'sit', 'top', 'van', 'wet', 'yak', 'zip'
+  ];
+  // magic-e 小學 長母音單字(e7b 關卡用)
+  const WORDS_MAGIC_E = [
+    'kite', 'cake', 'bike', 'gate', 'home', 'rose', 'game', 'name', 'bone', 'tune', 'cube', 'lake'
   ];
   function sayWord(w) { if (w) PLS.say(w.toLowerCase(), 'en-US'); }
 
@@ -146,10 +148,12 @@
         ctx.globalAlpha = 1;
         ctx.save();
         ctx.shadowColor = 'rgba(110,140,115,0.18)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
-        ctx.fillStyle = '#F5F7F0'; A.el(ctx, x - 40, y - 36, 18, 18); ctx.fill();
+        ctx.fillStyle = '#F5F7F0'; A.el(ctx, x + 40, y - 36, 18, 18); ctx.fill();
         ctx.restore();
-        A.drawIcon(ctx, 'lock', x - 40, y - 36, 0.92, '#8FA58F');
+        A.drawIcon(ctx, 'lock', x + 40, y - 36, 0.92, '#8FA58F');
       }
+      // 關卡編號(永遠顯示在左上角)
+      window.PLS_NUMBADGE(ctx, x - 40, y - 40, n.i + 1, '#6E9A6E');
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '26px ' + FONT; ctx.fillStyle = '#56684E';
       ctx.fillText(n.lv.name, x, y + 80);
@@ -232,7 +236,16 @@
       this.strokes = []; this.cur = null; this.drawnLen = 0;
       this.boxes = []; this.curBox = null;
       this.deck = shuffle(UP.slice());
-      this.wordDeck = shuffle(WORDS.slice());
+      // 依關卡設定選用正確的單字庫：spell 用純三字母、wpick 依層級分 CVC / magic-e
+      var wordPool;
+      if (this.mode === 'spell') {
+        wordPool = WORDS_CVC.filter(function (w) { return w.length === 3; });
+      } else if (this.lv.wordPool === 'magic_e') {
+        wordPool = WORDS_MAGIC_E;
+      } else {
+        wordPool = WORDS_CVC;
+      }
+      this.wordDeck = shuffle(wordPool.slice());
       this.slots = ['', '', '']; this.slotFrom = [null, null, null]; this.bank = [];
 
       backButton('emap', this.petId);
@@ -365,7 +378,7 @@
         setTimeout(function () { sayLetter(base); }, 350);
       } else if (this.mode === 'wpick') {
         const target = this.wordDeck[this.qIndex % this.wordDeck.length];
-        const others = shuffle(WORDS.filter(function (w) { return w !== target; })).slice(0, 2);
+        const others = shuffle(this.wordDeck.filter(function (w) { return w !== target; })).slice(0, 2);
         this.q = { word: target, options: shuffle([target].concat(others)), answer: target };
         this.bubbleText = pickTalk(CFG.talkEng.welcome);
         this.bubbleUntil = PLS.t + 2.2;
