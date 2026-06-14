@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="寵物小學堂">
+<meta name="theme-color" content="#FBF2E4">
+<title>寵物小學堂</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&amp;family=Baloo+2:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #E8D9C8; }
+  body { font-family: "Huninn", "Baloo 2", sans-serif; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  #game { display: block; position: fixed; inset: 0; touch-action: none; }
+  .font-warmup { position: absolute; opacity: 0; pointer-events: none; }
+
+  /* ── 家長區(DOM 覆蓋層)── */
+  #parent-overlay {
+    position: fixed; inset: 0; background: rgba(90, 70, 50, 0.45);
+    display: none; align-items: center; justify-content: center; z-index: 10;
+  }
+  #parent-overlay.show { display: flex; }
+  #parent-panel {
+    width: min(560px, 90vw); max-height: 86vh; overflow: auto;
+    background: #FFFCF6; border-radius: 28px; padding: 28px 30px;
+    box-shadow: 0 18px 50px rgba(90, 60, 30, 0.3); color: #5E4A36;
+  }
+  #parent-panel h2 { margin: 0 0 4px; font-size: 26px; font-weight: normal; color: #8A6242; }
+  #parent-panel .hint { font-size: 14px; color: #A8927A; margin: 0 0 18px; }
+  #parent-panel section { border-top: 1px solid #EFE4D4; padding: 14px 0; }
+  #parent-panel h3 { margin: 0 0 10px; font-size: 17px; font-weight: normal; color: #8A6242; }
+  #parent-panel .stat-row { display: flex; gap: 10px; flex-wrap: wrap; font-size: 14.5px; margin-bottom: 6px; }
+  #parent-panel .stat-row b { font-weight: normal; color: #B97A52; }
+  .prow { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .prow label { font-size: 15px; min-width: 64px; }
+  .prow input[type="text"] {
+    font-family: inherit; font-size: 16px; padding: 8px 12px;
+    border: 2px solid #EFE4D4; border-radius: 12px; width: 140px; background: #FFF;
+    color: #5E4A36; outline: none;
+  }
+  .prow input[type="text"]:focus { border-color: #F2B96B; }
+  .pbtns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pbtn {
+    font-family: inherit; font-size: 16px; padding: 10px 18px; cursor: pointer;
+    border: none; border-radius: 14px; background: #F2B96B; color: #FFF;
+  }
+  .pbtn.ghost { background: #F2E8D8; color: #8A6242; }
+  #parent-close { position: sticky; top: 0; float: right; margin: -6px -8px 0 0; }
+  #import-file { display: none; }
+  #parent-msg { font-size: 14px; color: #6FA86A; min-height: 20px; margin-top: 8px; }
+
+  /* ── 數字密碼鎖 ── */
+  #pin-overlay {
+    position: fixed; inset: 0; background: rgba(90, 70, 50, 0.5);
+    display: none; align-items: center; justify-content: center; z-index: 20;
+  }
+  #pin-overlay.show { display: flex; }
+  #pin-panel {
+    width: min(360px, 88vw); background: #FFFCF6; border-radius: 26px;
+    padding: 26px 26px 22px; box-shadow: 0 18px 50px rgba(90, 60, 30, 0.34);
+    color: #5E4A36; text-align: center;
+  }
+  #pin-panel h3 { margin: 0 0 4px; font-size: 21px; font-weight: normal; color: #8A6242; }
+  #pin-panel .pin-hint { font-size: 13.5px; color: #A8927A; margin: 0 0 18px; }
+  .pin-dots { display: flex; justify-content: center; gap: 16px; margin: 0 0 6px; height: 22px; }
+  .pin-dots span {
+    width: 16px; height: 16px; border-radius: 50%; background: #EFE2CE;
+    border: 2px solid #E4D2B8; transition: background .12s, transform .12s;
+  }
+  .pin-dots span.on { background: #F2B96B; border-color: #F2B96B; transform: scale(1.12); }
+  #pin-err { font-size: 13.5px; color: #D98268; min-height: 20px; margin: 4px 0 10px; }
+  #pin-err.shake { animation: pinshake .4s; }
+  @keyframes pinshake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .pin-key {
+    font-family: inherit; font-size: 26px; padding: 14px 0; cursor: pointer;
+    border: none; border-radius: 16px; background: #F6EEE0; color: #6E5238;
+    transition: background .1s, transform .05s;
+  }
+  .pin-key:active { transform: scale(0.94); background: #F2DFC2; }
+  .pin-key.wide { font-size: 17px; }
+  .pin-key.blank { background: transparent; cursor: default; }
+</style>
+</head>
+<body>
+<div class="font-warmup">寵物小學堂 Aa3b7 = ?</div>
+<canvas id="game"></canvas>
+
+<div id="parent-overlay">
+  <div id="parent-panel">
+    <button class="pbtn ghost" id="parent-close">關閉 ✕</button>
+    <h2>家長區</h2>
+    <p class="hint">進度只存在這台裝置上。請定期「匯出進度」備份;換裝置或資料遺失時可匯入還原。</p>
+
+    <section>
+      <h3>學習狀況</h3>
+      <div id="parent-stats"></div>
+    </section>
+
+    <section>
+      <h3>寵物名字</h3>
+      <div class="prow"><label>兔兔</label><input type="text" id="name-rabbit" maxlength="6" placeholder="兔兔"></div>
+      <div class="prow"><label>倉鼠</label><input type="text" id="name-hamster" maxlength="6" placeholder="倉倉"></div>
+      <div class="pbtns"><button class="pbtn ghost" id="save-names">儲存名字</button></div>
+    </section>
+
+    <section>
+      <h3>版本模式</h3>
+      <p class="hint" style="margin:0 0 12px">測試版會解除所有關卡鎖定與每日限制(包含家裡換擺設),方便檢查內容;正式版會照孩子進度逐關解鎖。</p>
+      <label class="prow" style="cursor:pointer;align-items:center">
+        <input type="checkbox" id="test-toggle" style="width:24px;height:24px;accent-color:#F2B96B;cursor:pointer">
+        <span style="font-size:16px">測試版(解除鎖定)</span>
+      </label>
+    </section>
+
+    <section>
+      <h3>備份</h3>
+      <div class="pbtns">
+        <button class="pbtn" id="export-btn">匯出進度(下載備份)</button>
+        <button class="pbtn ghost" id="import-btn">匯入進度</button>
+        <input type="file" id="import-file" accept="application/json">
+      </div>
+      <div id="parent-msg"></div>
+    </section>
+  </div>
+</div>
+
+<div id="pin-overlay">
+  <div id="pin-panel">
+    <h3>家長確認</h3>
+    <p class="pin-hint">請輸入家長密碼,才能開啟測試版</p>
+    <div class="pin-dots" id="pin-dots"><span></span><span></span><span></span><span></span></div>
+    <div id="pin-err"></div>
+    <div class="pin-pad" id="pin-pad">
+      <button class="pin-key" data-k="1">1</button>
+      <button class="pin-key" data-k="2">2</button>
+      <button class="pin-key" data-k="3">3</button>
+      <button class="pin-key" data-k="4">4</button>
+      <button class="pin-key" data-k="5">5</button>
+      <button class="pin-key" data-k="6">6</button>
+      <button class="pin-key" data-k="7">7</button>
+      <button class="pin-key" data-k="8">8</button>
+      <button class="pin-key" data-k="9">9</button>
+      <button class="pin-key wide" data-k="cancel">取消</button>
+      <button class="pin-key" data-k="0">0</button>
+      <button class="pin-key wide" data-k="del">刪除</button>
+    </div>
+  </div>
+</div>
+
+<script src="app/config.js"></script>
+<script src="app/gen.js"></script>
+<script src="app/bank.js"></script>
+<script src="app/store.js"></script>
+<script src="app/art.js"></script>
+<script src="app/toys.js"></script>
+<script src="app/visuals.js"></script>
+<script src="app/pets.js"></script>
+<script src="app/main.js"></script>
+<script src="app/screens.js"></script>
+<script src="app/quiz.js"></script>
+<script src="app/english.js"></script>
+<script>
+(function () {
+  const ST = window.PLS_STORE, CFG = window.PLS_CONFIG;
+
+  // ── 家長區 ──
+  const overlay = document.getElementById('parent-overlay');
+  const msg = document.getElementById('parent-msg');
+
+  function refreshStats() {
+    const box = document.getElementById('parent-stats');
+    box.innerHTML = '';
+    ['rabbit', 'hamster'].forEach(function (pid) {
+      const d = ST.load(pid);
+      const name = d.name || CFG.pets[pid].name;
+      let cleared = 0, plays = 0;
+      CFG.math.forEach(function (lv) {
+        const r = d.levels[lv.id];
+        if (r) { plays += r.plays; if (r.cleared) cleared++; }
+      });
+      const row = document.createElement('div');
+      row.className = 'stat-row';
+      row.innerHTML = '<b>' + name + '</b><span>數學通關 ' + cleared + ' / ' +
+        CFG.math.filter(function (l) { return !l.locked; }).length + ' 關</span>' +
+        '<span>玩過 ' + plays + ' 輪</span>' +
+        '<span>今日大餐 ' + (d.daily.math || 0) + ' / ' + CFG.dailyLimit + '</span>';
+      box.appendChild(row);
+    });
+    document.getElementById('name-rabbit').value = ST.load('rabbit').name || '';
+    document.getElementById('name-hamster').value = ST.load('hamster').name || '';
+  }
+
+  window.PLS_PARENT = {
+    open: function () { refreshStats(); msg.textContent = ''; document.getElementById('test-toggle').checked = ST.isTest(); overlay.classList.add('show'); },
+    close: function () { overlay.classList.remove('show'); }
+  };
+  document.getElementById('parent-close').addEventListener('click', window.PLS_PARENT.close);
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) window.PLS_PARENT.close(); });
+
+  // ── 測試版密碼鎖(9527)──
+  const PIN_CODE = '9527';
+  const testToggle = document.getElementById('test-toggle');
+  const pinOverlay = document.getElementById('pin-overlay');
+  const pinDots = document.getElementById('pin-dots').children;
+  const pinErr = document.getElementById('pin-err');
+  let pinBuf = '';
+
+  function renderPin() {
+    for (let i = 0; i < pinDots.length; i++) pinDots[i].classList.toggle('on', i < pinBuf.length);
+  }
+  function openPin() {
+    pinBuf = ''; pinErr.textContent = ''; renderPin();
+    pinOverlay.classList.add('show');
+  }
+  function closePin() { pinOverlay.classList.remove('show'); }
+
+  function pinPress(k) {
+    if (k === 'cancel') { closePin(); testToggle.checked = false; return; }
+    if (k === 'del') { pinBuf = pinBuf.slice(0, -1); pinErr.textContent = ''; renderPin(); return; }
+    if (pinBuf.length >= 4) return;
+    pinBuf += k; renderPin();
+    if (pinBuf.length === 4) {
+      if (pinBuf === PIN_CODE) {
+        closePin();
+        ST.setTest(true);
+        testToggle.checked = true;
+        msg.textContent = '已切換到測試版(已解除鎖定)';
+        refreshStats();
+      } else {
+        pinErr.textContent = '密碼不對,再試一次';
+        pinErr.classList.remove('shake'); void pinErr.offsetWidth; pinErr.classList.add('shake');
+        setTimeout(function () { pinBuf = ''; renderPin(); }, 450);
+      }
+    }
+  }
+  document.getElementById('pin-pad').addEventListener('click', function (e) {
+    const b = e.target.closest('.pin-key'); if (!b || !b.dataset.k) return;
+    pinPress(b.dataset.k);
+  });
+  pinOverlay.addEventListener('click', function (e) {
+    if (e.target === pinOverlay) { closePin(); testToggle.checked = false; }
+  });
+
+  testToggle.addEventListener('change', function () {
+    if (this.checked) {
+      // 開啟測試版需要家長密碼:先還原勾選,通過後才真正開啟
+      this.checked = false;
+      openPin();
+    } else {
+      ST.setTest(false);
+      msg.textContent = '已切換到正式版';
+      refreshStats();
+    }
+  });
+
+  document.getElementById('save-names').addEventListener('click', function () {
+    ['rabbit', 'hamster'].forEach(function (pid) {
+      const d = ST.load(pid);
+      const v = document.getElementById('name-' + pid).value.trim();
+      d.name = v || null;
+      ST.save(d);
+    });
+    msg.textContent = '名字已儲存';
+    refreshStats();
+  });
+
+  document.getElementById('export-btn').addEventListener('click', function () {
+    const blob = new Blob([ST.exportAll()], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '寵物小學堂備份-' + ST.today() + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    msg.textContent = '已下載備份檔';
+  });
+
+  const fileInput = document.getElementById('import-file');
+  document.getElementById('import-btn').addEventListener('click', function () { fileInput.click(); });
+  fileInput.addEventListener('change', function () {
+    const f = fileInput.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = function () {
+      try {
+        ST.importAll(r.result);
+        msg.textContent = '匯入成功!';
+        refreshStats();
+      } catch (e) {
+        msg.textContent = '匯入失敗:' + e.message;
+      }
+      fileInput.value = '';
+    };
+    r.readAsText(f);
+  });
+
+  // ── 啟動 ──
+  window.PLS.init(document.getElementById('game'));
+  window.PLS.go('home');
+
+  // ── PWA:service worker ──
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>首頁視覺方向 · 寵物小學堂</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&amp;family=Baloo+2:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  body { margin: 0; font-family: "Huninn", "Baloo 2", sans-serif; }
+  .font-warmup { position: absolute; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="font-warmup">寵物小學堂 Aa3b7</div>
+<div id="root"></div>
+<script src="pets.js"></script>
+<script src="scenes.js"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+
+function CanvasBoard({ scene }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const cv = ref.current;
+    const ctx = cv.getContext('2d');
+    const S = cv.width / 834;
+    let raf;
+    const t0 = performance.now();
+    const loop = (now) => {
+      ctx.setTransform(S, 0, 0, S, 0, 0);
+      window.Scenes[scene](ctx, (now - t0) / 1000, 834, 1194);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [scene]);
+  return <canvas ref={ref} width={1251} height={1791} style={{ width: 417, height: 597, display: 'block', borderRadius: 8 }}></canvas>;
+}
+
+function Notes() {
+  const h = { margin: '0 0 6px', fontSize: 15, color: '#7A5C3E' };
+  const p = { margin: '0 0 12px', fontSize: 12.5, lineHeight: 1.7, color: '#5E5246' };
+  return (
+    <div style={{ padding: '18px 20px', width: 380, background: '#FFFDF8' }}>
+      <h3 style={h}>設計脈絡與假設</h3>
+      <p style={p}>
+        目標:iPad 直式 PWA,小一生(識字有限)選角首頁。兩隻寵物 = 兩個 profile,點角色即進入,無文字選單。
+        角色與場景全部用 Canvas 即時繪製(非圖片),含待機動畫:呼吸起伏、眨眼、兔耳輕擺、雲朵漂浮。
+        字體:Huninn(粉圓體,圓潤、適合兒童)+ Baloo 2(數字/英文)。
+      </p>
+      <h3 style={h}>三個方向的差異</h3>
+      <p style={p}>
+        <b>A 奶油草地</b>:最接近 Sago Mini 的戶外感,兩隻並排、地位對等,天空飄著淡淡的數字與字母。<br></br>
+        <b>B 清晨雲朵</b>:最安靜清爽,上下兩朵雲平台,動線由上往下,適合直式構圖。<br></br>
+        <b>C 溫馨小屋</b>:電子雞感最強 — 房子剖面、一人一房,房間裡放各自的玩具(兔兔:娃娃與積木;倉倉:小汽車與機器人),之後「玩具獎勵」可直接陳列在房間裡。
+      </p>
+      <h3 style={h}>之後的進階關卡(查過台灣課綱)</h3>
+      <p style={{ ...p, margin: 0 }}>
+        小二數學會進入:兩位數+兩位數(進位)、退位減法、乘法與九九乘法表 — 這些會做成「上鎖關卡」,資料設定好但灰色不可點,之後解鎖即可。
+      </p>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <DesignCanvas>
+      <DCSection id="home" title="首頁視覺方向 · 選角畫面" subtitle="iPad 直式 834×1194 · Canvas 即時繪製 · 含待機動畫(呼吸、眨眼、耳朵擺動)">
+        <DCArtboard id="notes" label="設計脈絡" width={380}>
+          <Notes></Notes>
+        </DCArtboard>
+        <DCArtboard id="a" label="A · 奶油草地" width={417} height={597}>
+          <CanvasBoard scene="meadow"></CanvasBoard>
+        </DCArtboard>
+        <DCArtboard id="b" label="B · 清晨雲朵" width={417} height={597}>
+          <CanvasBoard scene="sky"></CanvasBoard>
+        </DCArtboard>
+        <DCArtboard id="c" label="C · 溫馨小屋" width={417} height={597}>
+          <CanvasBoard scene="cozy"></CanvasBoard>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App></App>);
+</script>
+</body>
+</html>

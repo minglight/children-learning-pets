@@ -1,0 +1,16 @@
+{
+  "name": "寵物小學堂",
+  "short_name": "寵物小學堂",
+  "description": "小一數學與英文學習,跟寵物一起吃大餐!",
+  "lang": "zh-Hant",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF2E4",
+  "theme_color": "#FBF2E4",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
