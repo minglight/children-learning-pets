@@ -7,11 +7,12 @@
 
   function pickTalk(list) { return list[Math.floor(Math.random() * list.length)]; }
 
-  // 豪華大餐:拿原本的大餐加碼兩樣甜點,擺更滿、更豐盛
+  // 豪華大餐:同樣食物多給 7 份(基礎版 5 份),份量更豐盛
   function deluxeItems(lv) {
     if (lv.feastDeluxe) return lv.feastDeluxe;
-    const b = lv.feast.items, n = b.length;
-    return [b[0], 'cake', b[1 % n], 'sundae', b[2 % n], 'scoop', b[3 % n]];
+    const b = lv.feast.items, n = b.length, out = [];
+    for (let i = 0; i < 7; i++) out.push(b[i % n]);
+    return out;
   }
 
   // 題目卡 / 答案卡 / 寵物盤子 的版面(寬版)
@@ -402,7 +403,9 @@
       this.deluxe = !!params.deluxe;
       this.clears = params.clears || 0;
       this.items = this.deluxe ? deluxeItems(this.lv) : this.lv.feast.items;
-      this.feastName = this.deluxe ? ('豪華版 · ' + this.lv.feast.name) : this.lv.feast.name;
+      this.feastName = this.deluxe
+        ? (this.lv.feast.deluxeName || ('豪華版 · ' + this.lv.feast.name))
+        : (this.lv.feast.basicName  || this.lv.feast.name);
       this.start = PLS.t;
       this.heartTimer = 0;
       PLS.sfx.feast();
@@ -450,20 +453,98 @@
       ctx.fillStyle = '#E0B98A'; A.rr(ctx, 160, 600, W - 320, 44, 20); ctx.fill();
       ctx.fillStyle = '#CDA170'; A.rr(ctx, 210, 640, 36, 150, 12); ctx.fill();
       A.rr(ctx, W - 246, 640, 36, 150, 12); ctx.fill();
-      // 大餐盤
+      // 大餐盤(豪華版→金色盤)
       ctx.save();
       ctx.shadowColor = 'rgba(120,90,60,0.22)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 5;
-      ctx.fillStyle = '#FFFFFF'; A.el(ctx, W / 2, 594, 250, 54); ctx.fill();
+      ctx.fillStyle = this.deluxe ? '#F6C44A' : '#FFFFFF';
+      A.el(ctx, W / 2, 594, 250, 54); ctx.fill();
+      if (this.deluxe) {
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = '#C98A18'; ctx.lineWidth = 3;
+        A.el(ctx, W / 2, 594, 250, 54); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
+        A.el(ctx, W / 2, 592, 210, 38); ctx.stroke();
+      }
       ctx.restore();
       const items = this.items;
-      const gap = items.length > 5 ? 78 : 92;
+      const feastScale = this.deluxe ? 1.28 : 1.1;
+      const gap = items.length > 5 ? 76 : 90;
       items.forEach(function (key, i) {
         const ik = (k - 0.4 - i * 0.3);
         if (ik < 0) return;
-        const pop = ik < 0.35 ? 1 + Math.sin(ik / 0.35 * Math.PI) * 0.25 : 1;
+        const pop = ik < 0.35 ? 1 + Math.sin(ik / 0.35 * Math.PI) * 0.28 : 1;
         const x = W / 2 + (i - (items.length - 1) / 2) * gap;
-        A.drawFood(ctx, key, x, 558, 1.1 * pop);
+        A.drawFood(ctx, key, x, 558, feastScale * pop);
       });
+
+      // ── 累積進度條 ─────────────────────────────────────────
+      var dAt = ST.deluxeAt();          // 10
+      var bCY = 660, bSpc = 50, bR = 14;
+      var bTW = (dAt - 1) * bSpc;
+      var bX0 = W / 2 - bTW / 2;
+      var bClears = Math.min(this.clears, dAt);
+      ctx.save();
+      // 底線
+      ctx.strokeStyle = 'rgba(180,140,95,0.22)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(bX0, bCY); ctx.lineTo(bX0 + bTW, bCY); ctx.stroke();
+      if (bClears >= 2) {
+        ctx.strokeStyle = this.deluxe ? '#F6C44A' : '#F2BD58';
+        ctx.beginPath();
+        ctx.moveTo(bX0, bCY);
+        ctx.lineTo(bX0 + (bClears - 1) * bSpc, bCY);
+        ctx.stroke();
+      }
+      // 各格
+      for (var bi = 0; bi < dAt; bi++) {
+        var bSX = bX0 + bi * bSpc;
+        var bFil = bi < bClears;
+        ctx.save();
+        if (bi < dAt - 1) {
+          // 一般進度點
+          if (bFil) {
+            ctx.shadowColor = 'rgba(150,100,40,0.22)'; ctx.shadowBlur = 8;
+            ctx.fillStyle = this.deluxe ? '#F6C44A' : '#F2B96B';
+          } else {
+            ctx.fillStyle = 'rgba(190,165,135,0.32)';
+          }
+          A.el(ctx, bSX, bCY, bR, bR); ctx.fill();
+          if (bFil) {
+            ctx.shadowColor = 'transparent';
+            A.drawFood(ctx, this.lv.bite, bSX, bCY, 0.32);
+          }
+        } else {
+          // 最後一格:豪華皇冠
+          if (bFil) {
+            ctx.shadowColor = 'rgba(250,200,60,0.6)'; ctx.shadowBlur = 20;
+            ctx.fillStyle = '#F6C44A';
+            A.el(ctx, bSX, bCY, bR + 7, bR + 7); ctx.fill();
+            ctx.shadowColor = 'transparent';
+            A.drawFood(ctx, this.lv.bite, bSX, bCY, 0.44);
+            window.PLS_CROWN(ctx, bSX + bR + 1, bCY - bR - 1, 0.56, '#F6C44A');
+          } else {
+            // 尚未解鎖:食物圖示 gray out + 皇冠
+            ctx.globalAlpha = 0.28;
+            ctx.fillStyle = '#C0A870';
+            A.el(ctx, bSX, bCY, bR + 7, bR + 7); ctx.fill();
+            ctx.globalAlpha = 0.26;
+            A.drawFood(ctx, this.lv.bite, bSX, bCY, 0.44);
+            ctx.globalAlpha = 0.4;
+            window.PLS_CROWN(ctx, bSX + bR + 1, bCY - bR - 1, 0.56, '#8A6438');
+          }
+        }
+        ctx.restore();
+      }
+      // 說明文字
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '19px ' + FONT; ctx.globalAlpha = 0.72;
+      ctx.fillStyle = this.deluxe ? '#C2591E' : '#9A7B5C';
+      ctx.fillText(
+        bClears >= dAt
+          ? '豪華版已解鎖！共解了 ' + bClears + ' 次！'
+          : '已解 ' + bClears + ' / ' + dAt + ' 次・集滿就有豪華大餐！',
+        W / 2, bCY + 27
+      );
+      ctx.restore();
 
       // 豪華版:寵物頭上的金皇冠(畫在寵物之後)
 

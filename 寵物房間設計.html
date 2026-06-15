@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>寵物房間設計 · 真正的房間</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&amp;family=Baloo+2:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  body { margin: 0; font-family: "Huninn", "Baloo 2", sans-serif; background: #f0eee9; }
+  .font-warmup { position: absolute; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="font-warmup">寵物小學堂 Aa3b7</div>
+<div id="root"></div>
+
+<script src="app/art.js"></script>
+<script src="app/toys.js"></script>
+<script src="app/pets.js"></script>
+<script src="room-design/room-scenes.js"></script>
+<script src="design-canvas.jsx" type="text/babel"></script>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+
+// 1194×834 邏輯座標,retina 繪製,CSS 縮放顯示
+function RoomBoard({ scene, dispW }) {
+  const ref = React.useRef(null);
+  const dispH = Math.round(dispW * 834 / 1194);
+  React.useEffect(() => {
+    const cv = ref.current;
+    const ctx = cv.getContext('2d');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = 1194 * dpr; cv.height = 834 * dpr;
+    let raf;
+    const t0 = performance.now();
+    const loop = (now) => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      window.RoomScenes[scene](ctx, (now - t0) / 1000);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [scene]);
+  return <canvas ref={ref} style={{ width: dispW, height: dispH, display: 'block', borderRadius: 10 }}></canvas>;
+}
+
+function Notes() {
+  const h = { margin: '0 0 6px', fontSize: 16, color: '#7A5C3E', fontWeight: 'normal' };
+  const p = { margin: '0 0 14px', fontSize: 13, lineHeight: 1.75, color: '#5E5246' };
+  const b = { color: '#B0673F' };
+  return (
+    <div style={{ padding: '20px 22px', width: 392, background: '#FFFDF8', borderRadius: 10 }}>
+      <h3 style={h}>合併版 A + B(主推)</h3>
+      <p style={p}>
+        照你說的合在一起:<b style={b}>A 的左側選單</b>(頭像、三個入口、家長區)
+        + <b style={b}>B 的屋頂</b> + <b style={b}>B 的厚木框房間</b>。
+        左邊操作分區清楚,右邊一眼就是「一間有屋頂、有邊界的小房子」。
+      </p>
+      <h3 style={h}>兔兔停在前面(已修正)</h3>
+      <p style={p}>
+        之前兔兔會跳到食物/玩具<b style={b}>上面</b>蓋住它們。現在食物和玩具分散在地墊兩側偏後,
+        兔兔走在<b style={b}>前緣</b> —— 走到食物區就停在食物<b style={b}>前面</b>吃、走到遊戲區就停在玩具前面玩,
+        東西都看得到、不會被蓋住。全程不需要點任何東西。
+      </p>
+      <h3 style={h}>食物區 / 遊戲區</h3>
+      <p style={p}>
+        地板分兩塊地墊:<b style={b}>食物區</b>(暖橘,放數學餐廳拿到的食物)與
+        <b style={b}>遊戲區</b>(綠,放英文遊戲拿到的玩具)。兔兔在兩區之間來回過生活。
+      </p>
+      <h3 style={h}>下一步:換擺設改成「先選完再確定」</h3>
+      <p style={{ ...p, margin: 0 }}>
+        目前選一個就跳回房間。新流程:進到布置畫面後,食物三格、玩具三格可以慢慢挑、隨時換,
+        右下角一個大大的<b style={b}>「確定佈置」</b>按鈕,按了才套用、才跳回房間。
+        合併版確定後我接著做這個畫面。下方 A、B 為原始方向,留著對照。
+      </p>
+    </div>
+  );
+}
+
+function App() {
+  const DISP = 624, BIG = 860;
+  return (
+    <DesignCanvas>
+      <DCSection id="merged" title="合併版 A + B · 推薦" subtitle="A 的左側選單 + B 的屋頂與厚木框房間 · 兔兔停在食物/玩具前面吃與玩(無互動)">
+        <DCArtboard id="notes" label="設計說明" width={392}>
+          <Notes></Notes>
+        </DCArtboard>
+        <DCArtboard id="hybrid" label="A+B 合併 · 房間主頁" width={BIG}>
+          <RoomBoard scene="hybrid" dispW={BIG}></RoomBoard>
+        </DCArtboard>
+        <DCArtboard id="decorate" label="換擺設 · 先選完再確定" width={BIG}>
+          <RoomBoard scene="decorate" dispW={BIG}></RoomBoard>
+        </DCArtboard>
+      </DCSection>
+      <DCSection id="rooms" title="原始方向(對照用)" subtitle="A 側欄控制台 · B 剖面娃娃屋">
+        <DCArtboard id="a" label="A · 側欄控制台" width={DISP}>
+          <RoomBoard scene="sidebar" dispW={DISP}></RoomBoard>
+        </DCArtboard>
+        <DCArtboard id="b" label="B · 剖面娃娃屋" width={DISP}>
+          <RoomBoard scene="dollhouse" dispW={DISP}></RoomBoard>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App></App>);
+</script>
+</body>
+</html>

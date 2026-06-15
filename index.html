@@ -119,6 +119,17 @@
     </section>
 
     <section>
+      <h3>每日關卡上限</h3>
+      <p class="hint" style="margin:0 0 12px">每位小朋友每天最多可以正式過幾關(需要家長密碼才能更改)。</p>
+      <div class="prow">
+        <label>上限</label>
+        <input type="text" id="daily-limit-input" maxlength="3" placeholder="10" style="width:80px">
+        <span style="font-size:15px">關</span>
+      </div>
+      <div class="pbtns"><button class="pbtn ghost" id="save-daily-limit">儲存(需要密碼)</button></div>
+    </section>
+
+    <section>
       <h3>備份</h3>
       <div class="pbtns">
         <button class="pbtn" id="export-btn">匯出進度(下載備份)</button>
@@ -133,7 +144,7 @@
 <div id="pin-overlay">
   <div id="pin-panel">
     <h3>家長確認</h3>
-    <p class="pin-hint">請輸入家長密碼,才能開啟測試版</p>
+    <p class="pin-hint">請輸入家長密碼</p>
     <div class="pin-dots" id="pin-dots"><span></span><span></span><span></span><span></span></div>
     <div id="pin-err"></div>
     <div class="pin-pad" id="pin-pad">
@@ -163,6 +174,8 @@
 <script src="app/pets.js"></script>
 <script src="app/main.js"></script>
 <script src="app/screens.js"></script>
+<script src="app/room.js"></script>
+<script src="app/shelf.js"></script>
 <script src="app/quiz.js"></script>
 <script src="app/english.js"></script>
 <script>
@@ -189,11 +202,12 @@
       row.innerHTML = '<b>' + name + '</b><span>數學通關 ' + cleared + ' / ' +
         CFG.math.filter(function (l) { return !l.locked; }).length + ' 關</span>' +
         '<span>玩過 ' + plays + ' 輪</span>' +
-        '<span>今日大餐 ' + (d.daily.math || 0) + ' / ' + CFG.dailyLimit + '</span>';
+        '<span>今日大餐 ' + (d.daily.math || 0) + ' / ' + ST.getDailyLimit() + '</span>';
       box.appendChild(row);
     });
     document.getElementById('name-rabbit').value = ST.load('rabbit').name || '';
     document.getElementById('name-hamster').value = ST.load('hamster').name || '';
+    document.getElementById('daily-limit-input').value = ST.getDailyLimit();
   }
 
   window.PLS_PARENT = {
@@ -203,35 +217,43 @@
   document.getElementById('parent-close').addEventListener('click', window.PLS_PARENT.close);
   overlay.addEventListener('click', function (e) { if (e.target === overlay) window.PLS_PARENT.close(); });
 
-  // ── 測試版密碼鎖(9527)──
+  // ── 密碼鎖(通用 callback 模式)──
   const PIN_CODE = '9527';
   const testToggle = document.getElementById('test-toggle');
   const pinOverlay = document.getElementById('pin-overlay');
   const pinDots = document.getElementById('pin-dots').children;
   const pinErr = document.getElementById('pin-err');
   let pinBuf = '';
+  let pinCallback = null;   // 解鎖成功後執行
+  let pinCancelCb = null;   // 取消時執行
 
   function renderPin() {
     for (let i = 0; i < pinDots.length; i++) pinDots[i].classList.toggle('on', i < pinBuf.length);
   }
-  function openPin() {
+  function openPin(onSuccess, onCancel) {
+    pinCallback = onSuccess || null;
+    pinCancelCb = onCancel || null;
     pinBuf = ''; pinErr.textContent = ''; renderPin();
     pinOverlay.classList.add('show');
   }
   function closePin() { pinOverlay.classList.remove('show'); }
 
   function pinPress(k) {
-    if (k === 'cancel') { closePin(); testToggle.checked = false; return; }
+    if (k === 'cancel') {
+      closePin();
+      if (pinCancelCb) pinCancelCb();
+      pinCallback = null; pinCancelCb = null;
+      return;
+    }
     if (k === 'del') { pinBuf = pinBuf.slice(0, -1); pinErr.textContent = ''; renderPin(); return; }
     if (pinBuf.length >= 4) return;
     pinBuf += k; renderPin();
     if (pinBuf.length === 4) {
       if (pinBuf === PIN_CODE) {
         closePin();
-        ST.setTest(true);
-        testToggle.checked = true;
-        msg.textContent = '已切換到測試版(已解除鎖定)';
-        refreshStats();
+        const cb = pinCallback;
+        pinCallback = null; pinCancelCb = null;
+        if (cb) cb();
       } else {
         pinErr.textContent = '密碼不對,再試一次';
         pinErr.classList.remove('shake'); void pinErr.offsetWidth; pinErr.classList.add('shake');
@@ -244,19 +266,44 @@
     pinPress(b.dataset.k);
   });
   pinOverlay.addEventListener('click', function (e) {
-    if (e.target === pinOverlay) { closePin(); testToggle.checked = false; }
+    if (e.target === pinOverlay) {
+      closePin();
+      if (pinCancelCb) pinCancelCb();
+      pinCallback = null; pinCancelCb = null;
+    }
   });
 
   testToggle.addEventListener('change', function () {
     if (this.checked) {
-      // 開啟測試版需要家長密碼:先還原勾選,通過後才真正開啟
       this.checked = false;
-      openPin();
+      openPin(
+        function () {
+          ST.setTest(true);
+          testToggle.checked = true;
+          msg.textContent = '已切換到測試版(已解除鎖定)';
+          refreshStats();
+        },
+        function () { testToggle.checked = false; }
+      );
     } else {
       ST.setTest(false);
       msg.textContent = '已切換到正式版';
       refreshStats();
     }
+  });
+
+  document.getElementById('save-daily-limit').addEventListener('click', function () {
+    const raw = document.getElementById('daily-limit-input').value.trim();
+    const v = parseInt(raw, 10);
+    if (isNaN(v) || v < 1 || v > 99) { msg.textContent = '請輸入 1–99 之間的數字'; return; }
+    openPin(
+      function () {
+        ST.setDailyLimit(v);
+        msg.textContent = '每日上限已改為 ' + v + ' 關';
+        refreshStats();
+      },
+      null
+    );
   });
 
   document.getElementById('save-names').addEventListener('click', function () {

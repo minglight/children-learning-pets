@@ -62,12 +62,25 @@
     ctx.restore();
   };
 
-  // ── 食物中文名(展示用)──────────────────────────────
+  // ── 食物中文名 ──────────────────────────────────────────
   const FOOD_NAMES = {
     apple: '蘋果', strawberry: '草莓', orange: '橘子', banana: '香蕉',
     eggcake: '雞蛋糕', boba: '珍珠奶茶', sushi: '壽司', pizza: '披薩',
     bao: '小籠包', burger: '漢堡', fries: '薯條', scoop: '冰淇淋',
     sundae: '聖代', cake: '蛋糕'
+  };
+  // 布置小窩:基礎版(解 1 次) / 豪華版(解 10 次)名稱
+  const FOOD_BASIC_NAMES = {
+    apple: '一顆蘋果', strawberry: '一顆草莓', orange: '一顆橘子', banana: '一根香蕉',
+    eggcake: '一份雞蛋糕', boba: '一杯珍珠奶茶', sushi: '一盤壽司', pizza: '一塊披薩',
+    bao: '一籠小籠包', burger: '一個小漢堡', fries: '一份薯條', scoop: '一球冰淇淋',
+    sundae: '一份聖代', cake: '一塊蛋糕'
+  };
+  const FOOD_DELUXE_NAMES = {
+    apple: '水果豪華禮籃', strawberry: '草莓豪華盤', orange: '橘子豪華禮籃', banana: '水果豪華大禮籃',
+    eggcake: '雞蛋糕大全套', boba: '珍珠奶茶豪華組', sushi: '壽司豪華全餐', pizza: '一份披薩',
+    bao: '小籠包豪華宴', burger: '大麥克豪華餐', fries: '薯條豪華大份', scoop: '冰淇淋聖代塔',
+    sundae: '聖代豪華版', cake: '蛋糕豪華塔'
   };
   // 玩具中文名(由英文關卡設定推得)
   const TOY_NAMES = {};
@@ -88,11 +101,21 @@
       CFG.math.forEach(function (lv) {
         const rec = d.levels[lv.id];
         if (!(rec && rec.cleared) && !test) return;
+        const clears = ST.clearCount(d, lv.id);
+        const lvDlx = test || clears >= ST.deluxeAt();
         const keys = [];
         if (lv.bite) keys.push(lv.bite);
         (lv.feast && lv.feast.items || []).forEach(function (k) { keys.push(k); });
         keys.forEach(function (k) {
-          if (FOOD_NAMES[k] && !seen['f:' + k]) { seen['f:' + k] = 1; out.push({ key: k, type: 'food', label: FOOD_NAMES[k] }); }
+          if (!FOOD_NAMES[k]) return;
+          if (!seen['f:' + k]) {
+            seen['f:' + k] = 1;
+            out.push({ key: k, type: 'food', label: FOOD_BASIC_NAMES[k] || FOOD_NAMES[k], deluxe: false });
+          }
+          if (lvDlx && !seen['fd:' + k]) {
+            seen['fd:' + k] = 1;
+            out.push({ key: k, type: 'food', label: FOOD_DELUXE_NAMES[k] || FOOD_NAMES[k] + '（豪華版）', deluxe: true });
+          }
         });
       });
       CFG.english.forEach(function (lv) {
@@ -253,10 +276,15 @@
     // 寵物
     ctx.save(); ctx.translate(left + w * 0.30, top + h - 64); ctx.scale(0.56, 0.56); P.draw(petId, ctx, t, {}); ctx.restore();
     // 佈置:一個食物 + 一個玩具(與房間、佈置小窩一模一樣)
-    const fk = d.home.food && d.home.food.key;
-    const tk = d.home.toy && d.home.toy.key;
-    if (fk) A.drawFood(ctx, fk, left + w * 0.62, top + h - 76, 0.95);
-    if (tk) TOY.drawToy(ctx, tk, left + w * 0.85, top + h - 72, 0.95);
+    var _fa = d.home.foods || [], _ta = d.home.toys || [];
+    var _ff = null, _ft = null;
+    for (var _fi = 0; _fi < _fa.length; _fi++) { if (_fa[_fi] && _fa[_fi].key) { _ff = _fa[_fi]; break; } }
+    for (var _ti = 0; _ti < _ta.length;  _ti++) { if (_ta[_ti] && _ta[_ti].key) { _ft = _ta[_ti];  break; } }
+    if (_ff) {
+      if (_ff.deluxe) A.drawFoodDeluxe(ctx, _ff.key, left + w * 0.62, top + h - 76, 1.0);
+      else A.drawFood(ctx, _ff.key, left + w * 0.62, top + h - 76, 0.95);
+    }
+    if (_ft) TOY.drawToy(ctx, _ft.key, left + w * 0.85, top + h - 72, 0.95);
     ctx.restore();
     A.pill(ctx, left + 80, top + 36, name, th.accent, 'rgba(255,255,255,0.92)', 26);
     A.bubble(ctx, left + w * 0.62, top + 84, pickStable(petId, t), { size: 24 });
@@ -310,29 +338,43 @@
       }
     },
     drawShelf: function (ctx, t, x, y, w, h) {
-      const d = ST.load(this.petId);
-      const fk = d.home.food && d.home.food.key;
-      const tk = d.home.toy && d.home.toy.key;
+      var d = ST.load(this.petId);
+      var sfoods = d.home.foods || [], stoys = d.home.toys || [];
       ctx.save();
       ctx.shadowColor = 'rgba(150,100,60,0.16)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
       ctx.fillStyle = '#FFFCF6'; A.rr(ctx, x, y, w, h, 26); ctx.fill();
       ctx.restore();
-      A.pill(ctx, x + 76, y + 30, '換擺設', '#B98A4F', 'rgba(255,247,220,0.95)', 18);
-      const cy = y + h / 2 + 14;
-      const slots = [{ k: fk, type: 'food', cx: x + 72 }, { k: tk, type: 'toy', cx: x + 170 }];
-      slots.forEach(function (sl) {
-        ctx.fillStyle = '#F2E6D4'; A.el(ctx, sl.cx, cy + 36, 44, 12); ctx.fill();
-        if (sl.k) { TOY.drawTreasure(ctx, sl.k, sl.type, sl.cx, cy, 0.92); }
-        else {
-          ctx.fillStyle = 'rgba(160,130,100,0.4)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.font = '40px ' + FONT; ctx.fillText('?', sl.cx, cy - 2);
+      A.pill(ctx, x + 82, y + 26, '換擺設', '#B98A4F', 'rgba(255,247,220,0.95)', 18);
+      var sR = 26, sG = 10, row1Y = y + 76, row2Y = y + 126, startX = x + 42;
+      for (var sfi = 0; sfi < 3; sfi++) {
+        var scx = startX + sfi * (sR * 2 + sG) + sR;
+        ctx.fillStyle = '#EEE0CC'; A.el(ctx, scx, row1Y + sR + 5, sR, 6); ctx.fill();
+        var sf = sfoods[sfi];
+        if (sf && sf.key) {
+          if (sf.deluxe) A.drawFoodDeluxe(ctx, sf.key, scx, row1Y, 0.65);
+          else A.drawFood(ctx, sf.key, scx, row1Y, 0.63);
+        } else {
+          ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='22px '+FONT;
+          ctx.fillStyle='rgba(160,130,100,0.32)'; ctx.fillText('?', scx, row1Y);
         }
-      });
+      }
+      for (var sti = 0; sti < 3; sti++) {
+        var tcx = startX + sti * (sR * 2 + sG) + sR;
+        ctx.fillStyle = '#D8EAE0'; A.el(ctx, tcx, row2Y + sR + 5, sR, 6); ctx.fill();
+        var st = stoys[sti];
+        if (st && st.key) {
+          TOY.drawTreasure(ctx, st.key, 'toy', tcx, row2Y, 0.63);
+        } else {
+          ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='22px '+FONT;
+          ctx.fillStyle='rgba(100,140,120,0.32)'; ctx.fillText('?', tcx, row2Y);
+        }
+      }
+      var tx = startX + 3 * (sR * 2 + sG) + 22;
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.font = '32px ' + FONT; ctx.fillStyle = '#7A5C3E';
-      ctx.fillText('布置小窩', x + 250, y + h / 2 - 16);
-      ctx.font = '22px ' + FONT; ctx.fillStyle = '#A8927A';
-      ctx.fillText('擺一個食物和一個玩具', x + 250, y + h / 2 + 22);
+      ctx.font = '30px ' + FONT; ctx.fillStyle = '#7A5C3E';
+      ctx.fillText('布置小窩', tx, y + h / 2 - 16);
+      ctx.font = '20px ' + FONT; ctx.fillStyle = '#A8927A';
+      ctx.fillText('水果和玩具各三個!', tx, y + h / 2 + 18);
     },
     drawDoor: function (ctx, t, x, y, w, h, label, sub, subject) {
       const d = ST.load(this.petId);
@@ -379,15 +421,39 @@
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(name + '的房間', 290, 88);
       ctx.fillStyle = th.deep; ctx.fillText(name + '的房間', 290, 84);
 
-      // 房間地毯 + 佈置(一個食物 + 一個玩具,與首頁、佈置小窩一模一樣)
-      const fk = d.home.food && d.home.food.key;
-      const tk = d.home.toy && d.home.toy.key;
+      // 房間地毯 + 佈置(3 食物 + 3 玩具散落在地板上)
+      var _rfa = d.home.foods || [], _rta = d.home.toys || [];
       ctx.save();
       ctx.fillStyle = 'rgba(255,255,255,0.30)'; A.el(ctx, 285, 620, 250, 44); ctx.fill();
       ctx.fillStyle = th.dot; A.el(ctx, 285, 614, 160, 26); ctx.fill();
       ctx.restore();
-      if (fk) A.drawFood(ctx, fk, 120, 602, 1.15);
-      if (tk) TOY.drawToy(ctx, tk, 452, 590, 1.15);
+      var FSPOTS = [{x:100,y:704},{x:305,y:704},{x:498,y:704}];
+      var TSPOTS = [{x:696,y:704},{x:882,y:704},{x:1072,y:704}];
+      FSPOTS.forEach(function (pos, i) {
+        if (!_rfa[i] || !_rfa[i].key) {
+          ctx.save(); ctx.strokeStyle='rgba(195,155,100,0.28)'; ctx.lineWidth=2.5; ctx.setLineDash([5,8]);
+          A.el(ctx, pos.x, pos.y-8, 26, 22); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+        }
+      });
+      TSPOTS.forEach(function (pos, i) {
+        if (!_rta[i] || !_rta[i].key) {
+          ctx.save(); ctx.strokeStyle='rgba(120,180,150,0.28)'; ctx.lineWidth=2.5; ctx.setLineDash([5,8]);
+          A.el(ctx, pos.x, pos.y-8, 26, 22); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+        }
+      });
+      _rfa.forEach(function (f, i) {
+        if (!f || !f.key) return;
+        var pos = FSPOTS[i];
+        ctx.fillStyle='rgba(155,115,75,0.16)'; A.el(ctx, pos.x, pos.y+6, 24, 7); ctx.fill();
+        if (f.deluxe) A.drawFoodDeluxe(ctx, f.key, pos.x, pos.y-12, 1.18);
+        else A.drawFood(ctx, f.key, pos.x, pos.y-12, 1.14);
+      });
+      _rta.forEach(function (toy, i) {
+        if (!toy || !toy.key) return;
+        var pos = TSPOTS[i];
+        ctx.fillStyle='rgba(95,145,115,0.14)'; A.el(ctx, pos.x, pos.y+6, 24, 7); ctx.fill();
+        TOY.drawToy(ctx, toy.key, pos.x, pos.y-12, 1.14);
+      });
 
       // 寵物(左側)
       ctx.save(); ctx.translate(270, 470); P.draw(this.petId, ctx, t, {}); ctx.restore();
@@ -455,8 +521,9 @@
       const top = 200, bot = H - 24, trackH = bot - top;
       const viewH = H - TOP_BAND;
       const contentH = this.maxScroll + viewH;
-      const th = Math.max(70, trackH * viewH / contentH);
-      const ty = top + (trackH - th) * (this.maxScroll ? this.scrollY / this.maxScroll : 0);
+      const th = Math.max(70, Math.min(trackH, trackH * viewH / contentH));
+      const raw = top + (trackH - th) * (this.maxScroll ? this.scrollY / this.maxScroll : 0);
+      const ty = Math.max(top, Math.min(top + trackH - th, raw));
       return { x: W - 28, w: 14, top: top, trackH: trackH, th: th, ty: ty };
     },
     scrollFromBar: function (y) {
@@ -568,93 +635,252 @@
   };
 
   // ════════════════════════════════════════════════════
-  // 布置小窩:切換家裡展示的寶物
+  // 布置小窩:3 格食物 + 3 格玩具選取器
   // ════════════════════════════════════════════════════
-  const SHELF = { cols: 8, cw: 124, ch: 116, gap: 12 };
+  const SHELF = { cols: 8, cw: 124, ch: 100, gap: 8 };
   SHELF.gridW = SHELF.cols * SHELF.cw + (SHELF.cols - 1) * SHELF.gap;
   SHELF.x0 = (W - SHELF.gridW) / 2;
-  const FOOD_Y0 = 250, TOY_Y0 = 542;
+  const ITEMS_Y0 = 302;   // 道具格子起點(內容座標)
+  const SHELF_TOP = 272;  // 固定標題區高度;捲動從這裡開始
+
+  // 6 格選取器位置
+  const SL_CY = 207, SL_W = 88, SL_H = 88;
+  const SL_FOOD_CX = [248, 352, 456];
+  const SL_TOY_CX  = [738, 842, 946];
 
   const shelf = {
-    petId: 'rabbit', note: '', foods: [], toys: [], curFood: null, curToy: null,
-    canFood: true, canToy: true,
+    petId: 'rabbit', note: '',
+    allFoods: [], allToys: [],
+    curFoods: [{key:null,deluxe:false},{key:null,deluxe:false},{key:null,deluxe:false}],
+    curToys:  [{key:null,deluxe:false},{key:null,deluxe:false},{key:null,deluxe:false}],
+    canFoods: [true,true,true], canToys: [true,true,true],
+    activeSlot: { type: 'food', idx: 0 },
+    scrollY: 0, maxScroll: 0,
+    _pdown: false, _drag: false, _py: 0, _ps: 0, _sbdrag: false,
     enter: function (params) {
-      const self = this;
       this.petId = params.pet || 'rabbit';
       this.note = '';
-      const all = window.PLS_TREASURE.list(this.petId);
-      this.foods = all.filter(function (it) { return it.type === 'food'; });
-      this.toys = all.filter(function (it) { return it.type === 'toy'; });
-      const d = ST.load(this.petId);
-      this.curFood = d.home.food && d.home.food.key;
-      this.curToy = d.home.toy && d.home.toy.key;
-      this.canFood = ST.canSwitchHome(d, 'food');
-      this.canToy = ST.canSwitchHome(d, 'toy');
+      this.scrollY = 0;
+      this.activeSlot = { type: 'food', idx: 0 };
+      var all = window.PLS_TREASURE.list(this.petId);
+      this.allFoods = all.filter(function (it) { return it.type === 'food'; });
+      this.allToys  = all.filter(function (it) { return it.type === 'toy'; });
+      var d = ST.load(this.petId);
+      this.curFoods = d.home.foods.map(function (f) { return { key: f.key, deluxe: !!f.deluxe }; });
+      this.curToys  = d.home.toys.map(function  (t) { return { key: t.key, deluxe: !!t.deluxe }; });
+      this.canFoods = [0,1,2].map(function (i) { return ST.canSwitchHome(d, 'food', i); });
+      this.canToys  = [0,1,2].map(function (i) { return ST.canSwitchHome(d, 'toy',  i); });
+      this._syncScroll();
       backBtn('room', { pet: this.petId });
-      const mk = function (items, y0, slot) {
-        items.forEach(function (it, i) {
-          const c = i % SHELF.cols, r = Math.floor(i / SHELF.cols);
-          const bx = SHELF.x0 + c * (SHELF.cw + SHELF.gap), by = y0 + r * (SHELF.ch + SHELF.gap);
-          PLS.addButton({
-            x: bx, y: by, w: SHELF.cw, h: SHELF.ch,
-            draw: function (ctx, t) { self.drawItem(ctx, t, it, slot, bx, by, SHELF.cw, SHELF.ch); },
-            onTap: function () { self.choose(it, slot); }
-          });
-        });
-      };
-      mk(this.foods, FOOD_Y0, 'food');
-      mk(this.toys, TOY_Y0, 'toy');
     },
-    choose: function (it, slot) {
-      const self = this;
-      const d = ST.load(this.petId);
-      const cur = slot === 'food' ? this.curFood : this.curToy;
-      if (it.key === cur) { this.note = '這個已經擺在家裡囉'; return; }
-      if (!ST.canSwitchHome(d, slot)) {
-        this.note = (slot === 'food' ? '今天食物已經換過囉,' : '今天玩具已經換過囉,') + '明天再來換喔!';
+    _syncScroll: function () {
+      var items = this.activeSlot.type === 'food' ? this.allFoods : this.allToys;
+      var rows = Math.max(1, Math.ceil(items.length / SHELF.cols));
+      var contentBottom = ITEMS_Y0 + rows * (SHELF.ch + SHELF.gap) + 40;
+      this.maxScroll = Math.max(0, contentBottom - H);
+      this.scrollY = Math.max(0, Math.min(this.scrollY, this.maxScroll));
+    },
+    pointer: function (phase, x, y) {
+      var self = this;
+      if (phase === 'down') {
+        if (this.maxScroll > 2 && x >= W - 46) { this._sbdrag = true; this.scrollFromBar(y); return; }
+        this._py = y; this._ps = this.scrollY; this._drag = false; this._pdown = true;
+      } else if (phase === 'move') {
+        if (this._sbdrag) { this.scrollFromBar(y); return; }
+        if (!this._pdown) return;
+        var dy = y - this._py;
+        if (Math.abs(dy) > 6) this._drag = true;
+        this.scrollY = Math.max(0, Math.min(this.maxScroll, this._ps - dy));
+      } else if (phase === 'up') {
+        this._pdown = false;
+        if (this._sbdrag) { this._sbdrag = false; return; }
+        if (this._drag) { this._drag = false; return; }
+        // 點選固定標題區的格子
+        if (y < SHELF_TOP) {
+          SL_FOOD_CX.forEach(function (cx, i) {
+            if (x >= cx - SL_W/2 && x <= cx + SL_W/2 && y >= SL_CY - SL_H/2 && y <= SL_CY + SL_H/2) {
+              self.activeSlot = { type: 'food', idx: i }; self.scrollY = 0; self._syncScroll();
+            }
+          });
+          SL_TOY_CX.forEach(function (cx, i) {
+            if (x >= cx - SL_W/2 && x <= cx + SL_W/2 && y >= SL_CY - SL_H/2 && y <= SL_CY + SL_H/2) {
+              self.activeSlot = { type: 'toy', idx: i }; self.scrollY = 0; self._syncScroll();
+            }
+          });
+          return;
+        }
+        // 點選道具格子
+        var cy = y + this.scrollY;
+        var items = this.activeSlot.type === 'food' ? this.allFoods : this.allToys;
+        items.forEach(function (it, i) {
+          var c = i % SHELF.cols, r = Math.floor(i / SHELF.cols);
+          var bx = SHELF.x0 + c * (SHELF.cw + SHELF.gap);
+          var by = ITEMS_Y0 + r * (SHELF.ch + SHELF.gap);
+          if (x >= bx && x <= bx + SHELF.cw && cy >= by && cy <= by + SHELF.ch) { self.choose(it); }
+        });
+      }
+    },
+    onWheel: function (dy) { this.scrollY = Math.max(0, Math.min(this.maxScroll, this.scrollY + dy)); },
+    thumbRect: function () {
+      var top = SHELF_TOP + 8, bot = H - 24, trackH = bot - top;
+      var viewH = H - SHELF_TOP;
+      var contentH = this.maxScroll + viewH;
+      var th = Math.max(70, Math.min(trackH, trackH * viewH / contentH));
+      var raw = top + (trackH - th) * (this.maxScroll ? this.scrollY / this.maxScroll : 0);
+      var ty = Math.max(top, Math.min(top + trackH - th, raw));
+      return { x: W - 28, w: 14, top: top, trackH: trackH, th: th, ty: ty };
+    },
+    scrollFromBar: function (y) {
+      var r = this.thumbRect();
+      var t = (y - r.top - r.th / 2) / (r.trackH - r.th);
+      this.scrollY = Math.max(0, Math.min(this.maxScroll, t * this.maxScroll));
+    },
+    choose: function (it) {
+      var self = this;
+      var d = ST.load(this.petId);
+      var slot = this.activeSlot;
+      var curArr = slot.type === 'food' ? this.curFoods : this.curToys;
+      var cur = curArr[slot.idx];
+      if (cur.key === it.key && !!cur.deluxe === !!it.deluxe) { this.note = '這個已經擺在這格了'; return; }
+      if (!ST.canSwitchHome(d, slot.type, slot.idx)) {
+        this.note = (slot.type === 'food' ? '食物格 ' : '玩具格 ') + (slot.idx + 1) + ' 今天已換過了,明天再來喔!';
         PLS.sfx.wrong(); return;
       }
-      ST.setHomeItem(d, slot, it.key);
+      ST.setHomeItem(d, slot.type, slot.idx, it.key, it.deluxe);
       PLS.sfx.correct();
       PLS.burst(W / 2, 200, 'small');
       PLS.go('room', { pet: self.petId });
     },
-    drawItem: function (ctx, t, it, slot, x, y, w, h) {
-      const sel = it.key === (slot === 'food' ? this.curFood : this.curToy);
+    drawSlots: function (ctx) {
+      var self = this;
+      // 底板
+      ctx.save();
+      ctx.shadowColor = 'rgba(150,100,60,0.10)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+      ctx.fillStyle = 'rgba(255,252,246,0.96)';
+      A.rr(ctx, 36, 150, W - 72, 112, 22); ctx.fill();
+      ctx.restore();
+      // 分組標籤
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '23px ' + FONT; ctx.fillStyle = '#C2894C';
+      ctx.fillText('食物', 175, SL_CY);
+      ctx.fillStyle = '#5E9E6E';
+      ctx.fillText('玩具', 665, SL_CY);
+      // 食物格
+      SL_FOOD_CX.forEach(function (cx, i) {
+        var isActive = self.activeSlot.type === 'food' && self.activeSlot.idx === i;
+        var cur = self.curFoods[i], locked = !self.canFoods[i];
+        ctx.save();
+        if (isActive) { ctx.shadowColor = 'rgba(242,185,107,0.7)'; ctx.shadowBlur = 18; }
+        ctx.fillStyle = isActive ? '#FFF3DC' : '#FFFCF6';
+        A.rr(ctx, cx - SL_W/2, SL_CY - SL_H/2, SL_W, SL_H, 18); ctx.fill();
+        if (isActive) { ctx.strokeStyle = '#F2BD58'; ctx.lineWidth = 3.5; A.rr(ctx, cx - SL_W/2, SL_CY - SL_H/2, SL_W, SL_H, 18); ctx.stroke(); }
+        ctx.restore();
+        if (cur.key) {
+          if (cur.deluxe) A.drawFoodDeluxe(ctx, cur.key, cx, SL_CY, 0.76);
+          else A.drawFood(ctx, cur.key, cx, SL_CY, 0.74);
+        } else {
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '32px ' + FONT;
+          ctx.fillStyle = isActive ? 'rgba(200,150,80,0.7)' : 'rgba(160,130,100,0.32)';
+          ctx.fillText('?', cx, SL_CY + 1);
+        }
+        if (locked) {
+          ctx.globalAlpha = 0.5; ctx.fillStyle = '#FFF3DC';
+          A.rr(ctx, cx - SL_W/2, SL_CY - SL_H/2, SL_W, SL_H, 18); ctx.fill(); ctx.globalAlpha = 1;
+          A.drawIcon(ctx, 'lock', cx, SL_CY, 0.7, '#C9A06A');
+        }
+      });
+      // 玩具格
+      SL_TOY_CX.forEach(function (cx, i) {
+        var isActive = self.activeSlot.type === 'toy' && self.activeSlot.idx === i;
+        var cur = self.curToys[i], locked = !self.canToys[i];
+        ctx.save();
+        if (isActive) { ctx.shadowColor = 'rgba(110,160,120,0.6)'; ctx.shadowBlur = 18; }
+        ctx.fillStyle = isActive ? '#EEF6EC' : '#FFFCF6';
+        A.rr(ctx, cx - SL_W/2, SL_CY - SL_H/2, SL_W, SL_H, 18); ctx.fill();
+        if (isActive) { ctx.strokeStyle = '#6FA86A'; ctx.lineWidth = 3.5; A.rr(ctx, cx - SL_W/2, SL_CY - SL_H/2, SL_W, SL_H, 18); ctx.stroke(); }
+        ctx.restore();
+        if (cur.key) {
+          TOY.drawToy(ctx, cur.key, cx, SL_CY, 0.74);
+        } else {
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '32px ' + FONT;
+          ctx.fillStyle = isActive ? 'rgba(80,140,100,0.7)' : 'rgba(100,140,120,0.32)';
+          ctx.fillText('?', cx, SL_CY + 1);
+        }
+        if (locked) {
+          ctx.globalAlpha = 0.5; ctx.fillStyle = '#EEF6EC';
+          A.rr(ctx, cx - SL_W/2, SL_CY - SL_H/2, SL_W, SL_H, 18); ctx.fill(); ctx.globalAlpha = 1;
+          A.drawIcon(ctx, 'lock', cx, SL_CY, 0.7, '#6FA86A');
+        }
+      });
+    },
+    drawItem: function (ctx, t, it, sel, x, y, w, h) {
+      var isDlx = !!it.deluxe;
       ctx.save();
       ctx.shadowColor = 'rgba(150,100,60,0.14)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
-      ctx.fillStyle = sel ? '#FFF3DC' : '#FFFCF6';
+      ctx.fillStyle = sel ? '#FFF3DC' : (isDlx ? '#FFFAF4' : '#FFFCF6');
       A.rr(ctx, x, y, w, h, 20); ctx.fill();
       ctx.restore();
       if (sel) { ctx.strokeStyle = '#F2BD58'; ctx.lineWidth = 4; A.rr(ctx, x, y, w, h, 20); ctx.stroke(); }
-      TOY.drawTreasure(ctx, it.key, it.type, x + w / 2, y + h / 2 - 14, 0.82);
+      if (isDlx && it.type === 'food') A.drawFoodDeluxe(ctx, it.key, x + w/2, y + h/2 - 14, 0.84);
+      else TOY.drawTreasure(ctx, it.key, it.type, x + w/2, y + h/2 - 14, 0.82);
       ctx.font = '20px ' + FONT; ctx.fillStyle = '#7A5C3E';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(it.label, x + w / 2, y + h - 20);
-      if (sel) A.pill(ctx, x + w / 2, y + 15, '展示中', '#B98A4F', 'rgba(255,247,220,0.95)', 14);
-    },
-    sectionHead: function (ctx, label, y, can, empty, emptyHint) {
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.font = '30px ' + FONT; ctx.fillStyle = '#7A5C3E';
-      ctx.fillText(label, SHELF.x0 + 4, y);
-      A.pill(ctx, SHELF.x0 + 132, y, can ? '今天可以換一次' : '今天已經換過了',
-        can ? '#6FA86A' : '#B59A82', can ? 'rgba(232,244,228,0.95)' : 'rgba(244,236,224,0.95)', 17);
-      if (empty) {
-        ctx.textAlign = 'left'; ctx.font = '24px ' + FONT; ctx.fillStyle = '#A8927A';
-        ctx.fillText(emptyHint, SHELF.x0 + 4, y + 70);
-      }
+      ctx.fillText(it.label, x + w/2, y + h - 20);
+      if (sel) A.pill(ctx, x + w/2, y + 15, '展示中', '#B98A4F', 'rgba(255,247,220,0.95)', 14);
     },
     draw: function (ctx, t) {
+      var self = this;
       drawWall(ctx, '#FBF1E2', 'rgba(214,178,146,0.14)');
-      const name = ST.load(this.petId).name || CFG.pets[this.petId].name;
+      var name = ST.load(this.petId).name || CFG.pets[this.petId].name;
+      // 固定標題
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '44px ' + FONT;
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('布置' + name + '的家', W / 2, 92);
-      ctx.fillStyle = '#8A6242'; ctx.fillText('布置' + name + '的家', W / 2, 88);
-      ctx.font = '22px ' + FONT; ctx.fillStyle = '#A8927A';
-      ctx.fillText('挑一個食物和一個玩具擺在家裡 · 每天各可以換一次', W / 2, 138);
-      this.sectionHead(ctx, '食物', FOOD_Y0 - 38, this.canFood, !this.foods.length, '先去數學餐廳過關,拿到食物就能擺!');
-      this.sectionHead(ctx, '玩具', TOY_Y0 - 38, this.canToy, !this.toys.length, '先去英文遊戲間玩,拿到玩具就能擺!');
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('布置' + name + '的家', W / 2, 68);
+      ctx.fillStyle = '#8A6242'; ctx.fillText('布置' + name + '的家', W / 2, 64);
+      // 提示列
+      var slot = this.activeSlot, isFood = slot.type === 'food';
+      var canNow = isFood ? this.canFoods[slot.idx] : this.canToys[slot.idx];
+      var hint = canNow
+        ? (isFood ? '點選食物格 ' + (slot.idx+1) + ',再點下方食物放進去'
+                  : '點選玩具格 ' + (slot.idx+1) + ',再點下方玩具放進去')
+        : '今天這個格子已換過了,明天再來喔!';
+      A.pill(ctx, W / 2, 116, hint,
+        isFood ? '#B98A4F' : '#6E9A6E',
+        isFood ? 'rgba(252,238,214,0.95)' : 'rgba(232,244,228,0.95)', 21);
+      // 6 格選取器
+      this.drawSlots(ctx);
+      // 捲動道具格
+      var items = isFood ? this.allFoods : this.allToys;
+      var curArr = isFood ? this.curFoods : this.curToys;
+      var curSlot = curArr[slot.idx];
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, SHELF_TOP, W, H - SHELF_TOP); ctx.clip();
+      ctx.translate(0, -this.scrollY);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = '26px ' + FONT; ctx.fillStyle = '#9A7060';
+      ctx.fillText(isFood ? '可以擺的食物' : '可以擺的玩具', SHELF.x0 + 4, ITEMS_Y0 - 26);
+      if (!items.length) {
+        ctx.textAlign = 'center'; ctx.font = '24px ' + FONT; ctx.fillStyle = '#A8927A';
+        ctx.fillText(isFood ? '先去數學餐廳過關,拿到食物就能擺!' : '先去英文遊戲間玩,拿到玩具就能擺!', W / 2, ITEMS_Y0 + 70);
+      }
+      items.forEach(function (it, i) {
+        var c = i % SHELF.cols, r = Math.floor(i / SHELF.cols);
+        var bx = SHELF.x0 + c * (SHELF.cw + SHELF.gap);
+        var by = ITEMS_Y0 + r * (SHELF.ch + SHELF.gap);
+        var sel = curSlot.key === it.key && !!curSlot.deluxe === !!it.deluxe;
+        self.drawItem(ctx, t, it, sel, bx, by, SHELF.cw, SHELF.ch);
+      });
+      ctx.restore();
+      if (this.scrollY < this.maxScroll - 2) {
+        A.pill(ctx, W / 2, H - 38, '往下滑,還有更多 ↓', '#B08A5E', 'rgba(255,255,255,0.92)', 22);
+      }
+      if (this.maxScroll > 2) {
+        var r = this.thumbRect();
+        ctx.fillStyle = 'rgba(180,150,120,0.16)';
+        A.rr(ctx, r.x, r.top, r.w, r.trackH, r.w / 2); ctx.fill();
+        ctx.fillStyle = 'rgba(176,138,94,0.72)';
+        A.rr(ctx, r.x, r.ty, r.w, r.th, r.w / 2); ctx.fill();
+      }
     },
     drawTop: function (ctx, t) {
       if (this.note) A.bubble(ctx, W / 2, H - 52, this.note, { size: 24 });

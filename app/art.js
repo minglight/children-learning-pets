@@ -191,6 +191,143 @@
     ctx.restore();
   }
 
+  // ── 豪華版食物(布置小窩:圖案與基礎版明顯不同)──────────────
+  const FOODS_DELUXE = {
+    // 3 個雞蛋糕並排
+    eggcake: function(ctx) {
+      [-22, 0, 22].forEach(function(ox) {
+        ctx.save(); ctx.translate(ox, 0); ctx.scale(0.62, 0.62); FOODS.eggcake(ctx); ctx.restore();
+      });
+    },
+    // 2 杯珍珠奶茶並排
+    boba: function(ctx) {
+      ctx.save(); ctx.translate(-16, 2); ctx.scale(0.66, 0.66); FOODS.boba(ctx); ctx.restore();
+      ctx.save(); ctx.translate(14, -2); ctx.scale(0.72, 0.72); FOODS.boba(ctx); ctx.restore();
+    },
+    // 3 顆蘋果三角排列
+    apple: function(ctx) {
+      ctx.save(); ctx.translate(-22, 8); ctx.scale(0.58, 0.58); FOODS.apple(ctx); ctx.restore();
+      ctx.save(); ctx.translate(22, 8); ctx.scale(0.58, 0.58); FOODS.apple(ctx); ctx.restore();
+      ctx.save(); ctx.translate(0, -14); ctx.scale(0.65, 0.65); FOODS.apple(ctx); ctx.restore();
+    },
+    // 4 顆草莓 2×2 排列
+    strawberry: function(ctx) {
+      [[-17,-12],[17,-12],[-17,14],[17,14]].forEach(function(p) {
+        ctx.save(); ctx.translate(p[0], p[1]); ctx.scale(0.52, 0.52); FOODS.strawberry(ctx); ctx.restore();
+      });
+    },
+    // 3 顆橘子三角排列
+    orange: function(ctx) {
+      ctx.save(); ctx.translate(-22, 8); ctx.scale(0.58, 0.58); FOODS.orange(ctx); ctx.restore();
+      ctx.save(); ctx.translate(22, 8); ctx.scale(0.58, 0.58); FOODS.orange(ctx); ctx.restore();
+      ctx.save(); ctx.translate(0, -12); ctx.scale(0.62, 0.62); FOODS.orange(ctx); ctx.restore();
+    },
+    // 一串 3 根香蕉
+    banana: function(ctx) {
+      ctx.save(); ctx.translate(-8, 4); ctx.scale(0.72, 0.72); FOODS.banana(ctx); ctx.restore();
+      ctx.save(); ctx.translate(7, -10); ctx.scale(0.65, 0.65); ctx.rotate(-0.28); FOODS.banana(ctx); ctx.restore();
+      ctx.save(); ctx.translate(0, 16); ctx.scale(0.62, 0.62); ctx.rotate(0.22); FOODS.banana(ctx); ctx.restore();
+    },
+    // 3 個壽司放在盤子上
+    sushi: function(ctx) {
+      ctx.fillStyle = '#F0EDE8'; el(ctx, 0, 20, 40, 12); ctx.fill();
+      [-22, 0, 22].forEach(function(ox) {
+        ctx.save(); ctx.translate(ox, 2); ctx.scale(0.56, 0.56); FOODS.sushi(ctx); ctx.restore();
+      });
+    },
+    // 整個圓形披薩(不是一片)
+    pizza: function(ctx) {
+      ctx.fillStyle = '#E8C070'; el(ctx, 0, 0, 34, 34); ctx.fill();
+      ctx.fillStyle = '#E8625D'; el(ctx, 0, 0, 28, 28); ctx.fill();
+      ctx.fillStyle = '#F4CE5A'; el(ctx, 0, 0, 24, 24); ctx.fill();
+      ctx.fillStyle = '#C04040';
+      [[0,-14],[-12,6],[12,6],[0,16],[-16,-3],[16,-3]].forEach(function(p) { el(ctx, p[0], p[1], 4, 4); ctx.fill(); });
+      ctx.strokeStyle = 'rgba(200,130,40,0.45)'; ctx.lineWidth = 1.5;
+      for (var i = 0; i < 6; i++) {
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(24*Math.cos(i*TAU/6), 24*Math.sin(i*TAU/6)); ctx.stroke();
+      }
+    },
+    // 竹蒸籠俯視圖,3 個小籠包
+    bao: function(ctx) {
+      ctx.fillStyle = '#D4A055'; el(ctx, 0, 6, 34, 28); ctx.fill();
+      ctx.strokeStyle = '#B07840'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 6, 33, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = '#C49050'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 6, 24, 0, TAU); ctx.stroke();
+      ctx.fillStyle = '#FBF0DE';
+      [[-15,0],[15,0],[0,-14]].forEach(function(p) { el(ctx, p[0], p[1], 12, 11); ctx.fill(); });
+      ctx.fillStyle = '#E3CCA8';
+      [[-15,0],[15,0],[0,-14]].forEach(function(p) { el(ctx, p[0], p[1], 3.5, 3.5); ctx.fill(); });
+    },
+    // 雙層大漢堡
+    burger: function(ctx) {
+      ctx.fillStyle = '#F2B96B';
+      ctx.beginPath(); ctx.arc(0, -20, 26, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      [[-8,-26],[4,-29],[14,-22]].forEach(function(p){ el(ctx,p[0],p[1],2.5,1.8); ctx.fill(); });
+      ctx.fillStyle = '#8FC9A8'; el(ctx, 0, -14, 29, 5); ctx.fill();
+      ctx.fillStyle = '#F4CE5A'; rr(ctx, -25, -11, 50, 5, 2); ctx.fill();
+      ctx.fillStyle = '#9C6B42'; rr(ctx, -26, -7, 52, 9, 4); ctx.fill();
+      ctx.fillStyle = '#E8A850'; rr(ctx, -23, 3, 46, 7, 4); ctx.fill();
+      ctx.fillStyle = '#7A5230'; rr(ctx, -25, 10, 50, 9, 4); ctx.fill();
+      ctx.fillStyle = '#F2B96B'; rr(ctx, -27, 20, 54, 12, 7); ctx.fill();
+    },
+    // 大份薯條(6 根 + 大盒)
+    fries: function(ctx) {
+      ctx.fillStyle = '#F4CE5A';
+      [[-18,-34,-0.18],[-9,-38,0],[0,-36,0.04],[9,-32,0.1],[16,-30,0.16],[-4,-32,-0.08]].forEach(function(p) {
+        ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(p[2]); rr(ctx, -4, 0, 8, 38, 3); ctx.fill(); ctx.restore();
+      });
+      ctx.fillStyle = '#E8625D'; rr(ctx, -26, -4, 52, 36, 8); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; rr(ctx, -18, 2, 14, 22, 4); ctx.fill();
+    },
+    // 三球冰淇淋疊塔
+    scoop: function(ctx) {
+      ctx.fillStyle = '#F2C277';
+      ctx.beginPath(); ctx.moveTo(0, 38); ctx.lineTo(-16, 4); ctx.lineTo(16, 4); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#D4A040'; ctx.lineWidth = 1;
+      [-6,0,6].forEach(function(ox){ ctx.beginPath(); ctx.moveTo(ox,4); ctx.lineTo(ox*0.4,38); ctx.stroke(); });
+      ctx.fillStyle = '#F8B8C4'; el(ctx, -11, -4, 14, 13); ctx.fill();
+      ctx.fillStyle = '#C8E8B0'; el(ctx, 11, -4, 14, 13); ctx.fill();
+      ctx.fillStyle = '#F8D4A0'; el(ctx, 0, -20, 15, 14); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      el(ctx, -14, -7, 4, 3); ctx.fill(); el(ctx, 8, -7, 4, 3); ctx.fill(); el(ctx, -3, -24, 4, 3); ctx.fill();
+    },
+    // 豪華聖代+鮮奶油+草莓
+    sundae: function(ctx) {
+      ctx.fillStyle = '#D8E8F2';
+      ctx.beginPath(); ctx.moveTo(-22, -6); ctx.lineTo(22, -6); ctx.lineTo(14, 22); ctx.lineTo(-14, 22); ctx.closePath(); ctx.fill();
+      rr(ctx, -10, 22, 20, 8, 3); ctx.fill(); rr(ctx, -17, 30, 34, 6, 3); ctx.fill();
+      ctx.fillStyle = '#F8B8C4'; el(ctx, -8, -12, 14, 11); ctx.fill();
+      ctx.fillStyle = '#F4CE5A'; el(ctx, 10, -14, 12, 10); ctx.fill();
+      ctx.fillStyle = '#FFFAF6'; el(ctx, -2, -22, 14, 12); ctx.fill();
+      ctx.beginPath(); ctx.arc(-2, -28, 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#E8546B'; el(ctx, -2, -36, 6, 6); ctx.fill();
+      ctx.strokeStyle = '#6FA86A'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-2, -30); ctx.quadraticCurveTo(5, -36, 4, -38); ctx.stroke();
+    },
+    // 雙層整個蛋糕+蠟燭
+    cake: function(ctx) {
+      ctx.fillStyle = '#FFF7EC'; rr(ctx, -30, 6, 60, 24, 7); ctx.fill();
+      ctx.fillStyle = '#F8B8C4'; rr(ctx, -30, 4, 60, 6, 3); ctx.fill();
+      ctx.fillStyle = '#FFF7EC'; rr(ctx, -22, -18, 44, 24, 6); ctx.fill();
+      ctx.fillStyle = '#F8B8C4'; rr(ctx, -22, -20, 44, 6, 3); ctx.fill();
+      ctx.fillStyle = '#F8B8C4';
+      [[-16,-14],[-4,-12],[8,-13],[18,-14]].forEach(function(p){ el(ctx,p[0],p[1],2.5,4); ctx.fill(); });
+      ctx.fillStyle = '#E8546B'; el(ctx, 0, -28, 7, 7); ctx.fill();
+      ctx.fillStyle = '#6FA86A'; el(ctx, 0, -34, 4, 3); ctx.fill();
+      ctx.fillStyle = '#92B8E0'; rr(ctx, 11, -36, 5, 14, 2); ctx.fill();
+      ctx.fillStyle = '#F6C95E'; el(ctx, 13.5, -38, 2, 3); ctx.fill();
+    }
+  };
+
+  function drawFoodDeluxe(ctx, key, x, y, s) {
+    const fn = FOODS_DELUXE[key] || FOODS[key] || FOODS.apple;
+    ctx.save(); ctx.translate(x, y); ctx.scale(s || 1, s || 1);
+    fn(ctx);
+    ctx.restore();
+  }
+
   // ── 形狀(m6)──────────────────────────────────────────
   const SHAPE_COLORS = { circle: '#F4A8A0', triangle: '#8FC9A8', square: '#92B8E0', rect: '#C5A8E0', star: '#F6C95E', oval: '#B8E0F4', diamond: '#D4B8E0', heart: '#F4B8C8' };
   function drawShape(ctx, id, x, y, s, color) {
@@ -364,7 +501,8 @@
 
   window.PLS_ART = {
     FONT: FONT, el: el, rr: rr, pill: pill, bubble: bubble, sparkle: sparkle, heart: heart,
-    drawFood: drawFood, drawShape: drawShape, drawPair: drawPair, drawIcon: drawIcon,
+    drawFood: drawFood, drawFoodDeluxe: drawFoodDeluxe,
+    drawShape: drawShape, drawPair: drawPair, drawIcon: drawIcon,
     fitText: fitText, drawLines: drawLines, wrapLines: wrapLines,
     SHAPE_COLORS: SHAPE_COLORS
   };

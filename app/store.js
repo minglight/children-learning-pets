@@ -7,27 +7,46 @@
     return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
   }
 
+  function emptySlot() { return { key: null, deluxe: false, date: null }; }
+
   function blank(petId) {
     return {
       pet: petId,
       name: null,                 // null = 用預設名
       levels: {},                 // levelId -> {attempts, bestRate, cleared, plays}
       daily: { date: today(), math: 0, english: 0 },
-      home: { food: { key: null, date: null }, toy: { key: null, date: null } }  // 家裡展示:一個食物 + 一個玩具(每天各可換一次)
+      home: {                     // 家裡展示:3 食物格 + 3 玩具格(各格每天可換一次)
+        foods: [emptySlot(), emptySlot(), emptySlot()],
+        toys:  [emptySlot(), emptySlot(), emptySlot()]
+      }
     };
   }
 
-  // 把 home 結構統一成新版 {food,toy};相容舊版單格 {item,type,date}
+  // 把 home 結構統一成新版 {foods[3], toys[3]};相容所有舊版格式
   function migrateHome(h) {
-    if (!h || typeof h !== 'object') return { food: { key: null, date: null }, toy: { key: null, date: null } };
-    if ('item' in h && !h.food && !h.toy) {
-      const slot = h.type === 'toy' ? 'toy' : 'food';
-      const out = { food: { key: null, date: null }, toy: { key: null, date: null } };
-      out[slot] = { key: h.item || null, date: h.date || null };
-      return out;
+    if (!h || typeof h !== 'object') {
+      return { foods: [emptySlot(), emptySlot(), emptySlot()], toys: [emptySlot(), emptySlot(), emptySlot()] };
     }
-    if (!h.food) h.food = { key: null, date: null };
-    if (!h.toy) h.toy = { key: null, date: null };
+    // 最舊格式: { item, type, date }
+    if ('item' in h && !('food' in h) && !('foods' in h)) {
+      var out0 = { foods: [emptySlot(), emptySlot(), emptySlot()], toys: [emptySlot(), emptySlot(), emptySlot()] };
+      out0[h.type === 'toy' ? 'toys' : 'foods'][0] = { key: h.item || null, deluxe: false, date: h.date || null };
+      return out0;
+    }
+    // 舊格式: { food:{...}, toy:{...} }
+    if (('food' in h || 'toy' in h) && !('foods' in h) && !('toys' in h)) {
+      var out1 = { foods: [emptySlot(), emptySlot(), emptySlot()], toys: [emptySlot(), emptySlot(), emptySlot()] };
+      if (h.food && h.food.key) out1.foods[0] = { key: h.food.key, deluxe: !!h.food.deluxe, date: h.food.date || null };
+      if (h.toy  && h.toy.key)  out1.toys[0]  = { key: h.toy.key,  deluxe: !!h.toy.deluxe,  date: h.toy.date  || null };
+      return out1;
+    }
+    // 新格式:確保 3 格
+    if (!Array.isArray(h.foods)) h.foods = [emptySlot(), emptySlot(), emptySlot()];
+    if (!Array.isArray(h.toys))  h.toys  = [emptySlot(), emptySlot(), emptySlot()];
+    while (h.foods.length < 3) h.foods.push(emptySlot());
+    while (h.toys.length  < 3) h.toys.push(emptySlot());
+    h.foods = h.foods.map(function (s) { return (s && s.key !== undefined) ? s : emptySlot(); });
+    h.toys  = h.toys.map(function  (s) { return (s && s.key !== undefined) ? s : emptySlot(); });
     return h;
   }
 
@@ -71,22 +90,35 @@
     return (prev && prev.cleared) ? 'open' : 'locked';
   }
 
-  function remainToday(d, subject) {
-    if (isTest()) return 99;
-    return Math.max(0, window.PLS_CONFIG.dailyLimit - (d.daily[subject] || 0));
+  // ── 每日關卡上限(家長可在家長區調整,存在 localStorage)──
+  function getDailyLimit() {
+    try {
+      const v = parseInt(localStorage.getItem('pls.dailyLimit'), 10);
+      return isNaN(v) || v < 1 ? (window.PLS_CONFIG.dailyLimit || 10) : v;
+    } catch (e) { return window.PLS_CONFIG.dailyLimit || 10; }
+  }
+  function setDailyLimit(n) {
+    try { localStorage.setItem('pls.dailyLimit', String(n)); } catch (e) {}
   }
 
-  // ── 家裡展示寶物(食物 / 玩具 各自每天只能換一次)──
-  // slot: 'food' | 'toy'
-  function canSwitchHome(d, slot) {
+  function remainToday(d, subject) {
+    if (isTest()) return 99;
+    return Math.max(0, getDailyLimit() - (d.daily[subject] || 0));
+  }
+
+  // ── 家裡展示寶物(食物 / 玩具 各自每天只能換一次，各格獨立)──
+  // slot: 'food' | 'toy', idx: 0‥2
+  function canSwitchHome(d, slot, idx) {
     if (isTest()) return true;
-    const s = d.home && d.home[slot];
+    idx = idx || 0;
+    var arr = slot === 'food' ? (d.home && d.home.foods) : (d.home && d.home.toys);
+    var s = arr && arr[idx];
     return !s || s.date !== today();
   }
-  function setHomeItem(d, slot, key) {
+  function setHomeItem(d, slot, idx, key, deluxe) {
     d.home = migrateHome(d.home);
-    d.home[slot].key = key;
-    if (!isTest()) d.home[slot].date = today();   // 測試版不消耗每日次數
+    var arr = slot === 'food' ? d.home.foods : d.home.toys;
+    arr[idx] = { key: key, deluxe: !!deluxe, date: isTest() ? (arr[idx] && arr[idx].date) : today() };
     save(d);
   }
 
@@ -153,6 +185,7 @@
     exportAll: exportAll, importAll: importAll, today: today,
     isTest: isTest, setTest: setTest,
     canSwitchHome: canSwitchHome, setHomeItem: setHomeItem,
-    clearCount: clearCount, clearedToday: clearedToday, deluxeAt: deluxeAt
+    clearCount: clearCount, clearedToday: clearedToday, deluxeAt: deluxeAt,
+    getDailyLimit: getDailyLimit, setDailyLimit: setDailyLimit
   };
 })();

@@ -560,6 +560,11 @@
           this.bubbleText = '再看一次,要寫在「' + this.target + '」的框框裡喔';
           this.bubbleUntil = PLS.t + 2.2; PLS.sfx.wrong(); return;
         }
+        // 其他框框不能有明顯筆跡(只要答對的那格有寫才算過關)
+        if (maxOther > 50) {
+          this.bubbleText = '只要寫在「' + this.target + '」的框框裡就好喔';
+          this.bubbleUntil = PLS.t + 2.2; PLS.sfx.wrong(); return;
+        }
         this.locked = true;
         this.firstTryCount++;
         PLS.sfx.correct();

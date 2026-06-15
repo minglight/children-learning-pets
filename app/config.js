@@ -1,7 +1,7 @@
 // config.js — 關卡與內容設定(資料驅動:之後加關卡只改這裡)
 window.PLS_CONFIG = {
   appName: '寵物小學堂',
-  dailyLimit: 3,        // 每科每天可「正式」過幾關
+  dailyLimit: 10,       // 每科每天可「正式」過幾關(預設；可在家長區調整)
   questionsPerLevel: 10,
   passRate: 0.9,        // 首次答對率 >= 90% 才能吃大餐
   deluxeAt: 10,         // 同一關正式解滿幾次就改送「豪華版」獎勵(每關一天只能解一次)
@@ -23,44 +23,44 @@ window.PLS_CONFIG = {
   // feast: 大餐(name + items 食物 key 陣列)
   math: [
     { id: 'm1', name: '數一數', sub: '圖案相加', gen: 'visualAdd', icon: 'apple',
-      bite: 'eggcake', feast: { name: '台灣夜市大餐', items: ['boba', 'eggcake', 'eggcake', 'boba', 'eggcake'] } },
+      bite: 'eggcake', feast: { name: '台灣夜市大餐', basicName: '一份雞蛋糕', deluxeName: '夜市大餐全套', items: ['boba', 'eggcake', 'eggcake', 'boba', 'eggcake'] } },
     { id: 'a10', name: '加法', sub: '10 以內', gen: 'addWithin10', icon: 'plus',
-      bite: 'apple', feast: { name: '繽紛水果籃', items: ['apple', 'orange', 'strawberry', 'banana', 'apple'] } },
+      bite: 'apple', feast: { name: '繽紛水果籃', basicName: '一籃水果', deluxeName: '豐盛水果大禮籃', items: ['apple', 'orange', 'strawberry', 'banana', 'apple'] } },
     { id: 's10', name: '減法', sub: '10 以內', gen: 'subWithin10', icon: 'minus',
-      bite: 'strawberry', feast: { name: '草莓點心盤', items: ['strawberry', 'cake', 'strawberry', 'cake', 'strawberry'] } },
+      bite: 'strawberry', feast: { name: '草莓點心盤', basicName: '一盤草莓點心', deluxeName: '草莓點心豪華盤', items: ['strawberry', 'cake', 'strawberry', 'cake', 'strawberry'] } },
     { id: 'a20', name: '加法', sub: '20 以內', gen: 'addWithin20', icon: 'plus',
-      bite: 'orange', feast: { name: '果園豐收餐', items: ['orange', 'apple', 'orange', 'strawberry', 'orange'] } },
+      bite: 'orange', feast: { name: '果園豐收餐', basicName: '一籃橘子水果', deluxeName: '果園豐收大禮盤', items: ['orange', 'apple', 'orange', 'strawberry', 'orange'] } },
     { id: 'm2', name: '加法', sub: '兩位數不進位', gen: 'addNoCarry', icon: 'plus',
-      bite: 'sushi', feast: { name: '日本壽司大餐', items: ['sushi', 'sushi', 'sushi', 'sushi', 'sushi'] } },
+      bite: 'sushi', feast: { name: '日本壽司大餐', basicName: '一盤壽司', deluxeName: '壽司豪華全餐', items: ['sushi', 'sushi', 'sushi', 'sushi', 'sushi'] } },
     // 教學順序:先把「進位加法」學會,再進入會退位的減法
     { id: 'm3', name: '加法', sub: '進位', gen: 'addCarry', icon: 'plus',
-      bite: 'pizza', feast: { name: '義大利披薩派對', items: ['pizza', 'pizza', 'pizza', 'pizza', 'pizza'] } },
+      bite: 'pizza', feast: { name: '義大利披薩派對', basicName: '一塊披薩', deluxeName: '披薩豪華全份', items: ['pizza', 'pizza', 'pizza', 'pizza', 'pizza'] } },
     { id: 'm5', name: '減法', sub: '減兩位數', gen: 'subTwo', icon: 'minus',
-      bite: 'fries', feast: { name: '美式漢堡大餐', items: ['burger', 'fries', 'burger', 'fries', 'burger'] } },
+      bite: 'fries', feast: { name: '美式漢堡大餐', basicName: '小漢堡薯條', deluxeName: '大麥克豪華餐', items: ['burger', 'fries', 'burger', 'fries', 'burger'] } },
     { id: 'm4', name: '減法', sub: '減一位數(會借位)', gen: 'subOne', icon: 'minus',
-      bite: 'bao', feast: { name: '小籠包蒸籠宴', items: ['bao', 'bao', 'bao', 'bao', 'bao'] } },
+      bite: 'bao', feast: { name: '小籠包蒸籠宴', basicName: '一籠小籠包', deluxeName: '小籠包豪華全席', items: ['bao', 'bao', 'bao', 'bao', 'bao'] } },
     { id: 'm6', name: '形狀小偵探', sub: '認識圖形', gen: 'shapeFind', icon: 'shape',
-      bite: 'scoop', feast: { name: '冰淇淋聖代塔', items: ['sundae', 'scoop', 'scoop', 'sundae', 'scoop'] } },
+      bite: 'scoop', feast: { name: '冰淇淋聖代塔', basicName: '一球冰淇淋', deluxeName: '聖代冰淇淋豪華塔', items: ['sundae', 'scoop', 'scoop', 'sundae', 'scoop'] } },
     { id: 'm7', name: '形狀拼拼樂', sub: '圖形拼補', gen: 'shapeCompose', icon: 'puzzle',
-      bite: 'strawberry', feast: { name: '草莓蛋糕塔', items: ['cake', 'strawberry', 'cake', 'strawberry', 'cake'] } },
+      bite: 'strawberry', feast: { name: '草莓蛋糕塔', basicName: '一塊草莓蛋糕', deluxeName: '草莓蛋糕豪華塔', items: ['cake', 'strawberry', 'cake', 'strawberry', 'cake'] } },
     // ── 課本單元 6–9(題庫來自 questions/*.xml,可由家長編輯;不上鎖)──
     { id: 'u6', name: '課6 買東西', sub: '認識錢', bank: 'unit6', icon: 'coin', alwaysOpen: true,
-      bite: 'boba', feast: { name: '夜市點心大餐', items: ['boba', 'eggcake', 'boba', 'eggcake', 'boba'] } },
+      bite: 'boba', feast: { name: '夜市點心大餐', basicName: '一份夜市點心', deluxeName: '夜市豪華全套', items: ['boba', 'eggcake', 'boba', 'eggcake', 'boba'] } },
     { id: 'u7', name: '課7 看月曆', sub: '日期星期', bank: 'unit7', icon: 'calendar', alwaysOpen: true,
-      bite: 'orange', feast: { name: '繽紛水果盤', items: ['orange', 'apple', 'banana', 'strawberry', 'orange'] } },
+      bite: 'orange', feast: { name: '繽紛水果盤', basicName: '一盤繽紛水果', deluxeName: '繽紛水果豐收大盤', items: ['orange', 'apple', 'banana', 'strawberry', 'orange'] } },
     { id: 'u8', name: '課8 兩位數加減', sub: '直式計算', bank: 'unit8', icon: 'plus', alwaysOpen: true,
-      bite: 'sushi', feast: { name: '日本壽司全餐', items: ['sushi', 'sushi', 'sushi', 'sushi', 'sushi'] } },
+      bite: 'sushi', feast: { name: '日本壽司全餐', basicName: '一盤壽司', deluxeName: '壽司豪華全餐', items: ['sushi', 'sushi', 'sushi', 'sushi', 'sushi'] } },
     { id: 'u9', name: '課9 分類整理', sub: '數一數比一比', bank: 'unit9', icon: 'sort', alwaysOpen: true,
-      bite: 'pizza', feast: { name: '披薩薯條派對', items: ['pizza', 'fries', 'pizza', 'fries', 'pizza'] } },
+      bite: 'pizza', feast: { name: '披薩薯條派對', basicName: '一塊披薩薯條', deluxeName: '披薩薯條豪華全套', items: ['pizza', 'fries', 'pizza', 'fries', 'pizza'] } },
     // 小二進階(完整內容,照進度逐關解鎖)
     { id: 'm8', name: '加法', sub: '兩位數+兩位數', gen: 'addBig', icon: 'plus',
-      bite: 'banana', feast: { name: '繽紛水果大餐', items: ['banana', 'apple', 'orange', 'strawberry', 'banana'] } },
+      bite: 'banana', feast: { name: '繽紛水果大餐', basicName: '一籃繽紛水果', deluxeName: '繽紛水果大禮籃', items: ['banana', 'apple', 'orange', 'strawberry', 'banana'] } },
     { id: 'm9', name: '減法', sub: '退位減法', gen: 'subBorrow', icon: 'minus',
-      bite: 'cake', feast: { name: '幸福下午茶', items: ['cake', 'boba', 'eggcake', 'scoop', 'cake'] } },
+      bite: 'cake', feast: { name: '幸福下午茶', basicName: '一份下午茶', deluxeName: '幸福下午茶豪華版', items: ['cake', 'boba', 'eggcake', 'scoop', 'cake'] } },
     { id: 'mb', name: '幾個幾', sub: '同數連加', gen: 'mulBridge', icon: 'plus',
-      bite: 'banana', feast: { name: '香蕉水果盤', items: ['banana', 'apple', 'banana', 'orange', 'banana'] } },
+      bite: 'banana', feast: { name: '香蕉水果盤', basicName: '一盤水果', deluxeName: '香蕉水果豪華盤', items: ['banana', 'apple', 'banana', 'orange', 'banana'] } },
     { id: 'm10', name: '乘法', sub: '初體驗', gen: 'mulIntro', icon: 'times',
-      bite: 'pizza', feast: { name: '乘法派對餐', items: ['pizza', 'burger', 'sushi', 'fries', 'bao'] } }
+      bite: 'pizza', feast: { name: '乘法派對餐', basicName: '一份派對美食', deluxeName: '乘法派對豪華全餐', items: ['pizza', 'burger', 'sushi', 'fries', 'bao'] } }
   ],
 
   // ── 英文關卡(階梯,難度非常緩慢遞增)──────────────────
