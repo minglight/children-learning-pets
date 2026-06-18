@@ -216,6 +216,54 @@
   // 把大寫字母唸出來(用小寫,語音才不會多唸 "Capital")
   function sayLetter(ch) { if (ch) PLS.say(ch.toLowerCase(), 'en-US'); }
 
+  // 共用:描寫卡(白卡 + 四線格 + 筆順骨架/示範 + 玩家筆畫)。reveal=null 不示範。
+  // 給「描寫關卡」與「字母手寫練習」共用,字形/版面才一致。
+  function renderTraceCard(ctx, letter, strokes, accent, reveal) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(110,140,115,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+    ctx.fillStyle = '#FFFFFF'; A.rr(ctx, TCARD.x, TCARD.y, TCARD.w, TCARD.h, 30); ctx.fill();
+    ctx.restore();
+    const cardCx = TCARD.x + TCARD.w / 2, cardCy = TCARD.y + TCARD.h / 2;
+    const LcY = cardCy + 4, Lh = 230;
+    const gx0 = TCARD.x + 44, gx1 = TCARD.x + TCARD.w - 44;
+    const lnTop = LcY - Lh / 2, lnBase = LcY + Lh / 2, lnDesc = LcY + Lh * 0.78;
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = 'rgba(150,180,150,0.45)'; ctx.lineWidth = 2;
+    [lnTop, lnBase].forEach(function (yy) { ctx.beginPath(); ctx.moveTo(gx0, yy); ctx.lineTo(gx1, yy); ctx.stroke(); });
+    ctx.strokeStyle = 'rgba(150,180,150,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([6, 10]);
+    [LcY, lnDesc].forEach(function (yy) { ctx.beginPath(); ctx.moveTo(gx0, yy); ctx.lineTo(gx1, yy); ctx.stroke(); });
+    ctx.setLineDash([]);
+    if (letter) {
+      const L = window.PLS_LETTERS;
+      if (L && L.has(letter)) {
+        L.draw(ctx, letter, { cx: cardCx, cy: LcY, h: Lh, color: '#E7E0CF', showOrder: true, badgeColor: '#7FB08E', arrowColor: '#C9BC9C', reveal: reveal, penColor: accent });
+      } else {
+        ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.font = '700 270px ' + FONT;
+        ctx.fillStyle = '#ECE7DA'; ctx.fillText(letter, cardCx, lnBase);
+        ctx.strokeStyle = '#CFC4AC'; ctx.lineWidth = 3; ctx.setLineDash([4, 14]);
+        ctx.strokeText(letter, cardCx, lnBase); ctx.setLineDash([]);
+      }
+    }
+    // 玩家筆畫
+    ctx.strokeStyle = accent; ctx.lineWidth = 16; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    strokes.forEach(function (s) {
+      if (s.length < 2) { if (s.length === 1) { ctx.fillStyle = accent; A.el(ctx, s[0].x, s[0].y, 8, 8); ctx.fill(); } return; }
+      ctx.beginPath(); ctx.moveTo(s[0].x, s[0].y);
+      for (let i = 1; i < s.length; i++) ctx.lineTo(s[i].x, s[i].y);
+      ctx.stroke();
+    });
+  }
+
+  // 共用:依 demo 狀態(物件 {on,t0,dur})算出 reveal(0~1 或 null),示範結束會把 on 設 false。
+  function demoReveal(demo) {
+    if (!demo || !demo.on) return null;
+    const e = PLS.t - demo.t0;
+    if (e < 0) return 0;
+    if (e >= demo.dur) { demo.on = false; return null; }
+    return e / demo.dur;
+  }
+
   const eplay = {
     enter: function (params) {
       const self = this;
@@ -321,6 +369,20 @@
           },
           onTap: function () { self.finishStroke(); }
         });
+        // 描寫:看筆順(重播筆順動畫)
+        if (this.mode === 'trace') {
+          PLS.addButton({
+            x: 884, y: by, w: 230, h: 96,
+            draw: function (ctx) {
+              ctx.fillStyle = '#FFFFFF'; A.rr(ctx, 884, by, 230, 96, 28); ctx.fill();
+              ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 3; A.rr(ctx, 884, by, 230, 96, 28); ctx.stroke();
+              ctx.font = '30px ' + FONT; ctx.fillStyle = '#8AA08A';
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.fillText('看筆順', 999, by + 48);
+            },
+            onTap: function () { self.startDemo(0); }
+          });
+        }
       }
       this.next();
     },
@@ -413,7 +475,17 @@
         this.bubbleText = pickTalk(CFG.talkEng.trace);
         this.bubbleUntil = PLS.t + 2.6;
         setTimeout(function () { sayLetter(base); }, 350);
+        this.startDemo(0.5);   // 新字母出現:自動示範一次筆順
       }
+    },
+
+    // 開始/重播筆順動畫(逐筆畫)。delay:延遲幾秒才開始。
+    startDemo: function (delay) {
+      const L = window.PLS_LETTERS;
+      if (!this.q || !L || !L.has(this.q.letter)) { this.demoOn = false; return; }
+      this.demoT0 = PLS.t + (delay || 0);
+      this.demoDur = 0.75 * L.strokeCount(this.q.letter) + 0.5;   // 每筆約 0.75 秒
+      this.demoOn = true;
     },
 
     replay: function () {
@@ -766,30 +838,14 @@
     },
 
     drawTrace: function (ctx, t) {
-      const q = this.q;
-      ctx.save();
-      ctx.shadowColor = 'rgba(110,140,115,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
-      ctx.fillStyle = '#FFFFFF'; A.rr(ctx, TCARD.x, TCARD.y, TCARD.w, TCARD.h, 30); ctx.fill();
-      ctx.restore();
-      ctx.strokeStyle = 'rgba(150,180,150,0.35)'; ctx.lineWidth = 2;
-      ctx.setLineDash([6, 10]);
-      ctx.beginPath(); ctx.moveTo(TCARD.x + 30, TCARD.y + TCARD.h / 2); ctx.lineTo(TCARD.x + TCARD.w - 30, TCARD.y + TCARD.h / 2); ctx.stroke();
-      ctx.setLineDash([]);
-      if (!q) return;
-      const cx = TCARD.x + TCARD.w / 2, cy = TCARD.y + TCARD.h / 2;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = '800 300px ' + FONT;
-      ctx.fillStyle = '#ECE7DA'; ctx.fillText(q.letter, cx, cy + 8);
-      ctx.strokeStyle = '#CFC4AC'; ctx.lineWidth = 3; ctx.setLineDash([4, 14]);
-      ctx.strokeText(q.letter, cx, cy + 8); ctx.setLineDash([]);
-      // 玩家筆畫
-      ctx.strokeStyle = this.accent; ctx.lineWidth = 16; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      this.strokes.forEach(function (s) {
-        if (s.length < 2) { if (s.length === 1) { ctx.fillStyle = this.accent; A.el(ctx, s[0].x, s[0].y, 8, 8); ctx.fill(); } return; }
-        ctx.beginPath(); ctx.moveTo(s[0].x, s[0].y);
-        for (let i = 1; i < s.length; i++) ctx.lineTo(s[i].x, s[i].y);
-        ctx.stroke();
-      }, this);
+      let reveal = null;
+      if (this.demoOn) {
+        const e = PLS.t - this.demoT0;
+        if (e < 0) reveal = 0;                            // 延遲中:只顯示底圖
+        else if (e >= this.demoDur) this.demoOn = false;  // 示範結束
+        else reveal = e / this.demoDur;
+      }
+      renderTraceCard(ctx, this.q ? this.q.letter : null, this.strokes, this.accent, reveal);
     },
 
     drawWrite: function (ctx, t) {
@@ -959,8 +1015,121 @@
     }
   };
 
+  // ════════════════════════════════════════════════════
+  // 字母手寫練習(自由練習:不計每日次數、不給獎勵,可逐字慢慢描)
+  // ════════════════════════════════════════════════════
+  const epractice = {
+    enter: function (params) {
+      const self = this;
+      this.petId = params.pet || 'rabbit';
+      this.accent = CFG.pets[this.petId].theme.accent;
+      this.cs = 'upper';
+      this.idx = 0;
+      this.strokes = []; this.cur = null;
+      this.demo = { on: false, t0: 0, dur: 1 };
+      backButton('room', this.petId);
+
+      // 大小寫切換
+      PLS.addButton({
+        x: W - 250, y: 34, w: 210, h: 72,
+        draw: function (ctx) {
+          ctx.fillStyle = 'rgba(255,255,255,0.92)'; A.rr(ctx, W - 250, 34, 210, 72, 24); ctx.fill();
+          ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 2; A.rr(ctx, W - 250, 34, 210, 72, 24); ctx.stroke();
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.font = '30px ' + FONT; ctx.fillStyle = '#6E8B72';
+          ctx.fillText(self.cs === 'upper' ? '大寫 ABC' : '小寫 abc', W - 145, 70);
+        },
+        onTap: function () { self.cs = (self.cs === 'upper') ? 'lower' : 'upper'; self.pick(self.idx); }
+      });
+      // 上一個 / 下一個字母
+      PLS.addButton({
+        x: 150, y: 300, w: 120, h: 184,
+        draw: function (ctx) { self.arrowBtn(ctx, 150, 300, 120, 184, -1); },
+        onTap: function () { self.pick(self.idx - 1); }
+      });
+      PLS.addButton({
+        x: 1062, y: 300, w: 120, h: 184,
+        draw: function (ctx) { self.arrowBtn(ctx, 1062, 300, 120, 184, 1); },
+        onTap: function () { self.pick(self.idx + 1); }
+      });
+      // 清除 / 看筆順
+      PLS.addButton({
+        x: W / 2 - 260, y: 622, w: 240, h: 96,
+        draw: function (ctx) {
+          ctx.fillStyle = '#FFFFFF'; A.rr(ctx, W / 2 - 260, 622, 240, 96, 28); ctx.fill();
+          ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 3; A.rr(ctx, W / 2 - 260, 622, 240, 96, 28); ctx.stroke();
+          ctx.font = '34px ' + FONT; ctx.fillStyle = '#8AA08A';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('清除', W / 2 - 140, 670);
+        },
+        onTap: function () { self.strokes = []; self.cur = null; }
+      });
+      PLS.addButton({
+        x: W / 2 + 20, y: 622, w: 240, h: 96,
+        draw: function (ctx) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(120,150,110,0.28)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
+          ctx.fillStyle = '#8FC9A8'; A.rr(ctx, W / 2 + 20, 622, 240, 96, 28); ctx.fill();
+          ctx.restore();
+          ctx.font = '34px ' + FONT; ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('看筆順', W / 2 + 140, 670);
+        },
+        onTap: function () { self.startDemo(0); }
+      });
+
+      this.pick(0);
+    },
+
+    letter: function () {
+      const base = UP[this.idx];
+      return this.cs === 'lower' ? base.toLowerCase() : base;
+    },
+    pick: function (i) {
+      this.idx = ((i % 26) + 26) % 26;
+      this.strokes = []; this.cur = null;
+      const base = UP[this.idx];
+      setTimeout(function () { sayLetter(base); }, 200);
+      this.startDemo(0.4);
+    },
+    startDemo: function (delay) {
+      const L = window.PLS_LETTERS, ch = this.letter();
+      if (!L || !L.has(ch)) { this.demo.on = false; return; }
+      this.demo = { on: true, t0: PLS.t + (delay || 0), dur: 0.75 * L.strokeCount(ch) + 0.5 };
+    },
+    arrowBtn: function (ctx, x, y, w, h, dir) {
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'; A.rr(ctx, x, y, w, h, 26); ctx.fill();
+      ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 2; A.rr(ctx, x, y, w, h, 26); ctx.stroke();
+      const cx = x + w / 2, cy = y + h / 2, s = 26;
+      ctx.fillStyle = '#8FBF9E';
+      ctx.beginPath();
+      if (dir < 0) { ctx.moveTo(cx + s * 0.5, cy - s); ctx.lineTo(cx - s * 0.6, cy); ctx.lineTo(cx + s * 0.5, cy + s); }
+      else { ctx.moveTo(cx - s * 0.5, cy - s); ctx.lineTo(cx + s * 0.6, cy); ctx.lineTo(cx - s * 0.5, cy + s); }
+      ctx.closePath(); ctx.fill();
+    },
+    pointer: function (phase, x, y) {
+      const inside = x >= TCARD.x && x <= TCARD.x + TCARD.w && y >= TCARD.y && y <= TCARD.y + TCARD.h;
+      if (phase === 'down') {
+        if (!inside) { this.cur = null; return; }
+        this.cur = [{ x: x, y: y }]; this.strokes.push(this.cur);
+      } else if (phase === 'move') {
+        if (!this.cur) return;
+        const cx = Math.max(TCARD.x, Math.min(TCARD.x + TCARD.w, x));
+        const cy = Math.max(TCARD.y, Math.min(TCARD.y + TCARD.h, y));
+        this.cur.push({ x: cx, y: cy });
+      } else if (phase === 'up') { this.cur = null; }
+    },
+    draw: function (ctx, t) {
+      drawRoom(ctx);
+      A.pill(ctx, W / 2, 64, '字母手寫練習', '#5E7A56', 'rgba(255,255,255,0.94)', 27);
+      renderTraceCard(ctx, this.letter(), this.strokes, this.accent, demoReveal(this.demo));
+      ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.petId, ctx, t, {}); ctx.restore();
+    }
+  };
+
   PLS.register('emap', emap);
   PLS.register('eplay', eplay);
   PLS.register('etoy', etoy);
   PLS.register('eresult', eresult);
+  PLS.register('epractice', epractice);
 })();

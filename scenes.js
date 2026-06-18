@@ -1,7 +1,7 @@
 // scenes.js — 首頁三個視覺方向的場景繪製(834×1194 邏輯座標)
 (function () {
   const TAU = Math.PI * 2;
-  const FONT = '"Huninn","Baloo 2",sans-serif';
+  const FONT = '"Andika","Huninn","Baloo 2",sans-serif';
 
   function el(ctx, x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); }
   function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }

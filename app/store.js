@@ -1,6 +1,10 @@
 // store.js — 本機進度(localStorage,雙寵物各自獨立)
+// ⚠ 改動儲存/匯出結構前,務必閱讀 docs/export-import-schema.md 與 CLAUDE.md 的相容規則。
 (function () {
   const KEY = function (pet) { return 'pls.' + pet; };
+
+  // 目前匯出檔的 schema 版本。動到結構就 +1,並更新 docs/export-import-schema.md。
+  const SCHEMA_VERSION = 1;
 
   function today() {
     const d = new Date();
@@ -59,20 +63,44 @@
     try { localStorage.setItem('pls.testMode', on ? '1' : '0'); } catch (e) {}
   }
 
+  // 把單一寵物資料正規化/升級到目前結構;向後相容所有舊版(localStorage 或匯出檔)。
+  // 規則:缺的欄位補安全預設值,絕不因缺欄位而丟掉既有進度。
+  function migratePet(p, petId) {
+    if (!p || typeof p !== 'object') return blank(petId);
+    var from = (typeof p._v === 'number') ? p._v : 0;   // 來源 schema 版本(無戳記視為 0=最舊)
+
+    // ── 版本升級階梯:每次 SCHEMA_VERSION +1 就在這裡加一段 if (from < N) {...} ──
+    // 目前的相容處理(對 from 0~1 都適用):缺欄位補預設、舊結構轉新結構。
+    if (!p.pet) p.pet = petId;
+    if (!('name' in p)) p.name = null;
+    if (!p.levels || typeof p.levels !== 'object') p.levels = {};
+    // 舊資料補 clears 欄位(由 cleared 推回)
+    Object.keys(p.levels).forEach(function (k) {
+      var r = p.levels[k];
+      if (r && r.clears == null) r.clears = r.cleared ? 1 : 0;
+    });
+    if (!p.daily || typeof p.daily !== 'object') p.daily = { date: today(), math: 0, english: 0 };
+    p.home = migrateHome(p.home);
+
+    p._v = SCHEMA_VERSION;   // 升級完成,標記為目前版本
+    return p;
+  }
+
   function load(petId) {
     try {
       const raw = localStorage.getItem(KEY(petId));
       if (!raw) return blank(petId);
-      const d = JSON.parse(raw);
-      if (!d.daily || d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0 };
-      if (!d.levels) d.levels = {};
-      d.home = migrateHome(d.home);
+      const d = migratePet(JSON.parse(raw), petId);
+      if (d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0 };  // 跨日歸零
       return d;
     } catch (e) { return blank(petId); }
   }
 
   function save(d) {
-    try { localStorage.setItem(KEY(d.pet), JSON.stringify(d)); } catch (e) {}
+    try {
+      d._v = SCHEMA_VERSION;   // 蓋上 schema 版本戳記,讓日後升級可判斷來源版本做 migrate
+      localStorage.setItem(KEY(d.pet), JSON.stringify(d));
+    } catch (e) {}
   }
 
   // 關卡狀態:'cleared' | 'open' | 'locked'
@@ -160,23 +188,30 @@
     return { rate: rate, feast: feast, deluxe: deluxe, clears: rec.clears };
   }
 
-  // 匯出 / 匯入(家長區)
+  // 匯出 / 匯入(家長區)— schema 細節見 docs/export-import-schema.md
   function exportAll() {
     return JSON.stringify({
-      app: 'pls', version: 1, exportedAt: new Date().toISOString(),
+      app: 'pls', version: SCHEMA_VERSION, exportedAt: new Date().toISOString(),
       rabbit: load('rabbit'), hamster: load('hamster')
     }, null, 2);
   }
+  // 向後相容:任何舊版(含沒有 version 欄位)的備份檔都先經 migratePet 正規化再存。
+  // 較新版本(version > SCHEMA_VERSION)則盡力匯入已知欄位,不直接拒絕。
   function importAll(json) {
     const d = JSON.parse(json);
-    if (d.app !== 'pls') throw new Error('不是寵物小學堂的備份檔');
-    if (d.rabbit) save(d.rabbit);
-    if (d.hamster) save(d.hamster);
+    if (!d || d.app !== 'pls') throw new Error('不是寵物小學堂的備份檔');
+    if (d.rabbit)  save(migratePet(d.rabbit, 'rabbit'));
+    if (d.hamster) save(migratePet(d.hamster, 'hamster'));
   }
 
-  // 申請持久化,降低被 Safari 清除的風險
+  // 申請「持久化儲存」:讓瀏覽器永遠記住資料、不要自動清掉(家長把它當 iPad App 用)。
+  // 加到主畫面的 PWA 通常會自動獲得持久化;這裡再主動申請一次當保險。
   if (navigator.storage && navigator.storage.persist) {
-    try { navigator.storage.persist(); } catch (e) {}
+    try {
+      navigator.storage.persisted().then(function (already) {
+        if (!already) navigator.storage.persist();   // 尚未持久化才申請,避免重複
+      }).catch(function () { navigator.storage.persist(); });
+    } catch (e) {}
   }
 
   window.PLS_STORE = {

@@ -144,6 +144,10 @@
     parent: function (ctx, x, y) {
       ctx.fillStyle = '#B79B7E'; el(ctx, x, y - 8, 8, 8); ctx.fill();
       ctx.beginPath(); ctx.moveTo(x - 13, y + 13); ctx.quadraticCurveTo(x, y - 2, x + 13, y + 13); ctx.fill();
+    },
+    abc: function (ctx, x, y) {
+      ctx.fillStyle = '#5E8A86'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '700 27px ' + FONT; ctx.fillText('Aa', x, y + 1);
     }
   };
   function navCard(ctx, x, y, w, h, bg, line, title, sub, icon) {
@@ -197,10 +201,16 @@
         },
         onTap: function () { PLS.go('emap', { pet: pid }); }
       });
-      // 換擺設
+      // 字母手寫練習(自由練習,放在換擺設上面)
       PLS.addButton({
         x: 30, y: 416, w: PW - 60, h: 96,
-        draw: function (ctx) { navCard(ctx, 30, 416, PW - 60, 96, '#F6EAF0', '#B06A86', '換擺設', '布置小窩', ICON.decor); },
+        draw: function (ctx) { navCard(ctx, 30, 416, PW - 60, 96, '#E5F0EF', '#3F8A84', '字母手寫練習', '描字母 · 看筆順', ICON.abc); },
+        onTap: function () { PLS.go('epractice', { pet: pid }); }
+      });
+      // 換擺設
+      PLS.addButton({
+        x: 30, y: 528, w: PW - 60, h: 96,
+        draw: function (ctx) { navCard(ctx, 30, 528, PW - 60, 96, '#F6EAF0', '#B06A86', '換擺設', '布置小窩', ICON.decor); },
         onTap: function () { PLS.go('shelf', { pet: pid }); }
       });
       // 測試版:預覽獎勵

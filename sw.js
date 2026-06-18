@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v3';
+const VERSION = 'pls-v11';
 const ASSETS = [
   '.',
   'index.html',
@@ -17,6 +17,7 @@ const ASSETS = [
   'app/main.js',
   'app/screens.js',
   'app/quiz.js',
+  'app/letters.js',
   'app/english.js',
   'questions/unit6.xml',
   'questions/unit7.xml',

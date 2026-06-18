@@ -1,7 +1,7 @@
 // art.js — 共用繪圖:UI 元件、食物、形狀、圖示
 (function () {
   const TAU = Math.PI * 2;
-  const FONT = '"Huninn","Baloo 2",sans-serif';
+  const FONT = '"Andika","Huninn","Baloo 2",sans-serif';
 
   function el(ctx, x, y, rx, ry, rot) {
     ctx.beginPath();

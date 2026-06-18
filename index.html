@@ -12,10 +12,11 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Huninn&amp;family=Baloo+2:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&amp;family=Huninn&amp;family=Baloo+2:wght@600;700;800&amp;display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #E8D9C8; }
-  body { font-family: "Huninn", "Baloo 2", sans-serif; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  /* Andika 先吃拉丁字母(教學字形:單層 a/g、清楚字形),中文自動 fallback 到 Huninn */
+  body { font-family: "Andika", "Huninn", "Baloo 2", sans-serif; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
   #game { display: block; position: fixed; inset: 0; touch-action: none; }
   .font-warmup { position: absolute; opacity: 0; pointer-events: none; }
 
@@ -89,6 +90,7 @@
 </head>
 <body>
 <div class="font-warmup">寵物小學堂 Aa3b7 = ?</div>
+<div class="font-warmup" style="font-family:'Andika',sans-serif;font-weight:700">GgJjAaQqRy 0123456789</div>
 <canvas id="game"></canvas>
 
 <div id="parent-overlay">
@@ -177,6 +179,7 @@
 <script src="app/room.js"></script>
 <script src="app/shelf.js"></script>
 <script src="app/quiz.js"></script>
+<script src="app/letters.js"></script>
 <script src="app/english.js"></script>
 <script>
 (function () {

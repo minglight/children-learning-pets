@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>筆順字母預覽</title>
+<style>
+  body { margin: 0; padding: 20px; background: #FBF2E4; font-family: "Andika", system-ui, sans-serif; color: #5E7A56; }
+  h1 { font-size: 20px; }
+  .hint { color: #9AB09A; font-size: 14px; margin-bottom: 16px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 12px; }
+  .cell { background: #fff; border-radius: 18px; box-shadow: 0 4px 14px rgba(110,140,115,0.12); padding: 6px; }
+  .cell canvas { display: block; }
+  .cell .lab { text-align: center; font-size: 13px; color: #8AA08A; }
+  .controls { margin: 10px 0 18px; }
+  label { font-size: 14px; margin-right: 14px; }
+</style>
+</head>
+<body>
+<h1>筆順字母預覽（letters.js）</h1>
+<p class="hint">綠色圈圈＝起筆順序①②③，箭頭＝該筆方向。灰底＝描寫骨架。哪個字形不對直接跟我說字母＋哪裡怪。</p>
+<div class="controls">
+  <label><input type="checkbox" id="order" checked> 顯示筆順數字／箭頭</label>
+  <label><input type="checkbox" id="grid"> 顯示四線格</label>
+  <label><input type="checkbox" id="anim"> ▶ 播放筆順動畫</label>
+</div>
+<div class="grid" id="grid-box"></div>
+
+<script src="app/letters.js"></script>
+<script>
+  const CELL = 150, H = 96;   // canvas 邊長, cap height
+  const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz'.split('');
+  const box = document.getElementById('grid-box');
+  const orderCb = document.getElementById('order');
+  const gridCb = document.getElementById('grid');
+  const animCb = document.getElementById('anim');
+  const cells = {};   // ch -> ctx(動畫時就地重畫,不重建 DOM)
+
+  function build() {
+    box.innerHTML = '';
+    for (const k in cells) delete cells[k];
+    all.forEach(function (ch) {
+      if (ch === ' ') { const sp = document.createElement('div'); sp.style.flexBasis = '100%'; box.appendChild(sp); return; }
+      if (!PLS_LETTERS.has(ch)) return;
+      const cell = document.createElement('div'); cell.className = 'cell';
+      const cv = document.createElement('canvas'); cv.width = CELL; cv.height = CELL;
+      cells[ch] = cv.getContext('2d');
+      const lab = document.createElement('div'); lab.className = 'lab'; lab.textContent = ch;
+      cell.appendChild(cv); cell.appendChild(lab); box.appendChild(cell);
+    });
+  }
+
+  function paint(ch, reveal) {
+    const ctx = cells[ch]; if (!ctx) return;
+    const cx = CELL / 2, cy = CELL / 2;
+    ctx.clearRect(0, 0, CELL, CELL);
+    if (gridCb.checked) {
+      ctx.strokeStyle = 'rgba(150,180,150,0.4)'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+      [cy - H / 2, cy, cy + H / 2].forEach(function (yy) { ctx.beginPath(); ctx.moveTo(8, yy); ctx.lineTo(CELL - 8, yy); ctx.stroke(); });
+      ctx.setLineDash([]);
+    }
+    PLS_LETTERS.draw(ctx, ch, { cx: cx, cy: cy, h: H, color: '#E0D8C2', showOrder: orderCb.checked, badgeColor: '#7FB08E', arrowColor: '#C2B492', reveal: reveal, penColor: '#F0A24E' });
+  }
+
+  function renderAll() { for (const ch in cells) paint(ch, null); }
+
+  let raf = null;
+  function loop() {
+    const p = (performance.now() % 2600) / 2200;   // 2.2s 畫 + 0.4s 停,循環
+    const r = Math.min(1, p);
+    for (const ch in cells) paint(ch, r);
+    raf = requestAnimationFrame(loop);
+  }
+  function setAnim() {
+    if (animCb.checked) { if (!raf) raf = requestAnimationFrame(loop); }
+    else { if (raf) cancelAnimationFrame(raf); raf = null; renderAll(); }
+  }
+
+  build();
+  renderAll();
+  orderCb.addEventListener('change', renderAll);
+  gridCb.addEventListener('change', renderAll);
+  animCb.addEventListener('change', setAnim);
+</script>
+</body>
+</html>
