@@ -82,7 +82,7 @@
       let rightEdge = W - 30;
       const nm = PLS.currentName;
       if (nm === 'quiz' || nm === 'eplay') rightEdge = W - 128;     // 喇叭鈕在 W-114
-      else if (nm === 'epractice') rightEdge = W - 264;             // 大小寫鈕在 W-250
+      else if (nm === 'epractice' || nm === 'emenu') rightEdge = W - 264; // 大小寫鈕在 W-250
       const x = rightEdge - w;
       this.rect = { x: x, y: cy - h / 2, w: w, h: h };
       this.visible = true;
@@ -301,7 +301,7 @@
           ctx.fillStyle = '#FFFFFF'; A.rr(ctx, W / 2 - 330, 700, 300, 100, 32); ctx.fill();
           ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 3; A.rr(ctx, W / 2 - 330, 700, 300, 100, 32); ctx.stroke();
           ctx.font = '34px ' + FONT; ctx.fillStyle = '#6E8B72'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('再寫一個', W / 2 - 180, 752);
+          ctx.fillText('再寫一輪', W / 2 - 180, 752);
         },
         onTap: function () { PLS.go('epractice', { pet: self.petId }); }
       });
@@ -329,10 +329,10 @@
       }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '52px ' + FONT;
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillText('描得真好!', W / 2, 130);
-      ctx.fillStyle = '#5E8A56'; ctx.fillText('描得真好!', W / 2, 126);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillText('整輪都寫完了!', W / 2, 130);
+      ctx.fillStyle = '#5E8A56'; ctx.fillText('整輪都寫完了!', W / 2, 126);
       let msg;
-      if (this.awarded) msg = this.capped ? '+1 分! 手寫積分已滿 100 分!' : ('+1 分! 今天還可以拿 ' + this.dailyLeft + ' 分');
+      if (this.awarded) msg = this.capped ? '+1 分! 手寫積分已滿 100 分!' : ('+1 分! 今天還可以再寫 ' + this.dailyLeft + ' 輪');
       else if (this.capped) msg = '手寫積分已達上限 100 分囉!';
       else msg = '今天的手寫積分拿完了,明天再來!';
       A.pill(ctx, W / 2, 198, msg, this.awarded ? '#C2591E' : '#7A6450', 'rgba(255,255,255,0.95)', 26);

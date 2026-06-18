@@ -1031,6 +1031,7 @@
       }
       this.strokes = []; this.cur = null;
       this.demo = { on: false, t0: 0, dur: 1 };
+      this.refreshRound();
       // 返回字母表(記住目前大小寫)
       PLS.addButton({
         x: 30, y: 30, w: 84, h: 84,
@@ -1057,12 +1058,12 @@
       PLS.addButton({
         x: 150, y: 300, w: 120, h: 184,
         draw: function (ctx) { self.arrowBtn(ctx, 150, 300, 120, 184, -1); },
-        onTap: function () { self.pick(self.idx - 1); }
+        onTap: function () { self.step(-1); }
       });
       PLS.addButton({
         x: 1062, y: 300, w: 120, h: 184,
         draw: function (ctx) { self.arrowBtn(ctx, 1062, 300, 120, 184, 1); },
-        onTap: function () { self.pick(self.idx + 1); }
+        onTap: function () { self.step(1); }
       });
       // 底部按鈕:清除 / 看筆順 (+ 完成,描完一輪 +1 分;隱藏獎品功能時不顯示「完成」)
       const showDone = !ST.rewardsHidden();
@@ -1094,7 +1095,7 @@
         },
         onTap: function () { self.startDemo(0); }
       });
-      // 完成(描完一輪 +1 分;每天 3 輪、累計上限 100 分,規則在 store.awardHandwriting)
+      // 寫好了:把這個字母記進本輪;描滿一輪(A–Z 大寫 + a–z 小寫 共 52 個)才 +1 分(規則在 store.submitHwLetter)
       if (showDone) {
         PLS.addButton({
           x: 760, y: 622, w: 220, h: 96,
@@ -1106,12 +1107,20 @@
             ctx.restore();
             ctx.font = '32px ' + FONT; ctx.fillStyle = ok ? '#FFFFFF' : '#B6A488';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('完成 +1分', 870, 670);
+            ctx.fillText('寫好了', 870, 670);
           },
           onTap: function () {
-            if (!self.strokes.length) { self.hint = '先描一個字母再按完成喔'; self.hintT = PLS.t; return; }
-            const res = ST.awardHandwriting(ST.load(self.petId));
-            PLS.go('hwpass', { pet: self.petId, awarded: res.awarded, capped: res.capped, dailyLeft: res.dailyLeft });
+            if (!self.strokes.length) { self.hint = '先描一個字母再按「寫好了」喔'; self.hintT = PLS.t; return; }
+            const res = ST.submitHwLetter(ST.load(self.petId), self.letter());
+            if (res.complete) {
+              PLS.go('hwpass', { pet: self.petId, awarded: res.awarded, capped: res.capped, dailyLeft: res.dailyLeft });
+              return;
+            }
+            self.refreshRound();
+            PLS.sfx.correct();
+            self.hint = '寫好了!本輪已完成 ' + res.count + ' / ' + res.total + ' 個';
+            self.hintT = PLS.t;
+            self.gotoNextUndone();
           }
         });
       }
@@ -1124,12 +1133,38 @@
       const base = UP[this.idx];
       return this.cs === 'lower' ? base.toLowerCase() : base;
     },
+    // 重新讀取本輪手寫進度(已描完字母的集合 + 計數)
+    refreshRound: function () {
+      const p = ST.hwRoundProgress(ST.load(this.petId));
+      this.doneSet = new Set(p.letters);
+      this.doneCount = p.count; this.doneTotal = p.total;
+    },
+    // 跳到本輪「還沒描過」的下一個字母,依「大寫→小寫」配對順序前進(A→a→B→b→…)
+    gotoNextUndone: function () {
+      let g = this.idx * 2 + (this.cs === 'lower' ? 1 : 0);
+      for (let s = 0; s < 52; s++) {
+        g = (g + 1) % 52;
+        const cs = (g % 2 === 1) ? 'lower' : 'upper';
+        const i = Math.floor(g / 2);
+        const ch = (cs === 'lower') ? UP[i].toLowerCase() : UP[i];
+        if (!this.doneSet || !this.doneSet.has(ch)) { this.cs = cs; this.pick(i); return; }
+      }
+      this.pick(this.idx);   // 理論上不會到這(滿 52 會 complete)
+    },
+    // 上一個 / 下一個:每個字母「大寫→小寫」配對前進(A→a→B→b→…→Z→z→循環)。
+    // 全序列 g=0..51:偶數=大寫、奇數=小寫;idx = floor(g/2)。
+    step: function (dir) {
+      let g = this.idx * 2 + (this.cs === 'lower' ? 1 : 0);
+      g = ((g + dir) % 52 + 52) % 52;
+      this.cs = (g % 2 === 1) ? 'lower' : 'upper';
+      this.pick(Math.floor(g / 2));
+    },
     pick: function (i) {
       this.idx = ((i % 26) + 26) % 26;
       this.strokes = []; this.cur = null;
+      this.demo.on = false;                 // 預設不自動示範筆順(要看請按「看筆順」)
       const base = UP[this.idx];
       setTimeout(function () { sayLetter(base); }, 200);
-      this.startDemo(0.4);
     },
     startDemo: function (delay) {
       const L = window.PLS_LETTERS, ch = this.letter();
@@ -1161,7 +1196,19 @@
     draw: function (ctx, t) {
       drawRoom(ctx);
       A.pill(ctx, W / 2, 64, '字母手寫練習', '#5E7A56', 'rgba(255,255,255,0.94)', 27);
+      // 本輪進度(只有開啟積分時才有意義):描滿 A–Z 大小寫共 52 個 +1 分
+      if (!ST.rewardsHidden()) {
+        A.pill(ctx, W / 2, 116, '本輪 ' + (this.doneCount || 0) + ' / ' + (this.doneTotal || 52) + ' 個 · 寫滿整輪 +1 分',
+          '#C2851E', 'rgba(255,255,255,0.92)', 22);
+      }
       renderTraceCard(ctx, this.letter(), this.strokes, this.accent, demoReveal(this.demo));
+      // 這個字母本輪已描過 → 角落打勾,讓孩子知道還沒寫的還有哪些
+      if (!ST.rewardsHidden() && this.doneSet && this.doneSet.has(this.letter())) {
+        const cx = TCARD.x + TCARD.w - 42, cy = TCARD.y + 42;
+        ctx.fillStyle = '#8FC9A8'; A.el(ctx, cx, cy, 22, 22); ctx.fill();
+        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(cx - 10, cy + 1); ctx.lineTo(cx - 2, cy + 9); ctx.lineTo(cx + 11, cy - 8); ctx.stroke();
+      }
       ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.petId, ctx, t, {}); ctx.restore();
       if (this.hint && t - this.hintT < 1.8) A.bubble(ctx, W / 2, 150, this.hint, { size: 23 });
     }
@@ -1176,6 +1223,8 @@
       this.petId = params.pet || 'rabbit';
       this.accent = CFG.pets[this.petId].theme.accent;
       this.cs = (params.cs === 'lower') ? 'lower' : 'upper';
+      // 本輪已描完的字母(大小寫各自獨立),用來在格子上打勾 + 顯示進度
+      this.doneSet = new Set(ST.hwRoundProgress(ST.load(this.petId)).letters);
       backButton('room', this.petId);
 
       // 大小寫切換(切換後重畫,字母格內字形跟著變)
@@ -1219,10 +1268,21 @@
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(ch, x + w / 2, y + h / 2);
       }
+      // 本輪已描完 → 右上角打勾(隱藏積分功能時不顯示)
+      if (!ST.rewardsHidden() && this.doneSet && this.doneSet.has(ch)) {
+        const bx = x + w - 22, by = y + 22;
+        ctx.fillStyle = '#8FC9A8'; A.el(ctx, bx, by, 16, 16); ctx.fill();
+        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(bx - 7, by + 1); ctx.lineTo(bx - 1, by + 7); ctx.lineTo(bx + 8, by - 6); ctx.stroke();
+      }
     },
     draw: function (ctx, t) {
       drawRoom(ctx);
       A.pill(ctx, W / 2, 64, '字母手寫練習 · 選一個字母', '#5E7A56', 'rgba(255,255,255,0.94)', 27);
+      if (!ST.rewardsHidden() && this.doneSet) {
+        A.pill(ctx, W / 2, 116, '本輪已完成 ' + this.doneSet.size + ' / 52 個 · 寫滿整輪 +1 分',
+          '#C2851E', 'rgba(255,255,255,0.92)', 21);
+      }
       ctx.save(); ctx.translate(120, 720); ctx.scale(0.42, 0.42); P.draw(this.petId, ctx, t, {}); ctx.restore();
     }
   };

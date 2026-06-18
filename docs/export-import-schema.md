@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 2`（v2 新增「積分 / 獎品」)
+## 目前版本:`version = 3`（v3 手寫改為「描滿一輪才給分」)
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -17,7 +17,7 @@
 ```jsonc
 {
   "app": "pls",                       // 固定字串;不是 "pls" 一律拒絕匯入
-  "version": 2,                       // schema 版本(= store.js 的 SCHEMA_VERSION)
+  "version": 3,                       // schema 版本(= store.js 的 SCHEMA_VERSION)
   "exportedAt": "2026-06-18T08:00:00.000Z", // ISO 時間,僅供參考
   "rabbit": { /* 寵物資料,見下 */ },
   "hamster": { /* 寵物資料,見下 */ },
@@ -45,6 +45,7 @@
   "name": null,               // 自訂暱稱;null = 用預設名
   "points": 12,               // v2:可兌換獎品的積分(本寵物獨立)
   "hwEarned": 8,              // v2:字母手寫練習累計已給的積分(上限 100)
+  "hwRound": ["A", "b"],      // v3:本輪已描完的字母(大小寫各自獨立);描滿 52 個(A–Z+a–z)才 +1 分後清空
   "levels": {                 // 關卡進度:levelId -> 紀錄
     "e2": {
       "attempts": 30,         // 累計作答題數
@@ -59,7 +60,7 @@
     "date": "2026-6-18",      // 注意:格式為 YYYY-M-D(月/日不補零),見 store.today()
     "math": 2,
     "english": 1,
-    "hw": 1                   // v2:今日字母手寫練習已給分的輪數(每天上限 3)
+    "hw": 1                   // v2:今日字母手寫練習已給分的「輪數」(每天上限 3;一輪 = 52 個字母)
   },
   "home": {                   // 家裡展示:食物 3 格 + 玩具 3 格,各格每天可換一次
     "foods": [ { "key": null, "deluxe": false, "date": null }, /* 共 3 格 */ ],
@@ -102,7 +103,13 @@
 - `migratePet()` 對舊檔自動補 `points=0`、`hwEarned=0`、`daily.hw=0`,不影響既有進度。
 - `importAll()`:`prizes` 是陣列才覆寫、`rewardsHidden` 是布林才覆寫;舊檔(v1,無此兩欄)直接略過、保留現有設定。
 
+### v3（2026-06,手寫改為「描滿一輪才給分」)
+- **寵物**新增:`hwRound`(陣列,預設 `[]`)— 本輪已描完的字母清單(大小寫各自獨立)。
+- 給分規則變更:字母手寫練習由「描一個字母 +1 分」改為「**描滿一整輪**(A–Z 大寫 + a–z 小寫,共 52 個)才 +1 分」;每天仍最多 3 輪、累計上限 100 分。描滿一輪後 `hwRound` 清空、`daily.hw`+1、`hwEarned`+1、`points`+1(規則在 `store.submitHwLetter()`,沿用 `awardHandwriting()` 的每日 / 上限判斷)。
+- `migratePet()` 對舊檔自動補 `hwRound=[]`,不影響既有進度;舊版備份檔(無此欄位)匯入後從空的一輪開始。
+- `hwRound` 跨日**不**歸零(一輪可橫跨多天慢慢描);只有 `daily` 跨日歸零。
+
 <!-- 新版本請依此格式往上加:
-### v3（YYYY-MM,變更摘要）
+### v4（YYYY-MM,變更摘要）
 - 新增欄位 X(預設值 …);migratePet 對舊檔補 X。
 -->

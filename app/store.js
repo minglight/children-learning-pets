@@ -5,7 +5,11 @@
 
   // 目前匯出檔的 schema 版本。動到結構就 +1,並更新 docs/export-import-schema.md。
   // v2:每筆寵物新增 points(可兌換積分)、hwEarned(手寫練習累計給分),daily 新增 hw(今日手寫輪數)。
-  const SCHEMA_VERSION = 2;
+  // v3:每筆寵物新增 hwRound(本輪已描完的字母清單;描滿 A–Z 大寫+a–z 小寫共 52 個才 +1 分)。
+  const SCHEMA_VERSION = 3;
+
+  // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
+  const HW_ROUND_TOTAL = 52;
 
   function today() {
     const d = new Date();
@@ -21,6 +25,7 @@
       levels: {},                 // levelId -> {attempts, bestRate, cleared, plays}
       points: 0,                  // 可兌換獎品的積分(本寵物獨立)
       hwEarned: 0,                // 字母手寫練習累計已給的積分(上限 100)
+      hwRound: [],                // v3:本輪已描完的字母(描滿 52 個才 +1 分)
       daily: { date: today(), math: 0, english: 0, hw: 0 },
       home: {                     // 家裡展示:3 食物格 + 3 玩具格(各格每天可換一次)
         foods: [emptySlot(), emptySlot(), emptySlot()],
@@ -86,6 +91,7 @@
     if (typeof p.daily.hw !== 'number') p.daily.hw = 0;          // v2:今日手寫輪數
     if (typeof p.points !== 'number') p.points = 0;             // v2:可兌換積分
     if (typeof p.hwEarned !== 'number') p.hwEarned = 0;         // v2:手寫練習累計給分
+    if (!Array.isArray(p.hwRound)) p.hwRound = [];             // v3:本輪已描完的字母
     p.home = migrateHome(p.home);
 
     p._v = SCHEMA_VERSION;   // 升級完成,標記為目前版本
@@ -221,6 +227,33 @@
     return Math.max(0, 3 - d.daily.hw);
   }
 
+  // 本輪手寫進度:回 { count, total, letters }(letters 為已描完字母,含大小寫各自獨立)。
+  function hwRoundProgress(d) {
+    var arr = Array.isArray(d.hwRound) ? d.hwRound : [];
+    return { count: arr.length, total: HW_ROUND_TOTAL, letters: arr.slice() };
+  }
+
+  // 描完一個字母:記進本輪。描滿一輪(52 個)才呼叫 awardHandwriting 給 1 分並重置本輪。
+  // 回 { complete, count, total, awarded, capped, dailyLeft }。
+  function submitHwLetter(d, ch) {
+    if (!Array.isArray(d.hwRound)) d.hwRound = [];
+    if (ch && d.hwRound.indexOf(ch) < 0) d.hwRound.push(ch);
+    if (d.hwRound.length >= HW_ROUND_TOTAL) {
+      var res = awardHandwriting(d);     // 套用每天 3 輪 / 累計上限 100 規則(內含 save)
+      d.hwRound = [];                    // 不論有沒有拿到分,完成一輪就開始新的一輪
+      save(d);
+      res.complete = true;
+      res.count = HW_ROUND_TOTAL;
+      res.total = HW_ROUND_TOTAL;
+      return res;
+    }
+    save(d);
+    return {
+      complete: false, count: d.hwRound.length, total: HW_ROUND_TOTAL,
+      awarded: false, capped: d.hwEarned >= 100, dailyLeft: hwDailyLeft(d)
+    };
+  }
+
   // ── 獎品目錄(全域,所有寵物共用;只存名稱與所需點數)──
   function getPrizes() {
     try {
@@ -294,6 +327,7 @@
     clearCount: clearCount, clearedToday: clearedToday, deluxeAt: deluxeAt,
     getDailyLimit: getDailyLimit, setDailyLimit: setDailyLimit,
     getPoints: getPoints, awardHandwriting: awardHandwriting, hwDailyLeft: hwDailyLeft,
+    hwRoundProgress: hwRoundProgress, submitHwLetter: submitHwLetter,
     getPrizes: getPrizes, setPrizes: setPrizes, redeem: redeem,
     rewardsHidden: rewardsHidden, setRewardsHidden: setRewardsHidden
   };

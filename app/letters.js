@@ -213,12 +213,37 @@
         const e = P(st.end.x, st.end.y);
         arrow(ctx, e.x, e.y, st.endDir, Math.max(10, h * 0.07), opts.arrowColor || '#B7A98C');
       });
+      // 起點重疊時(例如 A 兩筆都從頂點起、B/D/E/F/P/R 兩筆都從左上角起),
+      // 後面的數字會蓋掉前面的 → 偵測碰撞,沿各自筆畫的去向把重疊的徽章推開,確保每個都看得到。
+      const placed = [];
+      const minD = r * 1.7;
       m.strokes.forEach(function (st, i) {
-        const a = P(st.start.x, st.start.y);
-        ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+        let c = P(st.start.x, st.start.y);
+        // 這一筆起點的前進方向(螢幕座標):重疊時往筆畫去向推,數字才會落在它對應的那一筆上
+        let dir = null;
+        if (st.pts && st.pts.length > 1) {
+          const j = Math.min(st.pts.length - 1, 4);
+          const p0 = P(st.pts[0].x, st.pts[0].y), pj = P(st.pts[j].x, st.pts[j].y);
+          const dx = pj.x - p0.x, dy = pj.y - p0.y, L = Math.hypot(dx, dy);
+          if (L > 0.001) dir = { x: dx / L, y: dy / L };
+        }
+        for (let guard = 0; guard < 10; guard++) {
+          let hit = null;
+          for (let k = 0; k < placed.length; k++) {
+            if (Math.hypot(c.x - placed[k].x, c.y - placed[k].y) < minD) { hit = placed[k]; break; }
+          }
+          if (!hit) break;
+          if (dir) { c = { x: c.x + dir.x * r * 0.7, y: c.y + dir.y * r * 0.7 }; }
+          else {                                   // 沒有方向資訊就直接往離開既有徽章的方向推
+            const dx = c.x - hit.x, dy = c.y - hit.y, L = Math.hypot(dx, dy) || 1;
+            c = { x: c.x + (dx / L) * r * 0.8, y: c.y + (dy / L) * r * 0.8 };
+          }
+        }
+        placed.push(c);
+        ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
         ctx.fillStyle = opts.badgeColor || '#7FB08E'; ctx.fill();
         ctx.fillStyle = '#FFFFFF'; ctx.font = '700 ' + Math.round(r * 1.3) + 'px sans-serif';
-        ctx.fillText(String(i + 1), a.x, a.y + 1);
+        ctx.fillText(String(i + 1), c.x, c.y + 1);
       });
       ctx.restore();
     }
