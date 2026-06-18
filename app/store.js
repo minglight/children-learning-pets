@@ -4,7 +4,8 @@
   const KEY = function (pet) { return 'pls.' + pet; };
 
   // 目前匯出檔的 schema 版本。動到結構就 +1,並更新 docs/export-import-schema.md。
-  const SCHEMA_VERSION = 1;
+  // v2:每筆寵物新增 points(可兌換積分)、hwEarned(手寫練習累計給分),daily 新增 hw(今日手寫輪數)。
+  const SCHEMA_VERSION = 2;
 
   function today() {
     const d = new Date();
@@ -18,7 +19,9 @@
       pet: petId,
       name: null,                 // null = 用預設名
       levels: {},                 // levelId -> {attempts, bestRate, cleared, plays}
-      daily: { date: today(), math: 0, english: 0 },
+      points: 0,                  // 可兌換獎品的積分(本寵物獨立)
+      hwEarned: 0,                // 字母手寫練習累計已給的積分(上限 100)
+      daily: { date: today(), math: 0, english: 0, hw: 0 },
       home: {                     // 家裡展示:3 食物格 + 3 玩具格(各格每天可換一次)
         foods: [emptySlot(), emptySlot(), emptySlot()],
         toys:  [emptySlot(), emptySlot(), emptySlot()]
@@ -79,7 +82,10 @@
       var r = p.levels[k];
       if (r && r.clears == null) r.clears = r.cleared ? 1 : 0;
     });
-    if (!p.daily || typeof p.daily !== 'object') p.daily = { date: today(), math: 0, english: 0 };
+    if (!p.daily || typeof p.daily !== 'object') p.daily = { date: today(), math: 0, english: 0, hw: 0 };
+    if (typeof p.daily.hw !== 'number') p.daily.hw = 0;          // v2:今日手寫輪數
+    if (typeof p.points !== 'number') p.points = 0;             // v2:可兌換積分
+    if (typeof p.hwEarned !== 'number') p.hwEarned = 0;         // v2:手寫練習累計給分
     p.home = migrateHome(p.home);
 
     p._v = SCHEMA_VERSION;   // 升級完成,標記為目前版本
@@ -91,7 +97,7 @@
       const raw = localStorage.getItem(KEY(petId));
       if (!raw) return blank(petId);
       const d = migratePet(JSON.parse(raw), petId);
-      if (d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0 };  // 跨日歸零
+      if (d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0, hw: 0 };  // 跨日歸零
       return d;
     } catch (e) { return blank(petId); }
   }
@@ -172,7 +178,7 @@
     rec.plays++;
     rec.attempts += total;
     if (rate > rec.bestRate) rec.bestRate = rate;
-    let feast = false, deluxe = false;
+    let feast = false, deluxe = false, point = 0;
     if (!practice) {
       d.daily[subject] = (d.daily[subject] || 0) + 1;
       if (rate >= window.PLS_CONFIG.passRate) {
@@ -181,18 +187,81 @@
         if (!isTest()) rec.lastClearDate = today();   // 測試版不鎖每日
         feast = true;
         deluxe = rec.clears >= deluxeAt();             // 滿 10 次起,送豪華版
+        // 過關積分:同一關第 1~10 次過關各 +1 分,第 11 次起不再加分
+        if (rec.clears <= 10) { d.points = (d.points || 0) + 1; point = 1; }
       }
     }
     d.levels[levelId] = rec;
     save(d);
-    return { rate: rate, feast: feast, deluxe: deluxe, clears: rec.clears };
+    return { rate: rate, feast: feast, deluxe: deluxe, clears: rec.clears, point: point };
+  }
+
+  // ── 積分(過關 / 手寫練習累積,可兌換獎品;本寵物獨立)──
+  function getPoints(d) { return (d && typeof d.points === 'number') ? d.points : 0; }
+
+  // 字母手寫練習給分:每天最多 3 輪、累計上限 100 分(測試版不受限,方便預覽)。
+  // 回 { awarded, capped, dailyLeft, earned }。
+  function awardHandwriting(d) {
+    if (typeof d.points !== 'number') d.points = 0;
+    if (typeof d.hwEarned !== 'number') d.hwEarned = 0;
+    if (typeof d.daily.hw !== 'number') d.daily.hw = 0;
+    var capped = d.hwEarned >= 100;
+    if (!isTest() && (capped || d.daily.hw >= 3)) {
+      return { awarded: false, capped: capped, dailyLeft: Math.max(0, 3 - d.daily.hw), earned: d.hwEarned };
+    }
+    d.daily.hw += 1;
+    d.hwEarned += 1;
+    d.points += 1;
+    save(d);
+    return { awarded: true, capped: d.hwEarned >= 100, dailyLeft: isTest() ? 3 : Math.max(0, 3 - d.daily.hw), earned: d.hwEarned };
+  }
+  function hwDailyLeft(d) {
+    if (isTest()) return 3;
+    if (!d.daily || typeof d.daily.hw !== 'number') return 3;
+    return Math.max(0, 3 - d.daily.hw);
+  }
+
+  // ── 獎品目錄(全域,所有寵物共用;只存名稱與所需點數)──
+  function getPrizes() {
+    try {
+      var arr = JSON.parse(localStorage.getItem('pls.prizes') || '[]');
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(function (p) { return p && p.name; }).map(function (p) {
+        return {
+          id: p.id || ('z' + Math.random().toString(36).slice(2, 9)),
+          name: String(p.name).slice(0, 24),
+          cost: Math.max(1, parseInt(p.cost, 10) || 1)
+        };
+      });
+    } catch (e) { return []; }
+  }
+  function setPrizes(arr) {
+    try { localStorage.setItem('pls.prizes', JSON.stringify(Array.isArray(arr) ? arr : [])); } catch (e) {}
+  }
+
+  // 兌換獎品:扣本寵物積分,成功回 true(點數不足回 false)。
+  function redeem(d, cost) {
+    cost = Math.max(0, parseInt(cost, 10) || 0);
+    if ((d.points || 0) < cost) return false;
+    d.points = (d.points || 0) - cost;
+    save(d);
+    return true;
+  }
+
+  // ── 隱藏整個積分 / 獎品功能(全域開關,家長區可切換)──
+  function rewardsHidden() {
+    try { return localStorage.getItem('pls.rewardsHidden') === '1'; } catch (e) { return false; }
+  }
+  function setRewardsHidden(on) {
+    try { localStorage.setItem('pls.rewardsHidden', on ? '1' : '0'); } catch (e) {}
   }
 
   // 匯出 / 匯入(家長區)— schema 細節見 docs/export-import-schema.md
   function exportAll() {
     return JSON.stringify({
       app: 'pls', version: SCHEMA_VERSION, exportedAt: new Date().toISOString(),
-      rabbit: load('rabbit'), hamster: load('hamster')
+      rabbit: load('rabbit'), hamster: load('hamster'),
+      prizes: getPrizes(), rewardsHidden: rewardsHidden()      // v2:獎品目錄與隱藏設定(全域)
     }, null, 2);
   }
   // 向後相容:任何舊版(含沒有 version 欄位)的備份檔都先經 migratePet 正規化再存。
@@ -202,6 +271,8 @@
     if (!d || d.app !== 'pls') throw new Error('不是寵物小學堂的備份檔');
     if (d.rabbit)  save(migratePet(d.rabbit, 'rabbit'));
     if (d.hamster) save(migratePet(d.hamster, 'hamster'));
+    if (Array.isArray(d.prizes)) setPrizes(d.prizes);                       // 舊檔沒有就略過
+    if (typeof d.rewardsHidden === 'boolean') setRewardsHidden(d.rewardsHidden);
   }
 
   // 申請「持久化儲存」:讓瀏覽器永遠記住資料、不要自動清掉(家長把它當 iPad App 用)。
@@ -221,6 +292,9 @@
     isTest: isTest, setTest: setTest,
     canSwitchHome: canSwitchHome, setHomeItem: setHomeItem,
     clearCount: clearCount, clearedToday: clearedToday, deluxeAt: deluxeAt,
-    getDailyLimit: getDailyLimit, setDailyLimit: setDailyLimit
+    getDailyLimit: getDailyLimit, setDailyLimit: setDailyLimit,
+    getPoints: getPoints, awardHandwriting: awardHandwriting, hwDailyLeft: hwDailyLeft,
+    getPrizes: getPrizes, setPrizes: setPrizes, redeem: redeem,
+    rewardsHidden: rewardsHidden, setRewardsHidden: setRewardsHidden
   };
 })();

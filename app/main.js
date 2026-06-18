@@ -11,7 +11,9 @@
     particles: [],
     canvas: null, ctx: null,
     scale: 1, offX: 0, offY: 0,
-    t: 0
+    t: 0,
+    activePet: null,           // 目前所在寵物(供積分 HUD 顯示;首頁為 null)
+    currentName: null          // 目前畫面名稱(供積分 HUD 判斷右上角是否要讓位)
   };
 
   // ── 場景切換 ──────────────────────────────────────────
@@ -19,8 +21,14 @@
   PLS.go = function (name, params) {
     PLS.buttons = [];
     PLS.particles = [];
+    params = params || {};
+    // 記住目前寵物(首頁清空),讓全域積分 HUD 知道要顯示誰的分數
+    if (name === 'home') PLS.activePet = null;
+    else if (params.pet) PLS.activePet = params.pet;
+    if (window.PLS_POINTS && window.PLS_POINTS.mark) window.PLS_POINTS.mark();
+    PLS.currentName = name;
     PLS.current = PLS.screens[name];
-    if (PLS.current && PLS.current.enter) PLS.current.enter(params || {});
+    if (PLS.current && PLS.current.enter) PLS.current.enter(params);
   };
 
   // ── 按鈕 ──────────────────────────────────────────────
@@ -138,9 +146,14 @@
       return { x: (px - PLS.offX) / PLS.scale, y: (py - PLS.offY) / PLS.scale };
     }
 
-    let downBtn = null;
+    let downBtn = null, hudDown = false;
     canvas.addEventListener('pointerdown', function (e) {
       const p = toLocal(e);
+      // 全域積分 HUD 在最上層,優先吃點擊(點金幣 → 進獎品商店)
+      hudDown = false;
+      if (window.PLS_POINTS && window.PLS_POINTS.hitTest && window.PLS_POINTS.hitTest(p.x, p.y)) {
+        hudDown = true; window.PLS_POINTS._down = true; return;
+      }
       downBtn = null;
       for (let i = PLS.buttons.length - 1; i >= 0; i--) {
         const b = PLS.buttons[i];
@@ -151,6 +164,11 @@
     });
     canvas.addEventListener('pointerup', function (e) {
       const p = toLocal(e);
+      if (hudDown) {
+        hudDown = false; if (window.PLS_POINTS) window.PLS_POINTS._down = false;
+        if (window.PLS_POINTS && window.PLS_POINTS.hitTest(p.x, p.y)) { PLS.sfx.tap(); window.PLS_POINTS.tap(); }
+        return;
+      }
       if (downBtn) {
         downBtn._down = false;
         if (hit(downBtn, p.x, p.y) && downBtn.onTap) { PLS.sfx.tap(); downBtn.onTap(); }
@@ -160,6 +178,7 @@
     });
     canvas.addEventListener('pointercancel', function () {
       if (downBtn) { downBtn._down = false; downBtn = null; }
+      hudDown = false; if (window.PLS_POINTS) window.PLS_POINTS._down = false;
     });
 
     canvas.addEventListener('pointermove', function (e) {
@@ -200,6 +219,8 @@
         p.draw(ctx);
         return true;
       });
+      // 全域積分 HUD(每個畫面都畫在最上層;首頁/隱藏時自動不顯示)
+      if (window.PLS_POINTS && window.PLS_POINTS.draw) window.PLS_POINTS.draw(ctx, PLS.t, dt);
       requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);

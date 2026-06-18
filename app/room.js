@@ -148,6 +148,12 @@
     abc: function (ctx, x, y) {
       ctx.fillStyle = '#5E8A86'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '700 27px ' + FONT; ctx.fillText('Aa', x, y + 1);
+    },
+    gift: function (ctx, x, y) {
+      ctx.fillStyle = '#E79A92'; rr(ctx, x - 14, y - 5, 28, 20, 4); ctx.fill();
+      ctx.fillStyle = '#D8847B'; rr(ctx, x - 15, y - 10, 30, 8, 3); ctx.fill();
+      ctx.fillStyle = '#F0C24E'; ctx.fillRect(x - 2.5, y - 10, 5, 25);
+      ctx.fillStyle = '#F0C24E'; el(ctx, x - 6, y - 13, 6, 4); ctx.fill(); el(ctx, x + 6, y - 13, 6, 4); ctx.fill();
     }
   };
   function navCard(ctx, x, y, w, h, bg, line, title, sub, icon) {
@@ -181,37 +187,23 @@
         },
         onTap: function () { PLS.go('home', {}); }
       });
-      // 數學餐廳
-      PLS.addButton({
-        x: 30, y: 192, w: PW - 60, h: 96,
-        draw: function (ctx) {
-          const d = ST.load(pid), remain = ST.remainToday(d, 'math');
-          const sub = ST.isTest() ? '測試版 · 不限次數' : remain > 0 ? '今天還可以吃 ' + remain + ' 次大餐' : '今天吃飽了,可以練習';
-          navCard(ctx, 30, 192, PW - 60, 96, '#FCEED6', '#C2791E', '數學餐廳', sub, ICON.eat);
-        },
-        onTap: function () { PLS.go('map', { pet: pid }); }
-      });
-      // 英文遊戲間
-      PLS.addButton({
-        x: 30, y: 304, w: PW - 60, h: 96,
-        draw: function (ctx) {
-          const d = ST.load(pid), remain = ST.remainToday(d, 'english');
-          const sub = ST.isTest() ? '測試版 · 不限次數' : remain > 0 ? '今天還可以拿 ' + remain + ' 個玩具' : '今天玩具拿夠了,可以練習';
-          navCard(ctx, 30, 304, PW - 60, 96, '#E9F4E3', '#4E8A5A', '英文遊戲間', sub, ICON.play);
-        },
-        onTap: function () { PLS.go('emap', { pet: pid }); }
-      });
-      // 字母手寫練習(自由練習,放在換擺設上面)
-      PLS.addButton({
-        x: 30, y: 416, w: PW - 60, h: 96,
-        draw: function (ctx) { navCard(ctx, 30, 416, PW - 60, 96, '#E5F0EF', '#3F8A84', '字母手寫練習', '描字母 · 看筆順', ICON.abc); },
-        onTap: function () { PLS.go('epractice', { pet: pid }); }
-      });
-      // 換擺設
-      PLS.addButton({
-        x: 30, y: 528, w: PW - 60, h: 96,
-        draw: function (ctx) { navCard(ctx, 30, 528, PW - 60, 96, '#F6EAF0', '#B06A86', '換擺設', '布置小窩', ICON.decor); },
-        onTap: function () { PLS.go('shelf', { pet: pid }); }
+      // 主選單卡片(資料驅動;隱藏獎品功能時自動少一張並上移)
+      const NAV = [
+        { go: 'map',  bg: '#FCEED6', line: '#C2791E', icon: ICON.eat,  title: '數學餐廳',
+          sub: function () { const r = ST.remainToday(ST.load(pid), 'math'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以吃 ' + r + ' 次大餐' : '今天吃飽了,可以練習'; } },
+        { go: 'emap', bg: '#E9F4E3', line: '#4E8A5A', icon: ICON.play, title: '英文遊戲間',
+          sub: function () { const r = ST.remainToday(ST.load(pid), 'english'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以拿 ' + r + ' 個玩具' : '今天玩具拿夠了,可以練習'; } }
+      ];
+      NAV.push({ go: 'epractice', bg: '#E5F0EF', line: '#3F8A84', icon: ICON.abc,   title: '字母手寫練習', sub: function () { return '描字母 · 看筆順'; } });
+      NAV.push({ go: 'shelf',     bg: '#F6EAF0', line: '#B06A86', icon: ICON.decor, title: '換擺設',       sub: function () { return '布置小窩'; } });
+      const NTOP = 168, NSTEP = 98, NH = 86;
+      NAV.forEach(function (it, i) {
+        const y = NTOP + i * NSTEP;
+        PLS.addButton({
+          x: 30, y: y, w: PW - 60, h: NH,
+          draw: function (ctx) { navCard(ctx, 30, y, PW - 60, NH, it.bg, it.line, it.title, it.sub(), it.icon); },
+          onTap: function () { PLS.go(it.go, { pet: pid }); }
+        });
       });
       // 測試版:預覽獎勵
       if (ST.isTest()) {

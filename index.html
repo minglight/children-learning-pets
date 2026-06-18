@@ -51,7 +51,20 @@
     border: none; border-radius: 14px; background: #F2B96B; color: #FFF;
   }
   .pbtn.ghost { background: #F2E8D8; color: #8A6242; }
+  .pbtn.danger { background: #F0E0DA; color: #B5705E; padding: 8px 12px; font-size: 14px; }
   #parent-close { position: sticky; top: 0; float: right; margin: -6px -8px 0 0; }
+  /* ── 獎品編輯 ── */
+  .prize-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .prize-row input.pname {
+    font-family: inherit; font-size: 15px; padding: 8px 12px; flex: 1; min-width: 0;
+    border: 2px solid #EFE4D4; border-radius: 12px; background: #FFF; color: #5E4A36; outline: none;
+  }
+  .prize-row input.pcost {
+    font-family: inherit; font-size: 15px; padding: 8px 10px; width: 64px; text-align: center;
+    border: 2px solid #EFE4D4; border-radius: 12px; background: #FFF; color: #5E4A36; outline: none;
+  }
+  .prize-row input:focus { border-color: #F2B96B; }
+  .prize-row .pcost-lbl { font-size: 14px; color: #A8927A; }
   #import-file { display: none; }
   #parent-msg { font-size: 14px; color: #6FA86A; min-height: 20px; margin-top: 8px; }
 
@@ -121,6 +134,20 @@
     </section>
 
     <section>
+      <h3>獎品商店(積分兌換)</h3>
+      <p class="hint" style="margin:0 0 12px">過關 +1 分(每關最多 10 分)、字母手寫練習每天 3 輪、累計上限 100 分。孩子可在房間「獎品商店」用積分兌換下列獎品。</p>
+      <label class="prow" style="cursor:pointer;align-items:center;margin-bottom:14px">
+        <input type="checkbox" id="rewards-hide-toggle" style="width:24px;height:24px;accent-color:#F2B96B;cursor:pointer">
+        <span style="font-size:16px">隱藏積分與獎品功能</span>
+      </label>
+      <div id="prize-list"></div>
+      <div class="pbtns" style="margin-top:4px">
+        <button class="pbtn ghost" id="add-prize">+ 新增獎品</button>
+        <button class="pbtn" id="save-prizes">儲存獎品</button>
+      </div>
+    </section>
+
+    <section>
       <h3>每日關卡上限</h3>
       <p class="hint" style="margin:0 0 12px">每位小朋友每天最多可以正式過幾關(需要家長密碼才能更改)。</p>
       <div class="prow">
@@ -175,6 +202,7 @@
 <script src="app/visuals.js"></script>
 <script src="app/pets.js"></script>
 <script src="app/main.js"></script>
+<script src="app/points.js"></script>
 <script src="app/screens.js"></script>
 <script src="app/room.js"></script>
 <script src="app/shelf.js"></script>
@@ -205,7 +233,8 @@
       row.innerHTML = '<b>' + name + '</b><span>數學通關 ' + cleared + ' / ' +
         CFG.math.filter(function (l) { return !l.locked; }).length + ' 關</span>' +
         '<span>玩過 ' + plays + ' 輪</span>' +
-        '<span>今日大餐 ' + (d.daily.math || 0) + ' / ' + ST.getDailyLimit() + '</span>';
+        '<span>今日大餐 ' + (d.daily.math || 0) + ' / ' + ST.getDailyLimit() + '</span>' +
+        '<span>積分 🪙 ' + ST.getPoints(d) + '</span>';
       box.appendChild(row);
     });
     document.getElementById('name-rabbit').value = ST.load('rabbit').name || '';
@@ -213,8 +242,55 @@
     document.getElementById('daily-limit-input').value = ST.getDailyLimit();
   }
 
+  // ── 獎品商店:目錄編輯 ──
+  const prizeList = document.getElementById('prize-list');
+  function addPrizeRow(name, cost) {
+    const row = document.createElement('div');
+    row.className = 'prize-row';
+    const ni = document.createElement('input'); ni.type = 'text'; ni.className = 'pname';
+    ni.maxLength = 24; ni.placeholder = '獎品名稱(例:看 30 分鐘卡通)'; ni.value = name || '';
+    const ci = document.createElement('input'); ci.type = 'text'; ci.className = 'pcost';
+    ci.maxLength = 4; ci.placeholder = '5'; ci.value = (cost != null ? cost : '');
+    const lbl = document.createElement('span'); lbl.className = 'pcost-lbl'; lbl.textContent = '點';
+    const del = document.createElement('button'); del.className = 'pbtn danger'; del.textContent = '刪除';
+    del.addEventListener('click', function () { row.remove(); });
+    row.appendChild(ni); row.appendChild(ci); row.appendChild(lbl); row.appendChild(del);
+    prizeList.appendChild(row);
+  }
+  function renderPrizes() {
+    prizeList.innerHTML = '';
+    const prizes = ST.getPrizes();
+    if (prizes.length === 0) addPrizeRow('', '');
+    else prizes.forEach(function (p) { addPrizeRow(p.name, p.cost); });
+  }
+  function collectPrizes() {
+    const out = [];
+    prizeList.querySelectorAll('.prize-row').forEach(function (row) {
+      const name = row.querySelector('.pname').value.trim();
+      const cost = parseInt(row.querySelector('.pcost').value, 10);
+      if (name && !isNaN(cost) && cost >= 1) out.push({ name: name, cost: cost });
+    });
+    return out;
+  }
+  document.getElementById('add-prize').addEventListener('click', function () { addPrizeRow('', ''); });
+  document.getElementById('save-prizes').addEventListener('click', function () {
+    ST.setPrizes(collectPrizes());
+    renderPrizes();
+    msg.textContent = '獎品清單已儲存';
+  });
+  document.getElementById('rewards-hide-toggle').addEventListener('change', function () {
+    ST.setRewardsHidden(this.checked);
+    msg.textContent = this.checked ? '已隱藏積分與獎品功能' : '已開啟積分與獎品功能';
+  });
+
   window.PLS_PARENT = {
-    open: function () { refreshStats(); msg.textContent = ''; document.getElementById('test-toggle').checked = ST.isTest(); overlay.classList.add('show'); },
+    open: function () {
+      refreshStats(); msg.textContent = '';
+      document.getElementById('test-toggle').checked = ST.isTest();
+      document.getElementById('rewards-hide-toggle').checked = ST.rewardsHidden();
+      renderPrizes();
+      overlay.classList.add('show');
+    },
     close: function () { overlay.classList.remove('show'); }
   };
   document.getElementById('parent-close').addEventListener('click', window.PLS_PARENT.close);

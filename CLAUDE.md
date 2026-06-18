@@ -42,6 +42,13 @@
   - **筆順動畫**:`draw()` 傳 `opts.reveal`(0~1)即依筆順累計畫出該比例 + 筆尖圓點(`penColor`)。描寫關卡新字母會自動示範一次,並有「看筆順」鈕重播(`startDemo()`)。`letters-preview.html` 也有「▶ 播放筆順動畫」可預覽。
   - **字母手寫練習**:獨立 screen `epractice`(`app/english.js`),房間左欄「字母手寫練習」卡(在「換擺設」上面,`app/room.js`)進入。自由練習、不計每日次數/不給獎勵;可切大小寫、上一個/下一個字母、清除、看筆順。描寫卡渲染由共用函式 `renderTraceCard()` 處理(關卡與練習共用,字形/版面一致)。
 
+## 積分 / 獎品商店（`app/points.js`）
+- **積分本寵物獨立**：存在 `pet.points`（schema v2）。給分集中在 `store.recordRun()`（數學/英文過關 +1,同一關第 1~10 次給分,第 11 次起不給）與 `store.awardHandwriting()`（字母手寫練習每天 3 輪、累計上限 100 分,計數 `pet.daily.hw` / `pet.hwEarned`）。
+- **獎品目錄與隱藏開關是全域**（不分寵物,類似 `pls.dailyLimit`）：`pls.prizes`(`[{id,name,cost}]`)、`pls.rewardsHidden`。家長區（`index.html`）可編輯目錄與切換隱藏。
+- **全域積分 HUD**：`window.PLS_POINTS`,在 `main.js` 主迴圈最上層每幀繪製(右上角,`quiz`/`eplay`/`epractice` 會往左讓位避開既有控制鈕),讀 `PLS.activePet`(由 `PLS.go` 維護;首頁為 null → 不顯示);分數變動時播 +N / −N 飄字。**點金幣 HUD 直接進獎品商店**(`main.js` 的 pointer 事件優先 `PLS_POINTS.hitTest` → `tap()`;房間沒有獨立的「獎品商店」卡)。隱藏功能(`rewardsHidden`)時 HUD 與手寫「完成」鈕(`english.js` epractice)都不出現,自然也就沒有進商店的入口。
+- 兌換在 `shop` 畫面(`points.js`),`store.redeem()` 扣本寵物點數;手寫過關小慶祝在 `hwpass` 畫面。
+- 動到 `pet.points` / `daily.hw` / `hwEarned` / `prizes` / `rewardsHidden` → 已是 schema **v2**,migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
+
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。
 - 讀檔用 `Read`、搜尋用 `Grep`/`Glob`、改檔用 `Edit`/`Write`。

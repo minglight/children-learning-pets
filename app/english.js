@@ -1052,32 +1052,59 @@
         draw: function (ctx) { self.arrowBtn(ctx, 1062, 300, 120, 184, 1); },
         onTap: function () { self.pick(self.idx + 1); }
       });
-      // 清除 / 看筆順
+      // 底部按鈕:清除 / 看筆順 (+ 完成,描完一輪 +1 分;隱藏獎品功能時不顯示「完成」)
+      const showDone = !ST.rewardsHidden();
+      const clearX = showDone ? 300 : (W / 2 - 260), clearW = showDone ? 200 : 240;
+      const demoX = showDone ? 520 : (W / 2 + 20), demoW = showDone ? 220 : 240;
+      // 清除
       PLS.addButton({
-        x: W / 2 - 260, y: 622, w: 240, h: 96,
+        x: clearX, y: 622, w: clearW, h: 96,
         draw: function (ctx) {
-          ctx.fillStyle = '#FFFFFF'; A.rr(ctx, W / 2 - 260, 622, 240, 96, 28); ctx.fill();
-          ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 3; A.rr(ctx, W / 2 - 260, 622, 240, 96, 28); ctx.stroke();
+          ctx.fillStyle = '#FFFFFF'; A.rr(ctx, clearX, 622, clearW, 96, 28); ctx.fill();
+          ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 3; A.rr(ctx, clearX, 622, clearW, 96, 28); ctx.stroke();
           ctx.font = '34px ' + FONT; ctx.fillStyle = '#8AA08A';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('清除', W / 2 - 140, 670);
+          ctx.fillText('清除', clearX + clearW / 2, 670);
         },
         onTap: function () { self.strokes = []; self.cur = null; }
       });
+      // 看筆順
       PLS.addButton({
-        x: W / 2 + 20, y: 622, w: 240, h: 96,
+        x: demoX, y: 622, w: demoW, h: 96,
         draw: function (ctx) {
           ctx.save();
           ctx.shadowColor = 'rgba(120,150,110,0.28)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
-          ctx.fillStyle = '#8FC9A8'; A.rr(ctx, W / 2 + 20, 622, 240, 96, 28); ctx.fill();
+          ctx.fillStyle = '#8FC9A8'; A.rr(ctx, demoX, 622, demoW, 96, 28); ctx.fill();
           ctx.restore();
           ctx.font = '34px ' + FONT; ctx.fillStyle = '#FFFFFF';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('看筆順', W / 2 + 140, 670);
+          ctx.fillText('看筆順', demoX + demoW / 2, 670);
         },
         onTap: function () { self.startDemo(0); }
       });
+      // 完成(描完一輪 +1 分;每天 3 輪、累計上限 100 分,規則在 store.awardHandwriting)
+      if (showDone) {
+        PLS.addButton({
+          x: 760, y: 622, w: 220, h: 96,
+          draw: function (ctx) {
+            const ok = self.strokes.length > 0;
+            ctx.save();
+            if (ok) { ctx.shadowColor = 'rgba(200,140,50,0.28)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6; }
+            ctx.fillStyle = ok ? '#F2A93C' : '#E8DEC9'; A.rr(ctx, 760, 622, 220, 96, 28); ctx.fill();
+            ctx.restore();
+            ctx.font = '32px ' + FONT; ctx.fillStyle = ok ? '#FFFFFF' : '#B6A488';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('完成 +1分', 870, 670);
+          },
+          onTap: function () {
+            if (!self.strokes.length) { self.hint = '先描一個字母再按完成喔'; self.hintT = PLS.t; return; }
+            const res = ST.awardHandwriting(ST.load(self.petId));
+            PLS.go('hwpass', { pet: self.petId, awarded: res.awarded, capped: res.capped, dailyLeft: res.dailyLeft });
+          }
+        });
+      }
 
+      this.hint = ''; this.hintT = -10;
       this.pick(0);
     },
 
@@ -1124,6 +1151,7 @@
       A.pill(ctx, W / 2, 64, '字母手寫練習', '#5E7A56', 'rgba(255,255,255,0.94)', 27);
       renderTraceCard(ctx, this.letter(), this.strokes, this.accent, demoReveal(this.demo));
       ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.petId, ctx, t, {}); ctx.restore();
+      if (this.hint && t - this.hintT < 1.8) A.bubble(ctx, W / 2, 150, this.hint, { size: 23 });
     }
   };
 

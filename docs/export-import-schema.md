@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 1`
+## 目前版本:`version = 2`（v2 新增「積分 / 獎品」)
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -17,10 +17,14 @@
 ```jsonc
 {
   "app": "pls",                       // 固定字串;不是 "pls" 一律拒絕匯入
-  "version": 1,                       // schema 版本(= store.js 的 SCHEMA_VERSION)
+  "version": 2,                       // schema 版本(= store.js 的 SCHEMA_VERSION)
   "exportedAt": "2026-06-18T08:00:00.000Z", // ISO 時間,僅供參考
   "rabbit": { /* 寵物資料,見下 */ },
-  "hamster": { /* 寵物資料,見下 */ }
+  "hamster": { /* 寵物資料,見下 */ },
+  "prizes": [                         // v2:獎品目錄(全域,兩隻寵物共用;家長在家長區編輯)
+    { "id": "z8a3k1", "name": "看 30 分鐘卡通", "cost": 10 }
+  ],
+  "rewardsHidden": false              // v2:是否隱藏整個積分 / 獎品功能(全域)
 }
 ```
 
@@ -30,13 +34,17 @@
 | `version` | number | schema 版本號 |
 | `exportedAt` | string (ISO) | 匯出時間戳 |
 | `rabbit` / `hamster` | object | 兩隻寵物各自的進度(結構相同) |
+| `prizes` | array | **v2**:獎品目錄(全域)。每項 `{ id, name, cost }`;舊檔沒有此欄位時略過 |
+| `rewardsHidden` | boolean | **v2**:隱藏積分 / 獎品功能(全域);舊檔沒有時略過 |
 
 ### 單一寵物資料結構（`rabbit` / `hamster`）
 ```jsonc
 {
-  "_v": 1,                    // schema 版本戳記(由 save() 寫入,migratePet() 用來判斷升級)
+  "_v": 2,                    // schema 版本戳記(由 save() 寫入,migratePet() 用來判斷升級)
   "pet": "rabbit",            // 寵物 id:"rabbit" | "hamster"
   "name": null,               // 自訂暱稱;null = 用預設名
+  "points": 12,               // v2:可兌換獎品的積分(本寵物獨立)
+  "hwEarned": 8,              // v2:字母手寫練習累計已給的積分(上限 100)
   "levels": {                 // 關卡進度:levelId -> 紀錄
     "e2": {
       "attempts": 30,         // 累計作答題數
@@ -50,7 +58,8 @@
   "daily": {                  // 每日作答計數(跨日自動歸零)
     "date": "2026-6-18",      // 注意:格式為 YYYY-M-D(月/日不補零),見 store.today()
     "math": 2,
-    "english": 1
+    "english": 1,
+    "hw": 1                   // v2:今日字母手寫練習已給分的輪數(每天上限 3)
   },
   "home": {                   // 家裡展示:食物 3 格 + 玩具 3 格,各格每天可換一次
     "foods": [ { "key": null, "deluxe": false, "date": null }, /* 共 3 格 */ ],
@@ -86,7 +95,14 @@
 - 寵物:`pet` / `name` / `levels` / `daily` / `home(foods[3], toys[3])`。
 - `migratePet()` 已向後相容更早期、無版本號的 `home` 格式(`{item,type,date}`、`{food,toy}`)與缺少 `clears` 的舊 `levels`。
 
+### v2（2026-06,新增「積分 / 獎品商店」)
+- **寵物**新增:`points`(可兌換積分,預設 0)、`hwEarned`(手寫練習累計給分,預設 0);`daily` 新增 `hw`(今日手寫輪數,預設 0)。
+- **頂層**新增(全域,非分寵物):`prizes`(獎品目錄 `[{id,name,cost}]`)、`rewardsHidden`(布林)。
+- 給分規則:數學 / 英文每關過關 +1 分(同一關第 1~10 次給分,第 11 次起不給);字母手寫練習每天最多 3 輪、累計上限 100 分。
+- `migratePet()` 對舊檔自動補 `points=0`、`hwEarned=0`、`daily.hw=0`,不影響既有進度。
+- `importAll()`:`prizes` 是陣列才覆寫、`rewardsHidden` 是布林才覆寫;舊檔(v1,無此兩欄)直接略過、保留現有設定。
+
 <!-- 新版本請依此格式往上加:
-### v2（YYYY-MM,變更摘要）
+### v3（YYYY-MM,變更摘要）
 - 新增欄位 X(預設值 …);migratePet 對舊檔補 X。
 -->
