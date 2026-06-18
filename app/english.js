@@ -1023,11 +1023,23 @@
       const self = this;
       this.petId = params.pet || 'rabbit';
       this.accent = CFG.pets[this.petId].theme.accent;
-      this.cs = 'upper';
+      this.cs = (params.cs === 'lower') ? 'lower' : 'upper';
       this.idx = 0;
+      if (params.letter) {
+        const k = UP.indexOf(String(params.letter).toUpperCase());
+        if (k >= 0) this.idx = k;
+      }
       this.strokes = []; this.cur = null;
       this.demo = { on: false, t0: 0, dur: 1 };
-      backButton('room', this.petId);
+      // 返回字母表(記住目前大小寫)
+      PLS.addButton({
+        x: 30, y: 30, w: 84, h: 84,
+        draw: function (ctx) {
+          ctx.fillStyle = 'rgba(255,255,255,0.92)'; A.rr(ctx, 30, 30, 84, 84, 26); ctx.fill();
+          A.drawIcon(ctx, 'back', 72, 72, 1.1, '#6E8B72');
+        },
+        onTap: function () { PLS.go('emenu', { pet: self.petId, cs: self.cs }); }
+      });
 
       // 大小寫切換
       PLS.addButton({
@@ -1105,7 +1117,7 @@
       }
 
       this.hint = ''; this.hintT = -10;
-      this.pick(0);
+      this.pick(this.idx);
     },
 
     letter: function () {
@@ -1155,9 +1167,70 @@
     }
   };
 
+  // ════════════════════════════════════════════════════
+  // 字母手寫練習:A–Z 首頁(點字母進去描寫)
+  // ════════════════════════════════════════════════════
+  const emenu = {
+    enter: function (params) {
+      const self = this;
+      this.petId = params.pet || 'rabbit';
+      this.accent = CFG.pets[this.petId].theme.accent;
+      this.cs = (params.cs === 'lower') ? 'lower' : 'upper';
+      backButton('room', this.petId);
+
+      // 大小寫切換(切換後重畫,字母格內字形跟著變)
+      PLS.addButton({
+        x: W - 250, y: 34, w: 210, h: 72,
+        draw: function (ctx) {
+          ctx.fillStyle = 'rgba(255,255,255,0.92)'; A.rr(ctx, W - 250, 34, 210, 72, 24); ctx.fill();
+          ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 2; A.rr(ctx, W - 250, 34, 210, 72, 24); ctx.stroke();
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.font = '30px ' + FONT; ctx.fillStyle = '#6E8B72';
+          ctx.fillText(self.cs === 'upper' ? '大寫 ABC' : '小寫 abc', W - 145, 70);
+        },
+        onTap: function () { self.cs = (self.cs === 'upper') ? 'lower' : 'upper'; }
+      });
+
+      // 26 個字母格子(7 欄 × 4 列),點進去進描寫頁
+      const cols = 7, cw = 132, chh = 128, gap = 18;
+      const totalW = cols * cw + (cols - 1) * gap;
+      const x0 = (W - totalW) / 2, y0 = 168;
+      for (let i = 0; i < 26; i++) {
+        (function (i) {
+          const r = Math.floor(i / cols), c = i % cols;
+          const x = x0 + c * (cw + gap), y = y0 + r * (chh + gap);
+          PLS.addButton({
+            x: x, y: y, w: cw, h: chh,
+            draw: function (ctx) { self.cellDraw(ctx, x, y, cw, chh, i); },
+            onTap: function () { PLS.go('epractice', { pet: self.petId, letter: UP[i], cs: self.cs }); }
+          });
+        })(i);
+      }
+    },
+    cellDraw: function (ctx, x, y, w, h, i) {
+      const base = UP[i], ch = this.cs === 'lower' ? base.toLowerCase() : base;
+      ctx.fillStyle = '#FFFFFF'; A.rr(ctx, x, y, w, h, 24); ctx.fill();
+      ctx.strokeStyle = '#E0E6DC'; ctx.lineWidth = 2; A.rr(ctx, x, y, w, h, 24); ctx.stroke();
+      const L = window.PLS_LETTERS;
+      if (L && L.has(ch)) {
+        L.draw(ctx, ch, { cx: x + w / 2, cy: y + h / 2, h: 62, color: this.accent, width: 9 });
+      } else {
+        ctx.font = '70px ' + FONT; ctx.fillStyle = this.accent;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(ch, x + w / 2, y + h / 2);
+      }
+    },
+    draw: function (ctx, t) {
+      drawRoom(ctx);
+      A.pill(ctx, W / 2, 64, '字母手寫練習 · 選一個字母', '#5E7A56', 'rgba(255,255,255,0.94)', 27);
+      ctx.save(); ctx.translate(120, 720); ctx.scale(0.42, 0.42); P.draw(this.petId, ctx, t, {}); ctx.restore();
+    }
+  };
+
   PLS.register('emap', emap);
   PLS.register('eplay', eplay);
   PLS.register('etoy', etoy);
   PLS.register('eresult', eresult);
   PLS.register('epractice', epractice);
+  PLS.register('emenu', emenu);
 })();

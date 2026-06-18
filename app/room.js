@@ -194,7 +194,7 @@
         { go: 'emap', bg: '#E9F4E3', line: '#4E8A5A', icon: ICON.play, title: '英文遊戲間',
           sub: function () { const r = ST.remainToday(ST.load(pid), 'english'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以拿 ' + r + ' 個玩具' : '今天玩具拿夠了,可以練習'; } }
       ];
-      NAV.push({ go: 'epractice', bg: '#E5F0EF', line: '#3F8A84', icon: ICON.abc,   title: '字母手寫練習', sub: function () { return '描字母 · 看筆順'; } });
+      NAV.push({ go: 'emenu', bg: '#E5F0EF', line: '#3F8A84', icon: ICON.abc,   title: '字母手寫練習', sub: function () { return '選字母 · 描字母 · 看筆順'; } });
       NAV.push({ go: 'shelf',     bg: '#F6EAF0', line: '#B06A86', icon: ICON.decor, title: '換擺設',       sub: function () { return '布置小窩'; } });
       const NTOP = 168, NSTEP = 98, NH = 86;
       NAV.forEach(function (it, i) {
