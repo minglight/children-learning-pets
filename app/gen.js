@@ -55,9 +55,17 @@
   const gen = {};
 
   // 【入門階梯】十以內加法(純數字,和 ≤ 10)
+  // 允許 0 當加數(機率約 12%),0+0 除外;和仍 ≤ 10
   gen.addWithin10 = function () {
-    const a = ri(1, 8);
-    const b = ri(1, Math.min(9, 10 - a));
+    let a, b;
+    if (Math.random() < 0.12) {
+      // 含 0 的題目:0+n 或 n+0,n∈1..10
+      const n = ri(1, 10);
+      if (Math.random() < 0.5) { a = 0; b = n; } else { a = n; b = 0; }
+    } else {
+      a = ri(1, 9);
+      b = ri(1, Math.min(9, 10 - a));
+    }
     const ans = a + b;
     return {
       kind: 'number', display: { a: a, op: '+', b: b },
@@ -67,9 +75,17 @@
   };
 
   // 【入門階梯】十以內減法(不會變負)
+  // 允許 b=0 與 a−a(答案 0),合計機率約 15%;a 範圍 1..10
   gen.subWithin10 = function () {
-    const a = ri(2, 10);
-    const b = ri(1, a - 1);
+    let a, b;
+    if (Math.random() < 0.15) {
+      // 含 0 的題目:n−0 或 n−n,n∈1..10
+      a = ri(1, 10);
+      b = Math.random() < 0.5 ? 0 : a;
+    } else {
+      a = ri(2, 10);
+      b = ri(1, a - 1);
+    }
     const ans = a - b;
     return {
       kind: 'number', display: { a: a, op: '−', b: b },
@@ -170,7 +186,7 @@
     };
   };
 
-  // m6 幾何圖形辨認:找出指定形狀
+  // m6 幾何圖形辨認:找出指定形狀(含「顏色+形狀」變化題)
   const SHAPES = [
     { id: 'circle', zh: '圓形' },
     { id: 'triangle', zh: '三角形' },
@@ -181,16 +197,48 @@
     { id: 'diamond', zh: '菱形' },
     { id: 'heart', zh: '愛心' }
   ];
+  // 顏色表(zh → hex)
+  const COLORS = [
+    { zh: '紅色', hex: '#E06A5E' },
+    { zh: '橙色', hex: '#F2A93C' },
+    { zh: '黃色', hex: '#F2CE5E' },
+    { zh: '綠色', hex: '#7FB877' },
+    { zh: '藍色', hex: '#6E9AD0' },
+    { zh: '紫色', hex: '#B58ED0' },
+    { zh: '粉色', hex: '#F2A0B5' }
+  ];
+  // 選項格式:'shapeId' 或 'shapeId|colorHex|colorZh'
   gen.shapeFind = function () {
     const target = pick(SHAPES);
-    const others = shuffle(SHAPES.filter(function (s) { return s.id !== target.id; })).slice(0, 2);
-    return {
-      kind: 'shape',
-      display: { targetZh: target.zh },
-      say: '找一找,哪一個是' + target.zh + '?',
-      answer: target.id,
-      options: shuffle([target].concat(others)).map(function (s) { return s.id; })
-    };
+    if (Math.random() < 0.6) {
+      // 顏色+形狀變化題
+      const targetColor = pick(COLORS);
+      // 干擾:至少一個「同形狀不同色」、至少一個「不同形狀」
+      const otherColors = shuffle(COLORS.filter(function (c) { return c.hex !== targetColor.hex; }));
+      const sameShapeDiff = target.id + '|' + otherColors[0].hex + '|' + otherColors[0].zh;
+      const diffShapes = shuffle(SHAPES.filter(function (s) { return s.id !== target.id; }));
+      const diffShape = diffShapes[0];
+      const diffShapeColor = pick(COLORS);
+      const diffShapeOpt = diffShape.id + '|' + diffShapeColor.hex + '|' + diffShapeColor.zh;
+      const targetOpt = target.id + '|' + targetColor.hex + '|' + targetColor.zh;
+      return {
+        kind: 'shape',
+        display: { targetZh: targetColor.zh + '的' + target.zh, colorHex: targetColor.hex },
+        say: '找一找,' + targetColor.zh + '的' + target.zh + '?',
+        answer: targetOpt,
+        options: shuffle([targetOpt, sameShapeDiff, diffShapeOpt])
+      };
+    } else {
+      // 純形狀題(向下相容)
+      const others = shuffle(SHAPES.filter(function (s) { return s.id !== target.id; })).slice(0, 2);
+      return {
+        kind: 'shape',
+        display: { targetZh: target.zh },
+        say: '找一找,哪一個是' + target.zh + '?',
+        answer: target.id,
+        options: shuffle([target].concat(others)).map(function (s) { return s.id; })
+      };
+    }
   };
 
   // m7 圖形拼補:哪兩塊合起來是這個形狀?
@@ -205,12 +253,13 @@
     const c = pick(COMPOSE);
     const good = pick(c.good);
     const bads = shuffle(c.bad.filter(function (b) { return c.good.indexOf(b) < 0; })).slice(0, 2);
+    const opts = shuffle([good].concat(bads));
     return {
       kind: 'compose',
-      display: { target: c.target, targetZh: c.zh },
+      display: { target: c.target, targetZh: c.zh, optsSig: opts.join(',') }, // optsSig 納入簽名,確保選項組合不同的題視為不同
       say: '哪兩塊積木合起來,會變成' + c.zh + '?',
       answer: good,
-      options: shuffle([good].concat(bads))
+      options: opts
     };
   };
 
@@ -227,14 +276,21 @@
     const ans = a - b;
     return { kind: 'number', display: { a: a, op: '−', b: b }, say: numZh(a) + ' 減 ' + numZh(b) + ',等於多少?', answer: ans, options: numOptions(ans, diff) };
   };
-  gen.mulIntro = function () { // 乘法初體驗(幾個幾)
-    const a = ri(2, 5), b = ri(2, 5), ans = a * b;
+  gen.mulIntro = function () { // 乘法初體驗(幾個幾):a,b ∈ 2..9 且 a×b ≤ 45
+    let a, b, guard = 0;
+    do {
+      a = ri(2, 9); b = ri(2, 9);
+    } while (a * b > 45 && guard++ < 80);
+    const ans = a * b;
     return { kind: 'number', display: { a: a, op: '×', b: b }, say: numZh(a) + ' 乘 ' + numZh(b) + ',等於多少?', answer: ans, options: numOptions(ans, 1) };
   };
 
-  // 同數連加過渡(乘法預備)— 先呈現加法串,再統計答案
+  // 同數連加過渡(乘法預備):a ∈ 2..9、b ∈ 2..9 且 a×b ≤ 48
   gen.mulBridge = function () {
-    const a = ri(2, 4), b = ri(2, 4);
+    let a, b, guard = 0;
+    do {
+      a = ri(2, 9); b = ri(2, 9);
+    } while (a * b > 48 && guard++ < 80);
     const ans = a * b;
     const parts = [];
     for (var k = 0; k < b; k++) parts.push(String(a));

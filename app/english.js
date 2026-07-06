@@ -14,13 +14,30 @@
   }
   const UP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   const WORDS_CVC = [
+    // 原有 31 個
     'cat', 'dog', 'sun', 'hat', 'pig', 'cup', 'bus', 'bed', 'box', 'pen', 'bag', 'fox',
     'ant', 'bee', 'cow', 'egg', 'fan', 'hen', 'jam', 'leg', 'map',
-    'net', 'owl', 'pot', 'rat', 'sit', 'top', 'van', 'wet', 'yak', 'zip'
+    'net', 'owl', 'pot', 'rat', 'sit', 'top', 'van', 'wet', 'yak', 'zip',
+    // 新增 CVC 常見字(適合幼童、發音規則)
+    'bat', 'bin', 'bug', 'bun', 'can', 'cap', 'cot', 'cub', 'cut',
+    'dad', 'dig', 'dot', 'fig', 'fin', 'fit', 'fun', 'gum', 'hop',
+    'hot', 'hug', 'hut', 'jet', 'jog', 'jug', 'kid', 'kit', 'lip',
+    'log', 'mat', 'men', 'mop', 'mud', 'mug', 'nap', 'nut', 'pan',
+    'pet', 'pin', 'pit', 'pup', 'red', 'rib', 'rub', 'rug', 'run',
+    'sad', 'sip', 'tap', 'ten', 'tin', 'tub', 'wig', 'win', 'wag'
   ];
   // magic-e 小學 長母音單字(e7b 關卡用)
   const WORDS_MAGIC_E = [
-    'kite', 'cake', 'bike', 'gate', 'home', 'rose', 'game', 'name', 'bone', 'tune', 'cube', 'lake'
+    // 原有 12 個
+    'kite', 'cake', 'bike', 'gate', 'home', 'rose', 'game', 'name', 'bone', 'tune', 'cube', 'lake',
+    // 新增 CVCe 長母音字(適合幼童)
+    'bake', 'cape', 'code', 'cone', 'cute', 'date', 'dive', 'dune',
+    'face', 'fade', 'fake', 'fame', 'fine', 'five', 'gave', 'hide',
+    'hike', 'hive', 'hole', 'hope', 'huge', 'late', 'lime', 'line',
+    'mine', 'mole', 'mute', 'nine', 'note', 'page', 'pine', 'pipe',
+    'pole', 'race', 'ride', 'ripe', 'robe', 'rope', 'rude', 'safe',
+    'nose', 'sale', 'same', 'side', 'site', 'size', 'tale', 'tape',
+    'time', 'tire', 'tone', 'wade', 'wake', 'wave', 'wide', 'vine'
   ];
   function sayWord(w) { if (w) PLS.say(w.toLowerCase(), 'en-US'); }
 

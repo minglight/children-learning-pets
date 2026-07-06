@@ -49,6 +49,7 @@
       this.stars = 0;
       this.tiles = [];
       this.bankQueue = null;
+      this.seenSigs = new Set(); // 回合內不重複:已出過的題目簽名
 
       // 返回(回關卡圖)
       PLS.addButton({
@@ -94,7 +95,19 @@
       this.wrong = new Set();
       this.firstTry = true;
       const diff = this.streak >= 4 ? 2 : this.streak >= 2 ? 1 : 0;
-      this.q = this.lv.bank ? this.pickBank() : G.gen[this.lv.gen](diff);
+      if (this.lv.bank) {
+        this.q = this.pickBank();
+      } else {
+        // 回合內不重複:最多重試 80 次(池太小時放行)
+        let q = null, sig = null, retries = 0;
+        do {
+          q = G.gen[this.lv.gen](diff);
+          sig = JSON.stringify([q.kind, q.display, q.answer]);
+          retries++;
+        } while (this.seenSigs.has(sig) && retries < 80);
+        this.seenSigs.add(sig);
+        this.q = q;
+      }
       this.locked = false;
       // 中後段關卡連勝 3 題 → 加第 4 個選項,提升挑戰
       if (!this.lv.bank && this.levelIdx >= 5 && this.streak >= 3 &&
@@ -121,7 +134,24 @@
       if (!this.bankQueue || !this.bankQueue.length) {
         this.bankQueue = G.shuffle(BANK.list(this.lv.bank).slice());
       }
-      const item = this.bankQueue.shift();
+      // 回合內跳過已用過的題目文字;重洗後仍撞到就繼續換下一張
+      let item = null, tries = 0;
+      while (tries < this.bankQueue.length + 1) {
+        const candidate = this.bankQueue.shift();
+        if (!candidate) break;
+        if (!this.seenSigs.has('bank:' + candidate.text)) {
+          item = candidate;
+          this.seenSigs.add('bank:' + candidate.text);
+          break;
+        }
+        // 已用過:放回隊尾
+        this.bankQueue.push(candidate);
+        tries++;
+      }
+      // 池子耗盡時(tries 超限):直接取下一張放行
+      if (!item && this.bankQueue.length) {
+        item = this.bankQueue.shift();
+      }
       if (!item) return null;
       const visual = item.visual && VIS ? VIS.instantiate(item.visual) : null;
       // 有圖時:若「唸」的版本數字較少,就用它當題目(不寫出數量),讓小朋友自己數
@@ -210,7 +240,13 @@
       const cx = x + w / 2, cy = y + h / 2;
       const opt = q.options[i];
       if (q.kind === 'shape') {
-        A.drawShape(ctx, opt, cx, cy, 0.95);
+        // 支援 'shapeId|colorHex|colorZh' 格式的顏色題
+        if (String(opt).indexOf('|') >= 0) {
+          const parts = opt.split('|');
+          A.drawShape(ctx, parts[0], cx, cy, 0.95, parts[1]);
+        } else {
+          A.drawShape(ctx, opt, cx, cy, 0.95);
+        }
       } else if (q.kind === 'compose') {
         A.drawPair(ctx, opt, cx, cy, 0.95);
       } else if (q.kind === 'text') {
@@ -257,6 +293,13 @@
       } else if (q.kind === 'shape') {
         ctx.font = '64px ' + FONT; ctx.fillStyle = '#5E4A36';
         ctx.fillText('找一找:' + q.display.targetZh, cx, cy - 44);
+        // 顏色題:在問題文字左方補一個顏色圓點示意
+        if (q.display.colorHex) {
+          ctx.save();
+          ctx.fillStyle = q.display.colorHex;
+          ctx.beginPath(); ctx.arc(cx - 300, cy - 44, 20, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
         ctx.font = '38px ' + FONT; ctx.fillStyle = '#A8927A';
         ctx.fillText('點下面正確的形狀', cx, cy + 56);
       } else if (q.kind === 'compose') {
