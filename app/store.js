@@ -6,10 +6,16 @@
   // 目前匯出檔的 schema 版本。動到結構就 +1,並更新 docs/export-import-schema.md。
   // v2:每筆寵物新增 points(可兌換積分)、hwEarned(手寫練習累計給分),daily 新增 hw(今日手寫輪數)。
   // v3:每筆寵物新增 hwRound(本輪已描完的字母清單;描滿 A–Z 大寫+a–z 小寫共 52 個才 +1 分)。
-  const SCHEMA_VERSION = 3;
+  // v4:電子雞化 — 新增 inv(背包:食物/玩具數量)、growth(成長值 xp)、care(今日餵食/陪玩計數)。
+  const SCHEMA_VERSION = 4;
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
   const HW_ROUND_TOTAL = 52;
+
+  // ── 成長系統常數(v4)──
+  // 階段門檻:xp < KID_AT = 幼幼;< GROWN_AT = 小寶;之後 = 大寶。
+  const GROW = { KID_AT: 30, GROWN_AT: 100, FEED_XP: 2, PLAY_XP: 3, DAILY_BONUS: 1 };
+  const STAGE_NAMES = { baby: '幼幼', kid: '小寶', grown: '大寶' };
 
   function today() {
     const d = new Date();
@@ -27,6 +33,9 @@
       hwEarned: 0,                // 字母手寫練習累計已給的積分(上限 100)
       hwRound: [],                // v3:本輪已描完的字母(描滿 52 個才 +1 分)
       daily: { date: today(), math: 0, english: 0, hw: 0 },
+      inv: { foods: {}, toys: {} },  // v4:背包(key -> 數量);過關賺到、餵食/陪玩消耗
+      growth: { xp: 0 },             // v4:成長值(餵食+2、陪玩+3、每日首次各+1)
+      care: { date: today(), fed: 0, played: 0 },  // v4:今日照顧計數(跨日歸零)
       home: {                     // 家裡展示:3 食物格 + 3 玩具格(各格每天可換一次)
         foods: [emptySlot(), emptySlot(), emptySlot()],
         toys:  [emptySlot(), emptySlot(), emptySlot()]
@@ -92,6 +101,23 @@
     if (typeof p.points !== 'number') p.points = 0;             // v2:可兌換積分
     if (typeof p.hwEarned !== 'number') p.hwEarned = 0;         // v2:手寫練習累計給分
     if (!Array.isArray(p.hwRound)) p.hwRound = [];             // v3:本輪已描完的字母
+    // ── v4:背包 / 成長 / 照顧 ──
+    if (!p.inv || typeof p.inv !== 'object') p.inv = {};
+    if (!p.inv.foods || typeof p.inv.foods !== 'object') p.inv.foods = {};
+    if (!p.inv.toys || typeof p.inv.toys !== 'object') p.inv.toys = {};
+    if (!p.growth || typeof p.growth !== 'object' || typeof p.growth.xp !== 'number') {
+      // 老玩家補償:依既有過關次數換算成長值(每次過關 +2),封頂 99(小寶),
+      // 讓玩很久的孩子升級後不會從幼幼重養。
+      var totalClears = 0;
+      Object.keys(p.levels).forEach(function (k) {
+        var r = p.levels[k];
+        if (r) totalClears += (r.clears != null ? r.clears : (r.cleared ? 1 : 0));
+      });
+      p.growth = { xp: Math.min(99, totalClears * 2) };
+    }
+    if (!p.care || typeof p.care !== 'object') p.care = { date: today(), fed: 0, played: 0 };
+    if (typeof p.care.fed !== 'number') p.care.fed = 0;
+    if (typeof p.care.played !== 'number') p.care.played = 0;
     p.home = migrateHome(p.home);
 
     p._v = SCHEMA_VERSION;   // 升級完成,標記為目前版本
@@ -104,6 +130,7 @@
       if (!raw) return blank(petId);
       const d = migratePet(JSON.parse(raw), petId);
       if (d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0, hw: 0 };  // 跨日歸零
+      if (d.care.date !== today()) d.care = { date: today(), fed: 0, played: 0 };             // v4:照顧計數跨日歸零
       return d;
     } catch (e) { return blank(petId); }
   }
@@ -254,6 +281,79 @@
     };
   }
 
+  // ════════════════════════════════════════════════════
+  // v4 電子雞化:背包(inv)+ 成長(growth)+ 照顧(care)
+  // ════════════════════════════════════════════════════
+
+  // xp → 成長階段
+  function stageOf(xp) { return xp >= GROW.GROWN_AT ? 'grown' : xp >= GROW.KID_AT ? 'kid' : 'baby'; }
+
+  // 成長總覽:{ xp, stage, stageZh, next(下一階門檻,大寶為 null), progress(本階段進度 0~1) }
+  function growthInfo(d) {
+    var xp = (d.growth && typeof d.growth.xp === 'number') ? d.growth.xp : 0;
+    var stage = stageOf(xp);
+    var lo = stage === 'baby' ? 0 : stage === 'kid' ? GROW.KID_AT : GROW.GROWN_AT;
+    var next = stage === 'baby' ? GROW.KID_AT : stage === 'kid' ? GROW.GROWN_AT : null;
+    return {
+      xp: xp, stage: stage, stageZh: STAGE_NAMES[stage], next: next,
+      progress: next ? Math.min(1, (xp - lo) / (next - lo)) : 1
+    };
+  }
+
+  // 背包清單(依 key 排序,回 [{key, n}];n > 0 才列)
+  function invList(d, kind) {
+    var bag = (d.inv && d.inv[kind]) || {};
+    return Object.keys(bag).sort().filter(function (k) { return bag[k] > 0; })
+      .map(function (k) { return { key: k, n: bag[k] }; });
+  }
+  function invTotal(d, kind) {
+    return invList(d, kind).reduce(function (s, it) { return s + it.n; }, 0);
+  }
+
+  // 過關收穫:食物(陣列,可重複 key)/ 玩具(單一 key × n 個)進背包
+  function addFoods(d, keys) {
+    if (!d.inv) d.inv = { foods: {}, toys: {} };
+    (keys || []).forEach(function (k) { if (k) d.inv.foods[k] = (d.inv.foods[k] || 0) + 1; });
+    save(d);
+  }
+  function addToy(d, key, n) {
+    if (!d.inv) d.inv = { foods: {}, toys: {} };
+    if (key) d.inv.toys[key] = (d.inv.toys[key] || 0) + Math.max(1, n | 0);
+    save(d);
+  }
+
+  // 加成長值(內部):回 { gain, xp, stage, grew(有沒有升階), stageZh }
+  function gainXp(d, base, firstToday) {
+    var before = stageOf(d.growth.xp);
+    var gain = base + (firstToday ? GROW.DAILY_BONUS : 0);
+    d.growth.xp += gain;
+    var after = stageOf(d.growth.xp);
+    return { gain: gain, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: after !== before };
+  }
+
+  // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1)。
+  // 沒有該食物回 null;成功回 gainXp 的結果(含 grew 供升階慶祝)。
+  function feed(d, key) {
+    if (!d.inv || !d.inv.foods || !(d.inv.foods[key] > 0)) return null;
+    d.inv.foods[key]--;
+    if (d.inv.foods[key] <= 0) delete d.inv.foods[key];
+    d.care.fed++;
+    var res = gainXp(d, GROW.FEED_XP, d.care.fed === 1);
+    save(d);
+    return res;
+  }
+
+  // 陪玩:消耗 1 個玩具,成長值 +3(當天第一次多 +1)。
+  function playToy(d, key) {
+    if (!d.inv || !d.inv.toys || !(d.inv.toys[key] > 0)) return null;
+    d.inv.toys[key]--;
+    if (d.inv.toys[key] <= 0) delete d.inv.toys[key];
+    d.care.played++;
+    var res = gainXp(d, GROW.PLAY_XP, d.care.played === 1);
+    save(d);
+    return res;
+  }
+
   // ── 獎品目錄(全域,所有寵物共用;只存名稱與所需點數)──
   function getPrizes() {
     try {
@@ -329,6 +429,10 @@
     getPoints: getPoints, awardHandwriting: awardHandwriting, hwDailyLeft: hwDailyLeft,
     hwRoundProgress: hwRoundProgress, submitHwLetter: submitHwLetter,
     getPrizes: getPrizes, setPrizes: setPrizes, redeem: redeem,
-    rewardsHidden: rewardsHidden, setRewardsHidden: setRewardsHidden
+    rewardsHidden: rewardsHidden, setRewardsHidden: setRewardsHidden,
+    // v4:背包 / 成長 / 照顧
+    stageOf: stageOf, growthInfo: growthInfo,
+    invList: invList, invTotal: invTotal,
+    addFoods: addFoods, addToy: addToy, feed: feed, playToy: playToy
   };
 })();

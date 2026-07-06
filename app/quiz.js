@@ -41,6 +41,7 @@
       this.firstTryCount = 0;
       this.streak = 0;
       this.petMode = 'idle';
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       this.bubbleText = this.practice ? pickTalk(CFG.talk.practice) : pickTalk(CFG.talk.welcome);
       this.bubbleUntil = PLS.t + 3;
       this.flying = null;
@@ -217,11 +218,17 @@
         const d = ST.load(this.petId);
         const res = ST.recordRun(d, 'math', this.lv.id,
           this.firstTryCount, CFG.questionsPerLevel, this.practice);
-        if (res.feast) PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears });
-        else PLS.go('result', {
-          pet: this.petId, levelIdx: this.levelIdx,
-          correct: this.firstTryCount, practice: this.practice
-        });
+        if (res.feast) {
+          // v4:食物收進背包(同一個 d,recordRun 已 save;addFoods 再 save 一次)
+          const items = res.deluxe ? deluxeItems(this.lv) : this.lv.feast.items;
+          ST.addFoods(d, items);
+          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears });
+        } else {
+          PLS.go('result', {
+            pet: this.petId, levelIdx: this.levelIdx,
+            correct: this.firstTryCount, practice: this.practice
+          });
+        }
       } else {
         this.next();
       }
@@ -343,7 +350,7 @@
 
       // 寵物 + 盤子 / 星星(左側)
       ctx.save(); ctx.translate(PET.x, PET.y); ctx.scale(PET.s, PET.s);
-      P.draw(this.petId, ctx, t, { mode: this.petMode });
+      P.draw(this.petId, ctx, t, { mode: this.petMode, stage: this.stage });
       ctx.restore();
 
       if (this.practice) {
@@ -396,6 +403,7 @@
       this.levelIdx = params.levelIdx;
       this.correct = params.correct;
       this.practice = params.practice;
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       this.msg = this.practice
         ? '練習完成!明天再請我吃大餐喔'
         : pickTalk(CFG.talk.almost);
@@ -429,14 +437,14 @@
       ctx.fillText('答對 ' + this.correct + ' / ' + CFG.questionsPerLevel + ' 題', W / 2, 332);
 
       ctx.save(); ctx.translate(W / 2, 590); ctx.scale(0.7, 0.7);
-      P.draw(this.petId, ctx, t, {});
+      P.draw(this.petId, ctx, t, { stage: this.stage });
       ctx.restore();
       A.bubble(ctx, W / 2, 430, this.msg, { size: 26 });
     }
   };
 
   // ════════════════════════════════════════════════════
-  // FEAST(吃大餐)
+  // FEAST(豐收,v4:食物收進背包)
   // ════════════════════════════════════════════════════
   const feast = {
     enter: function (params) {
@@ -451,8 +459,14 @@
         : (this.lv.feast.basicName  || this.lv.feast.name);
       this.start = PLS.t;
       this.heartTimer = 0;
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
+      // 籃子:已飛進幾個
+      this.basketCount = 0;
+      // 飛入食物動畫:每個食物一個 flying 物件
+      this.flyings = [];
       PLS.sfx.feast();
-      PLS.say(this.deluxe ? '哇,豪華大餐耀!' : '太棒了,吃大餐囉!');
+      // v4:語意改成「收穫」
+      PLS.say(this.deluxe ? '豪華大豐收!背包裝得滿滿的!' : '太棒了,食物收進背包囉!');
       PLS.addButton({
         x: W / 2 - 160, y: 706, w: 320, h: 100,
         hidden: function () { return PLS.t - self.start < 2.5; },
@@ -463,12 +477,36 @@
           ctx.restore();
           ctx.font = '38px ' + FONT; ctx.fillStyle = '#FFFFFF';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('吃飽收工!', W / 2, 758);
+          ctx.fillText('收進背包!', W / 2, 758);
         },
         onTap: function () { PLS.go('map', { pet: self.petId }); }
       });
     },
+
+    // 畫右側食物籃(圓角梯形 + 提把)
+    drawBasket: function (ctx, bx, by) {
+      ctx.save();
+      // 提把(半圓弧)
+      ctx.strokeStyle = '#C8913A'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(bx, by - 46, 34, Math.PI, 0); ctx.stroke();
+      // 籃身(梯形,用四邊形)
+      ctx.fillStyle = '#E8C47C';
+      ctx.beginPath();
+      ctx.moveTo(bx - 52, by - 22); ctx.lineTo(bx + 52, by - 22);
+      ctx.lineTo(bx + 38, by + 46); ctx.lineTo(bx - 38, by + 46);
+      ctx.closePath(); ctx.fill();
+      // 籃紋(橫線)
+      ctx.strokeStyle = '#C8913A'; ctx.lineWidth = 3; ctx.lineCap = 'butt';
+      for (let li = 0; li < 3; li++) {
+        const ly = by - 8 + li * 18;
+        const lw = 44 + li * 8;
+        ctx.beginPath(); ctx.moveTo(bx - lw, ly); ctx.lineTo(bx + lw, ly); ctx.stroke();
+      }
+      ctx.restore();
+    },
+
     draw: function (ctx, t) {
+      const self = this;
       const k = t - this.start;
       ctx.fillStyle = this.deluxe ? '#FBE6C0' : '#FBEDD8'; ctx.fillRect(0, 0, W, H);
       const rg = ctx.createRadialGradient(W / 2, 420, 80, W / 2, 420, 620);
@@ -486,7 +524,8 @@
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '56px ' + FONT;
-      const title = this.deluxe ? '豪華大餐耀!' : '吃大餐囉!';
+      // v4:標題改「豐收」語意
+      const title = this.deluxe ? '豪華大豐收!' : '收穫滿滿!';
       ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillText(title, W / 2, 134);
       ctx.fillStyle = this.deluxe ? '#C2591E' : '#C97B4A'; ctx.fillText(title, W / 2, 130);
       if (this.deluxe) A.pill(ctx, W / 2, 192, '✨ ' + this.feastName + ' ✨', '#C2591E', 'rgba(255,240,205,0.96)', 28);
@@ -509,16 +548,59 @@
         A.el(ctx, W / 2, 592, 210, 38); ctx.stroke();
       }
       ctx.restore();
+
+      // 食物依序彈出:計算各個食物位置與 pop
       const items = this.items;
       const feastScale = this.deluxe ? 1.28 : 1.1;
       const gap = items.length > 5 ? 76 : 90;
+
+      // 籃子座標(右側,桌子上方)
+      const bx = W - 110, by = 552;
+
+      // 食物彈出 + 飛入籃
       items.forEach(function (key, i) {
         const ik = (k - 0.4 - i * 0.3);
         if (ik < 0) return;
-        const pop = ik < 0.35 ? 1 + Math.sin(ik / 0.35 * Math.PI) * 0.28 : 1;
-        const x = W / 2 + (i - (items.length - 1) / 2) * gap;
-        A.drawFood(ctx, key, x, 558, feastScale * pop);
+        const itemX = W / 2 + (i - (items.length - 1) / 2) * gap;
+        const itemY = 558;
+        // 飛行動畫:食物彈出 0.9 秒後開始飛
+        const flyDelay = 0.9;
+        const flyDur = 0.7;
+        const ek = ik - flyDelay;
+        if (ek < 0) {
+          // 尚未飛走:盤子上彈出
+          const pop = ik < 0.35 ? 1 + Math.sin(ik / 0.35 * Math.PI) * 0.28 : 1;
+          A.drawFood(ctx, key, itemX, itemY, feastScale * pop);
+        } else if (ek < flyDur) {
+          // 飛行中:拋物線飛向籃子
+          const fe = ek / flyDur;
+          const ease = 1 - (1 - fe) * (1 - fe);
+          const fx = itemX + (bx - itemX) * ease;
+          const fy = itemY + (by - itemY) * ease - Math.sin(fe * Math.PI) * 90;
+          A.drawFood(ctx, key, fx, fy, feastScale * (1 - 0.3 * fe));
+        } else {
+          // 已飛入籃:標記 basketCount 並觸發粒子
+          if (self.basketCount <= i) {
+            self.basketCount = i + 1;
+            PLS.burst(bx, by, 'small');
+          }
+          // 食物不再單獨顯示(已在籃中)
+        }
       });
+
+      // ── 右側食物籃 ──
+      self.drawBasket(ctx, bx, by);
+      // 籃上數量徽章
+      if (self.basketCount > 0) {
+        ctx.save();
+        ctx.shadowColor = 'rgba(150,100,40,0.4)'; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#F2591E'; A.el(ctx, bx + 44, by - 68, 22, 22); ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.font = '700 22px ' + FONT; ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(self.basketCount), bx + 44, by - 68);
+        ctx.restore();
+      }
 
       // ── 累積進度條 ─────────────────────────────────────────
       var dAt = ST.deluxeAt();          // 10
@@ -584,20 +666,21 @@
       ctx.fillText(
         bClears >= dAt
           ? '豪華版已解鎖！共解了 ' + bClears + ' 次！'
-          : '已解 ' + bClears + ' / ' + dAt + ' 次・集滿就有豪華大餐！',
+          : '已解 ' + bClears + ' / ' + dAt + ' 次・集滿就有豪華大豐收！',
         W / 2, bCY + 27
       );
       ctx.restore();
 
       // 豪華版:寵物頭上的金皇冠(畫在寵物之後)
 
-      // 寵物開心跳
+      // v4:寵物模式改 'happy'(食物收進背包,牠很開心但沒在吃)
       ctx.save(); ctx.translate(W / 2, 410);
-      P.draw(this.petId, ctx, t, { mode: k < 6 ? 'happy' : 'chew' });
+      P.draw(this.petId, ctx, t, { mode: 'happy', stage: this.stage });
       ctx.restore();
       if (this.deluxe) window.PLS_CROWN(ctx, W / 2, 322, 2.1, '#F6C44A');
-      const talk = this.deluxe ? CFG.talk.feastDeluxe : CFG.talk.feast;
-      A.bubble(ctx, W / 2, 252, k < 3.4 ? talk[0] : talk[1], { size: 28 });
+      // v4:對話泡泡改用 harvest / harvestDeluxe
+      const talkList = this.deluxe ? CFG.talk.harvestDeluxe : CFG.talk.harvest;
+      A.bubble(ctx, W / 2, 252, k < 3.4 ? talkList[0] : talkList[1 % talkList.length], { size: 28 });
 
       this.heartTimer -= 1 / 60;
       if (this.heartTimer <= 0 && k < 7) {

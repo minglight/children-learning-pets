@@ -54,6 +54,13 @@
 - 兌換在 `shop` 畫面(`points.js`),`store.redeem()` 扣本寵物點數;手寫過關小慶祝在 `hwpass` 畫面。
 - 動到 `pet.points` / `daily.hw` / `hwEarned` / `hwRound` / `prizes` / `rewardsHidden` → 已是 schema **v3**(v3 新增 `pet.hwRound`),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
 
+## 電子雞化:背包 / 餵食 / 成長(schema v4)
+- **背包本寵物獨立**:`pet.inv = {foods:{key:數量}, toys:{key:數量}}`。數學過關 → 該關 `feast.items` 進 `foods`(一般 5 份、豪華 7 份,`quiz.js advance()`);英文過關 → 玩具進 `toys`(豪華 ×2,`english.js advance()`)。「吃大餐」畫面已改成**豐收畫面**(食物飛進籃子),玩具畫面改「收進玩具箱」。
+- **餵食 / 陪玩在房間**(`app/room.js`):點房間前緣的「食物籃 / 玩具箱」開背包托盤 → 點一個道具 → 寵物走過去吃(三口吃完)/ 玩(玩具彈跳),**消耗 1 個**。資料在點下去那一刻就由 `store.feed()` / `store.playToy()` 扣掉,動畫只是演出。點寵物本體 = 摸摸牠(純互動)。
+- **成長**:`pet.growth.xp`(餵食 +2、陪玩 +3、每天第一次各多 +1,計數在 `pet.care`,跨日歸零)。階段門檻在 `store.js` 的 `GROW`:<30 幼幼(0.85×+呆毛)、<100 小寶、≥100 大寶(1.12×+兔兔蝴蝶結/倉倉領巾)。外觀由 `pets.js` 的 `draw(petId, ctx, t, {stage})` 處理,**所有畫寵物的地方都要帶 stage**(用 `store.growthInfo(d).stage`)。升階時房間會播全螢幕慶祝(`room.js drawGrow`)。
+- **老玩家補償**:`migratePet()` 對無 `growth` 的舊資料,用「各關 clears 總和 × 2、封頂 99」換算初始 xp。
+- 動到 `inv` / `growth` / `care` → 已是 schema **v4**,migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
+
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。
 - 讀檔用 `Read`、搜尋用 `Grep`/`Glob`、改檔用 `Edit`/`Write`。

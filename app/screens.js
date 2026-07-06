@@ -239,7 +239,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(CFG.appName, W / 2, 92);
       ctx.fillStyle = '#8A6242'; ctx.fillText(CFG.appName, W / 2, 88);
       ctx.font = '26px ' + FONT; ctx.globalAlpha = 0.75;
-      ctx.fillText('每天一起學習,一起吃大餐!', W / 2, 150);
+      ctx.fillText('每天一起學習,一起養寵物!', W / 2, 150);
       ctx.globalAlpha = 1;
 
       // 房子外框 + 屋頂
@@ -265,6 +265,7 @@
     const th = CFG.pets[petId].theme;
     const d = ST.load(petId);
     const name = d.name || CFG.pets[petId].name;
+    const stage = window.PLS_STORE.growthInfo(d).stage;
     ctx.fillStyle = th.wall; A.rr(ctx, left, top, w, h, 24); ctx.fill();
     ctx.fillStyle = th.dot;
     for (let xx = left + 40; xx < left + w; xx += 80)
@@ -274,7 +275,7 @@
     // 地毯
     ctx.fillStyle = 'rgba(255,255,255,0.34)'; A.el(ctx, left + w * 0.5, top + h - 30, w * 0.42, 30); ctx.fill();
     // 寵物
-    ctx.save(); ctx.translate(left + w * 0.30, top + h - 64); ctx.scale(0.56, 0.56); P.draw(petId, ctx, t, {}); ctx.restore();
+    ctx.save(); ctx.translate(left + w * 0.30, top + h - 64); ctx.scale(0.56, 0.56); P.draw(petId, ctx, t, { stage: stage }); ctx.restore();
     // 佈置:一個食物 + 一個玩具(與房間、佈置小窩一模一樣)
     var _fa = d.home.foods || [], _ta = d.home.toys || [];
     var _ff = null, _ft = null;
@@ -309,7 +310,7 @@
       // 數學餐廳
       PLS.addButton({
         x: 596, y: 246, w: 250, h: 244,
-        draw: function (ctx, t) { self.drawDoor(ctx, t, 596, 246, 250, 244, '數學餐廳', '吃大餐', 'math'); },
+        draw: function (ctx, t) { self.drawDoor(ctx, t, 596, 246, 250, 244, '數學餐廳', '賺食物', 'math'); },
         onTap: function () { PLS.go('map', { pet: self.petId }); }
       });
       // 英文遊戲間
@@ -406,7 +407,7 @@
         A.pill(ctx, cx, y + 210, txt, '#6E9A6E', 'rgba(232,242,230,0.96)', 17);
       } else {
         const txt = ST.isTest() ? '測試版 · 不限次數'
-          : remain > 0 ? '今天還可以吃 ' + remain + ' 次大餐' : '今天吃飽了,可以練習';
+          : remain > 0 ? '今天還可以賺 ' + remain + ' 次食物' : '今天賺夠了,可以練習';
         A.pill(ctx, cx, y + 210, txt, '#B98A4F', 'rgba(252,238,214,0.95)', 17);
       }
     },
@@ -415,6 +416,7 @@
       drawWall(ctx, th.wall, th.dot);
       const d = ST.load(this.petId);
       const name = d.name || CFG.pets[this.petId].name;
+      const stage = window.PLS_STORE.growthInfo(d).stage;
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT;
@@ -456,7 +458,7 @@
       });
 
       // 寵物(左側)
-      ctx.save(); ctx.translate(270, 470); P.draw(this.petId, ctx, t, {}); ctx.restore();
+      ctx.save(); ctx.translate(270, 470); P.draw(this.petId, ctx, t, { stage: stage }); ctx.restore();
       A.bubble(ctx, 290, 250, this.bubbleText, { size: 28 });
     }
   };
@@ -535,7 +537,7 @@
       const d = ST.load(this.petId);
       const state = ST.levelState(d, CFG.math, n.i);
       if (state === 'locked') {
-        this.note = n.lv.locked ? '這一關還沒開放喔' : '先把上一關吃到大餐,就會開門囉';
+        this.note = n.lv.locked ? '這一關還沒開放喔' : '先把上一關過關,就會開門囉';
         PLS.sfx.wrong();
         return;
       }
@@ -615,7 +617,7 @@
       ctx.fillStyle = '#8A6242'; ctx.fillText('數學餐廳', W / 2, 70);
       A.pill(ctx, W / 2, 134,
         ST.isTest() ? '測試版 · 所有關卡已解鎖'
-          : remain > 0 ? '今天還可以吃 ' + remain + ' 次大餐' : '今天吃飽了!其他關卡可以練習',
+          : remain > 0 ? '今天還可以賺 ' + remain + ' 次食物' : '今天賺夠了!其他關卡可以練習',
         '#B98A4F', 'rgba(255,255,255,0.9)', 23);
 
       if (this.scrollY < this.maxScroll - 2) {
@@ -906,9 +908,9 @@
         onTap: function () { PLS.go('room', { pet: self.petId }); }
       });
       var btns = [
-        { label: '基礎版大餐', sub: '答對 90% 以上拿到', color: '#C2791E', bg: '#FFF7EA',
+        { label: '基礎版收穫', sub: '答對 90% 以上拿到', color: '#C2791E', bg: '#FFF7EA',
           cb: function () { PLS.go('feast', { pet: self.petId, levelIdx: 0, deluxe: false, clears: 1 }); } },
-        { label: '豪華版大餐', sub: '同一關過關滿 10 次', color: '#B03B10', bg: '#FFF0D8',
+        { label: '豪華版收穫', sub: '同一關過關滿 10 次', color: '#B03B10', bg: '#FFF0D8',
           cb: function () { PLS.go('feast', { pet: self.petId, levelIdx: 0, deluxe: true, clears: 10 }); } },
         { label: '基礎版玩具', sub: '英文關卡過關獎勵', color: '#3A8A5A', bg: '#EEF6EC',
           cb: function () { PLS.go('etoy', { pet: self.petId, levelIdx: 0, deluxe: false, clears: 1 }); } },

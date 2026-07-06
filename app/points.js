@@ -294,6 +294,7 @@
       this.capped = !!params.capped;
       this.dailyLeft = params.dailyLeft | 0;
       this.start = PLS.t; this.heartTimer = 0;
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       if (this.awarded) PLS.sfx.feast(); else PLS.sfx.correct();
       PLS.addButton({
         x: W / 2 - 330, y: 700, w: 300, h: 100,
@@ -337,7 +338,7 @@
       else msg = '今天的手寫積分拿完了,明天再來!';
       A.pill(ctx, W / 2, 198, msg, this.awarded ? '#C2591E' : '#7A6450', 'rgba(255,255,255,0.95)', 26);
       ctx.save(); ctx.translate(W / 2, 560); ctx.scale(1.15, 1.15);
-      P.draw(this.petId, ctx, t, { mode: k < 5 ? 'happy' : 'idle' }); ctx.restore();
+      P.draw(this.petId, ctx, t, { mode: k < 5 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
       if (this.awarded) {
         this.heartTimer -= 1 / 60;
         if (this.heartTimer <= 0 && k < 5) { this.heartTimer = 0.4; PLS.burst(W / 2 + (Math.random() - 0.5) * 240, 360, 'small'); }

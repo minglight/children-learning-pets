@@ -294,6 +294,7 @@
       this.firstTryCount = 0;
       this.accent = CFG.pets[this.petId].theme.accent;
       this.deep = CFG.pets[this.petId].theme.deep;
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       this.bubbleText = pickTalk(CFG.talkEng.welcome);
       this.bubbleUntil = PLS.t + 2.6;
       this.locked = false;
@@ -682,8 +683,14 @@
       if (this.qIndex >= this.count) {
         const d = ST.load(this.petId);
         const res = ST.recordRun(d, 'english', this.lv.id, this.count, this.count, this.practice);
-        if (res.feast) PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears });
-        else PLS.go('eresult', { pet: this.petId, levelIdx: this.levelIdx, practice: this.practice });
+        if (res.feast) {
+          // v4:玩具收進玩具箱(豪華版給 2 個)
+          const toyKey = this.lv.toyArt && this.lv.toyArt[this.petId];
+          ST.addToy(d, toyKey, res.deluxe ? 2 : 1);
+          PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears });
+        } else {
+          PLS.go('eresult', { pet: this.petId, levelIdx: this.levelIdx, practice: this.practice });
+        }
       } else { this.next(); }
     },
 
@@ -737,7 +744,7 @@
           : this.mode === 'spell' ? { x: 96, y: 744, s: 0.4 }
             : { x: 160, y: 660, s: 0.55 };
       ctx.save(); ctx.translate(petPos.x, petPos.y); ctx.scale(petPos.s, petPos.s);
-      P.draw(this.petId, ctx, t, {});
+      P.draw(this.petId, ctx, t, { stage: this.stage });
       ctx.restore();
       this._petPos = petPos;
     },
@@ -920,19 +927,21 @@
       this.deluxe = !!params.deluxe;
       this.clears = params.clears || 0;
       this.start = PLS.t; this.heartTimer = 0;
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       PLS.sfx.feast();
-      PLS.say(this.deluxe ? '哇,豪華版玩具!' : '哇,新玩具!');
+      // v4:語意改成「入手玩具箱」
+      PLS.say(this.deluxe ? '哇,豪華玩具收進玩具箱!' : '哇,新玩具入手!');
       PLS.addButton({
-        x: W / 2 - 160, y: 706, w: 320, h: 100,
+        x: W / 2 - 170, y: 706, w: 340, h: 100,
         hidden: function () { return PLS.t - self.start < 2.2; },
         draw: function (ctx) {
           ctx.save();
           ctx.shadowColor = 'rgba(120,150,110,0.28)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
-          ctx.fillStyle = '#8FC9A8'; A.rr(ctx, W / 2 - 160, 706, 320, 100, 34); ctx.fill();
+          ctx.fillStyle = '#8FC9A8'; A.rr(ctx, W / 2 - 170, 706, 340, 100, 34); ctx.fill();
           ctx.restore();
           ctx.font = '38px ' + FONT; ctx.fillStyle = '#FFFFFF';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText('收下玩具!', W / 2, 758);
+          ctx.fillText('收進玩具箱!', W / 2, 758);
         },
         onTap: function () { PLS.go('emap', { pet: self.petId }); }
       });
@@ -951,14 +960,28 @@
       }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '56px ' + FONT;
-      const title = this.deluxe ? '豪華玩具耀!' : '得到新玩具!';
+      // v4:標題改「新玩具入手」語意
+      const title = this.deluxe ? '豪華玩具耀!' : '新玩具入手!';
       ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillText(title, W / 2, 134);
       ctx.fillStyle = this.deluxe ? '#C2591E' : '#5E8A56'; ctx.fillText(title, W / 2, 130);
-      if (this.deluxe) A.pill(ctx, W / 2, 194, '✨ 豪華版 · ' + this.toyName + ' ✨', '#C2591E', 'rgba(255,240,205,0.96)', 28);
-      else A.pill(ctx, W / 2, 194, this.toyName, '#6E9A6E', 'rgba(255,255,255,0.94)', 28);
+      if (this.deluxe) {
+        // v4 豪華版:顯示「×2」數量徽章與豪華 pill
+        A.pill(ctx, W / 2 - 80, 194, '✨ 豪華版 · ' + this.toyName + ' ✨', '#C2591E', 'rgba(255,240,205,0.96)', 28);
+        ctx.save();
+        ctx.fillStyle = '#C2591E'; A.rr(ctx, W / 2 + 200, 178, 72, 36, 18); ctx.fill();
+        ctx.font = '700 22px ' + FONT; ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('×2', W / 2 + 236, 196);
+        ctx.restore();
+        A.pill(ctx, W / 2, 234, '豪華版送兩個!', '#C2591E', 'rgba(255,240,205,0.90)', 23);
+      } else {
+        A.pill(ctx, W / 2, 194, this.toyName, '#6E9A6E', 'rgba(255,255,255,0.94)', 28);
+      }
+      // v4:小字 pill「回房間陪牠玩吧!」
+      A.pill(ctx, W / 2, this.deluxe ? 272 : 240, '回房間陪牠玩吧!', '#5E7A56', 'rgba(220,240,220,0.90)', 21);
 
       // 寵物(左)+ 展示台(右)
-      ctx.save(); ctx.translate(360, 480); P.draw(this.petId, ctx, t, { mode: k < 6 ? 'happy' : 'idle' }); ctx.restore();
+      ctx.save(); ctx.translate(360, 480); P.draw(this.petId, ctx, t, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
       const talk = this.deluxe ? CFG.talkEng.rewardDeluxe : CFG.talkEng.reward;
       A.bubble(ctx, 360, 300, k < 3.4 ? talk[0] : talk[1], { size: 27 });
 
@@ -997,6 +1020,7 @@
     enter: function (params) {
       const self = this;
       this.petId = params.pet; this.levelIdx = params.levelIdx; this.practice = params.practice;
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       this.msg = this.practice ? '練習完成!明天再來拿新玩具喔' : pickTalk(CFG.talkEng.full);
       PLS.addButton({
         x: W / 2 - 160, y: 720, w: 320, h: 100,
@@ -1027,7 +1051,7 @@
       const tk = lv.toyArt && lv.toyArt[this.petId];
       if (tk) TOY.drawToy(ctx, tk, W / 2, 318, 1.2);
 
-      ctx.save(); ctx.translate(W / 2, 600); ctx.scale(0.72, 0.72); P.draw(this.petId, ctx, t, {}); ctx.restore();
+      ctx.save(); ctx.translate(W / 2, 600); ctx.scale(0.72, 0.72); P.draw(this.petId, ctx, t, { stage: this.stage }); ctx.restore();
       A.bubble(ctx, W / 2, 440, this.msg, { size: 26 });
     }
   };
@@ -1042,6 +1066,7 @@
       this.accent = CFG.pets[this.petId].theme.accent;
       this.cs = (params.cs === 'lower') ? 'lower' : 'upper';
       this.idx = 0;
+      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       if (params.letter) {
         const k = UP.indexOf(String(params.letter).toUpperCase());
         if (k >= 0) this.idx = k;
@@ -1226,7 +1251,7 @@
         ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.beginPath(); ctx.moveTo(cx - 10, cy + 1); ctx.lineTo(cx - 2, cy + 9); ctx.lineTo(cx + 11, cy - 8); ctx.stroke();
       }
-      ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.petId, ctx, t, {}); ctx.restore();
+      ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.petId, ctx, t, { stage: this.stage }); ctx.restore();
       if (this.hint && t - this.hintT < 1.8) A.bubble(ctx, W / 2, 150, this.hint, { size: 23 });
     }
   };
@@ -1241,7 +1266,9 @@
       this.accent = CFG.pets[this.petId].theme.accent;
       this.cs = (params.cs === 'lower') ? 'lower' : 'upper';
       // 本輪已描完的字母(大小寫各自獨立),用來在格子上打勾 + 顯示進度
-      this.doneSet = new Set(ST.hwRoundProgress(ST.load(this.petId)).letters);
+      const _d = ST.load(this.petId);
+      this.doneSet = new Set(ST.hwRoundProgress(_d).letters);
+      this.stage = ST.growthInfo(_d).stage;
       backButton('room', this.petId);
 
       // 大小寫切換(切換後重畫,字母格內字形跟著變)
@@ -1300,7 +1327,7 @@
         A.pill(ctx, W / 2, 116, '本輪已完成 ' + this.doneSet.size + ' / 52 個 · 寫滿整輪 +1 分',
           '#C2851E', 'rgba(255,255,255,0.92)', 21);
       }
-      ctx.save(); ctx.translate(120, 720); ctx.scale(0.42, 0.42); P.draw(this.petId, ctx, t, {}); ctx.restore();
+      ctx.save(); ctx.translate(120, 720); ctx.scale(0.42, 0.42); P.draw(this.petId, ctx, t, { stage: this.stage }); ctx.restore();
     }
   };
 

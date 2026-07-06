@@ -1,6 +1,46 @@
 // pets.js(app 版)— 角色繪製,含模式:idle / chew(咀嚼) / happy(開心跳) / sad(輕微失落)
+// v4:o.stage('baby'|'kid'|'grown')控制成長外觀 — 幼幼縮小+呆毛、大寶放大+配件;不傳=kid(現在的樣子)。
 (function () {
   const TAU = Math.PI * 2;
+
+  // 幼幼呆毛(畫在頭頂;topY = 頭頂 y 座標)
+  function babySprout(ctx, topY, col) {
+    ctx.save();
+    ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, topY + 4);
+    ctx.quadraticCurveTo(3, topY - 16, 14, topY - 18);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // 大寶配件:蝴蝶結(兔兔耳朵旁)
+  function bow(ctx, x, y, s, col, knotCol) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.fillStyle = col;
+    [-1, 1].forEach(function (k) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(k * 20, -16, k * 26, -4);
+      ctx.quadraticCurveTo(k * 24, 10, 0, 0);
+      ctx.closePath(); ctx.fill();
+    });
+    ctx.fillStyle = knotCol;
+    ctx.beginPath(); ctx.ellipse(0, 0, 6.5, 6.5, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  // 大寶配件:小領巾(倉倉脖子)
+  function scarf(ctx, y, col, dark) {
+    ctx.save();
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.ellipse(0, y, 50, 13, 0, 0, TAU); ctx.fill();
+    // 垂下來的巾角
+    ctx.beginPath();
+    ctx.moveTo(-6, y + 8); ctx.lineTo(20, y + 8); ctx.lineTo(10, y + 34);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = dark; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-2, y + 12); ctx.lineTo(8, y + 28); ctx.stroke();
+    ctx.restore();
+  }
 
   function el(ctx, x, y, rx, ry, rot) {
     ctx.beginPath();
@@ -139,6 +179,10 @@
     el(ctx, 38, 130, 30, 16); ctx.fill();
 
     face(ctx, t, o, -62, 30, '#4B3A2F', '#C98A77', '#F2A0AC', 'rgba(246,160,150,0.40)', 52, -42, 0.3);
+
+    // 成長階段裝飾(跟著身體的彈跳一起動)
+    if (o.stage === 'baby') babySprout(ctx, -128, '#E8C9A8');
+    else if (o.stage === 'grown') bow(ctx, 40, -118, 1, '#E88AA0', '#D06A84');
     ctx.restore();
   }
 
@@ -198,12 +242,21 @@
     el(ctx, 42, 132, 27, 14); ctx.fill();
 
     face(ctx, t, o, -58, 34, '#503823', '#B98358', '#E89BA2', 'rgba(243,150,130,0.40)', 60, -34, 1.1);
+
+    // 成長階段裝飾(跟著身體的彈跳一起動)
+    if (o.stage === 'baby') babySprout(ctx, -122, '#D89A55');
+    else if (o.stage === 'grown') scarf(ctx, 8, '#D9705E', '#B85648');
     ctx.restore();
   }
 
+  // o.stage:'baby' 縮小 0.85、'grown' 放大 1.12(以腳底 y≈146 為基準對齊,站的位置不變)
   function draw(petId, ctx, t, o) {
+    o = o || {};
+    const s = o.stage === 'baby' ? 0.85 : o.stage === 'grown' ? 1.12 : 1;
+    if (s !== 1) { ctx.save(); ctx.translate(0, 146 * (1 - s)); ctx.scale(s, s); }
     if (petId === 'rabbit') drawRabbit(ctx, t, o);
     else drawHamster(ctx, t, o);
+    if (s !== 1) ctx.restore();
   }
 
   window.PLS_PETS = { draw: draw, drawRabbit: drawRabbit, drawHamster: drawHamster };
