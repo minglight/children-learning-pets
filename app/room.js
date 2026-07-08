@@ -40,6 +40,54 @@
     if (Math.abs(ddy) > Math.abs(ddx) * 1.15) return ddy < 0 ? 'back' : 'front';
     return 'side';
   }
+  // 漫遊一步(主寵物與訪客共用):隨機走走停停、近大遠小、轉身翻面
+  function wanderStep(t, geo, w) {
+    const dt = clamp(t - w.lastT, 0, 0.1); w.lastT = t;
+    if (w.state === 'walk') {
+      const sc = scAt(w.z);
+      const dx = w.tx - w.x, dzz = w.tz - w.z;
+      w.x += clamp(dx, -300 * sc * dt, 300 * sc * dt);
+      w.z += clamp(dzz, -0.24 * dt, 0.24 * dt);
+      if (Math.abs(dx) > 3) w.face = dx < 0 ? -1 : 1;
+      w.dir = dirOf(geo, dx, dzz);
+      w.hop = -Math.abs(Math.sin(t * 7)) * 38 * sc;
+      w.mode = 'idle';
+      if (Math.abs(dx) < 4 && Math.abs(dzz) < 0.02) {
+        const r = Math.random();
+        w.state = r < 0.6 ? 'idle' : 'happy';
+        w.until = t + (w.state === 'happy' ? 1.3 : 1.6 + Math.random() * 2.4);
+        w.hop = 0;
+        w.dir = 'front';   // 停下來就轉回來看鏡頭
+      }
+    } else {
+      w.dir = 'front';
+      w.hop = w.state === 'happy' ? -Math.abs(Math.sin(t * 6)) * 26 * scAt(w.z) : 0;
+      w.mode = w.state === 'happy' ? 'happy' : 'idle';
+      if (t >= w.until) {
+        w.tz = Math.random();
+        const xr = xRange(geo, w.tz);
+        w.tx = xr.min + Math.random() * (xr.max - xr.min);
+        w.state = 'walk';
+      }
+    }
+    // 邊界保護(視窗尺寸不變,但保險起見夾住)
+    const xr2 = xRange(geo, w.z);
+    w.x = clamp(w.x, xr2.min, xr2.max); w.z = clamp(w.z, 0, 1);
+    return w;
+  }
+  // 直線走向目標(訪客進場/離場/走向點心墊用);回傳是否到達。不夾 xRange,才能走出房外
+  function walkStep(t, geo, w, tx, tz) {
+    const dt = clamp(t - w.lastT, 0, 0.1); w.lastT = t;
+    const sc = scAt(w.z);
+    const dx = tx - w.x, dzz = tz - w.z;
+    w.x += clamp(dx, -300 * sc * dt, 300 * sc * dt);
+    w.z += clamp(dzz, -0.24 * dt, 0.24 * dt);
+    if (Math.abs(dx) > 3) w.face = dx < 0 ? -1 : 1;
+    w.dir = dirOf(geo, dx, dzz);
+    w.hop = -Math.abs(Math.sin(t * 7)) * 38 * sc;
+    w.mode = 'idle';
+    return Math.abs(dx) < 4 && Math.abs(dzz) < 0.02;
+  }
 
   // ── 共用美術 ─────────────────────────────────────────
   function wallpaper(ctx, x, y, w, h, dot) {
@@ -182,6 +230,18 @@
       this._prDisp = null;   // 成長條顯示值(緩動)
       this._down = null;
       this._wander = null;   // 2.5D 漫遊狀態 {x, z, tx, tz, state, until, face, hop, mode}
+      // 雙寵物互訪:每次進房 1/3 機率,另一隻寵物過一會兒來作客(測試版必來,方便驗證)
+      this.gBubble = null;   // 訪客的對話泡泡
+      this._guestX = null;
+      this._visit = null;    // {id, phase:'wait'|'in'|'stay'|'join'|'leave', at, stage, w}
+      const gid = pid === 'rabbit' ? 'hamster' : 'rabbit';
+      if (Math.random() < (ST.isTest() ? 1 : 1 / 3)) {
+        this._visit = {
+          id: gid, phase: 'wait',
+          at: PLS.t + (ST.isTest() ? 3 : 6 + Math.random() * 8),
+          stage: ST.growthInfo(ST.load(gid)).stage
+        };
+      }
       // 回首頁
       PLS.addButton({
         x: 24, y: 26, w: 58, h: 58,
@@ -284,6 +344,16 @@
         this.say(pickTalk(['嘿嘿,好舒服~', '最喜歡主人摸摸了!', '呀~好癢好癢!']));
         return;
       }
+      // 點訪客:也可以摸摸牠
+      const gs = this._guestS || 0.42;
+      if (this._guestX != null && Math.abs(x - this._guestX) < 190 * gs &&
+          y > (this._guestY || 0) - 400 * gs && y < (this._guestY || 0) + 16) {
+        if (this._visit) this._visit.pat = PLS.t;
+        PLS.burst(this._guestX, (this._guestY || 0) - 280 * gs, 'small');
+        PLS.sfx.tap();
+        this.sayG(pickTalk(CFG.talkCare.visitPat));
+        return;
+      }
       // 點地板:叫寵物走過去(2.5D 整場跑)
       const geo = this._geo, w3 = this._wander;
       if (geo && w3 && y > geo.yTop - 20 && y < geo.yBot + 24) {
@@ -294,6 +364,7 @@
       }
     },
     say: function (text) { this.bubble = { text: text, until: PLS.t + 2.4 }; },
+    sayG: function (text) { this.gBubble = { text: text, until: PLS.t + 2.4 }; },
 
     // ── 餵食 / 陪玩:點托盤的那一刻就先扣資料(store),動畫只是演出來 ──
     startFeed: function (key, gold) {
@@ -411,38 +482,73 @@
           state: 'idle', until: t + 1.2, face: 1, hop: 0, mode: 'idle', lastT: t
         };
       }
-      const dt = clamp(t - w.lastT, 0, 0.1); w.lastT = t;
-      if (w.state === 'walk') {
-        const sc = scAt(w.z);
-        const dx = w.tx - w.x, dzz = w.tz - w.z;
-        w.x += clamp(dx, -300 * sc * dt, 300 * sc * dt);
-        w.z += clamp(dzz, -0.24 * dt, 0.24 * dt);
-        if (Math.abs(dx) > 3) w.face = dx < 0 ? -1 : 1;
-        w.dir = dirOf(geo, dx, dzz);
-        w.hop = -Math.abs(Math.sin(t * 7)) * 38 * sc;
-        w.mode = 'idle';
-        if (Math.abs(dx) < 4 && Math.abs(dzz) < 0.02) {
-          const r = Math.random();
-          w.state = r < 0.6 ? 'idle' : 'happy';
-          w.until = t + (w.state === 'happy' ? 1.3 : 1.6 + Math.random() * 2.4);
-          w.hop = 0;
-          w.dir = 'front';   // 停下來就轉回來看鏡頭
-        }
-      } else {
-        w.dir = 'front';
-        w.hop = w.state === 'happy' ? -Math.abs(Math.sin(t * 6)) * 26 * scAt(w.z) : 0;
-        w.mode = w.state === 'happy' ? 'happy' : 'idle';
-        if (t >= w.until) {
-          w.tz = Math.random();
-          const xr = xRange(geo, w.tz);
-          w.tx = xr.min + Math.random() * (xr.max - xr.min);
-          w.state = 'walk';
-        }
+      return wanderStep(t, geo, w);
+    },
+
+    // ── 雙寵物互訪:另一隻寵物從房間邊緣走進來作客,一起吃點心,待一陣子再回家 ──
+    // 回傳訪客 pose {x,z,hop,mode,face,dir} 或 null(還沒來/已離開)。純演出,不動任何存檔。
+    updateVisit: function (t, geo, foodPt) {
+      const v = this._visit;
+      if (!v) return null;
+      if (v.phase === 'wait') {
+        if (t < v.at) return null;
+        // 進場:從左或右邊緣走進來,邊走邊打招呼
+        const fromLeft = Math.random() < 0.5;
+        const z0 = 0.42 + Math.random() * 0.3;
+        const xr = xRange(geo, z0);
+        v.exitX = fromLeft ? geo.x0 - 90 : geo.x1 + 90;
+        v.phase = 'in';
+        v.w = { x: v.exitX, z: z0, tx: fromLeft ? xr.min + 30 : xr.max - 30, tz: z0,
+                state: 'walk', until: 0, face: fromLeft ? 1 : -1, hop: 0, mode: 'idle', lastT: t };
+        v.stayUntil = t + 45;
+        v.hostSayAt = t + 1.6;   // 主人寵物晚一點回話,泡泡才不會撞在一起
+        this.sayG(pickTalk(CFG.talkCare.visitArrive));
+        PLS.sfx.correct();
       }
-      // 邊界保護(視窗尺寸不變,但保險起見夾住)
-      const xr2 = xRange(geo, w.z);
-      w.x = clamp(w.x, xr2.min, xr2.max); w.z = clamp(w.z, 0, 1);
-      return w;
+      const w = v.w, act = this.act;
+      if (v.hostSayAt && t >= v.hostSayAt) {
+        v.hostSayAt = 0;
+        this.say(pickTalk(CFG.talkCare.visitHost).replace('{name}', CFG.pets[v.id].name));
+      }
+      if (v.phase === 'in') {
+        if (walkStep(t, geo, w, w.tx, w.tz)) {
+          v.phase = 'stay'; w.state = 'idle'; w.until = t + 1.4; w.hop = 0; w.dir = 'front';
+        }
+      } else if (v.phase === 'stay') {
+        if (act && act.kind === 'feed') {
+          // 主人寵物開飯了 → 走過去墊子另一側一起吃
+          v.phase = 'join'; v.thanked = false;
+          this.sayG(pickTalk(CFG.talkCare.visitEat));
+        } else if (act && act.kind === 'play') {
+          // 在旁邊蹦蹦跳跳幫忙加油
+          w.hop = -Math.abs(Math.sin(t * 6)) * 26 * scAt(w.z);
+          w.mode = 'happy'; w.dir = 'front';
+        } else if (t >= v.stayUntil) {
+          v.phase = 'leave';
+          this.sayG(pickTalk(CFG.talkCare.visitLeave));
+        } else {
+          wanderStep(t, geo, w);
+        }
+      } else if (v.phase === 'join') {
+        if (!act) {
+          // 吃完了:道謝,回去繼續逛(至少再待一下下才回家)
+          if (!v.thanked) { v.thanked = true; this.sayG(pickTalk(CFG.talkCare.visitThanks)); }
+          v.phase = 'stay'; w.state = 'idle'; w.until = t + 1.2;
+          v.stayUntil = Math.max(v.stayUntil, t + 8);
+        } else if (walkStep(t, geo, w, foodPt.x + 64, foodPt.z + 0.08)) {
+          // 主人寵物站墊子左邊(-64),訪客站右邊(+64),跟著一起咀嚼
+          const e = t - act.t0;
+          w.hop = 0; w.dir = 'front';
+          w.mode = e > 1.2 && e < 3.35 ? 'chew' : 'happy';
+        }
+      } else if (v.phase === 'leave') {
+        if (walkStep(t, geo, w, v.exitX, w.z)) { this._visit = null; return null; }
+      }
+      // 被摸摸:開心一下
+      if (v.pat && t - v.pat < 1.0 && (v.phase === 'stay' || v.phase === 'join')) {
+        w.mode = 'happy'; w.dir = 'front';
+      }
+      return { x: w.x, z: w.z, hop: w.hop, mode: w.mode, face: w.face, dir: w.dir };
     },
 
     // ── v5:照顧圖示(頭上兩顆:飯碗=今天餵過、球=今天玩過;沒做的半透明)──
@@ -706,10 +812,21 @@
         pose = { x: w.x, z: w.z, hop: w.hop, mode: w.mode, face: w.face, dir: w.dir };
       }
       if (this.pat && t - this.pat.t0 < 1.0 && !this.act) { pose.mode = 'happy'; pose.dir = 'front'; }
-      const psc = scAt(pose.z), groundY = yAt(geo, pose.z);
-      ctx.fillStyle = 'rgba(150,110,70,0.16)'; el(ctx, pose.x, groundY + 4, 150 * psc, 34 * psc); ctx.fill();
-      petAt(ctx, pid, t, pose.x, groundY + pose.hop, psc, pose.mode, gi.stage, pose.rot, pose.face, pose.dir);
-      this._petX = pose.x; this._petY = groundY; this._petS = psc;
+      // 訪客(另一隻寵物來作客);兩隻依深度排序,遠的先畫
+      const gpose = this.updateVisit(t, geo, foodPt);
+      const petsDraw = [{ id: pid, pose: pose, stage: gi.stage, main: true }];
+      if (gpose) petsDraw.push({ id: this._visit.id, pose: gpose, stage: this._visit.stage, main: false });
+      petsDraw.sort(function (a, b) { return a.pose.z - b.pose.z; });
+      const self = this;
+      petsDraw.forEach(function (it) {
+        const s = scAt(it.pose.z), gy = yAt(geo, it.pose.z);
+        ctx.fillStyle = 'rgba(150,110,70,0.16)'; el(ctx, it.pose.x, gy + 4, 150 * s, 34 * s); ctx.fill();
+        petAt(ctx, it.id, t, it.pose.x, gy + it.pose.hop, s, it.pose.mode, it.stage, it.pose.rot, it.pose.face, it.pose.dir);
+        if (it.main) { self._petX = it.pose.x; self._petY = gy; self._petS = s; }
+        else { self._guestX = it.pose.x; self._guestY = gy; self._guestS = s; }
+      });
+      if (!gpose) this._guestX = null;
+      const psc = this._petS, groundY = this._petY;
 
       // ── v5:照顧圖示(飯碗/球)+ 許願泡泡 + 撒嬌 ──
       if (!this.act && !this.grow) {
@@ -764,6 +881,12 @@
         const bx = Math.min(W - 190, Math.max(PW + 190, this._petX || (PW + 400)));
         const by = Math.max(200, (this._petY || 640) - 460 * (this._petS || 0.42));
         A.bubble(ctx, bx, by, this.bubble.text, { size: 22 });
+      }
+      // 訪客的泡泡(跟著訪客位置)
+      if (this.gBubble && t < this.gBubble.until && !this.grow && this._guestX != null) {
+        const gx = Math.min(W - 190, Math.max(PW + 190, this._guestX));
+        const gy2 = Math.max(200, (this._guestY || 640) - 460 * (this._guestS || 0.42));
+        A.bubble(ctx, gx, gy2, this.gBubble.text, { size: 22 });
       }
     }
   };

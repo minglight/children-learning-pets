@@ -64,6 +64,7 @@
 - **老玩家補償**:`migratePet()` 對無 `growth` 的舊資料,用「各關 clears 總和 × 2、封頂 99」換算初始 xp。
 - **許願(v5)**:`pet.wish` 每天由 `store.getWish()` 抽一個「拿得到的」食物(池 = 前三關 + 已解過關卡的 feast 食物);房間寵物旁有許願泡泡(點了提示去哪一關賺),餵中 → 成長加倍 + `wishGranted` 慶祝。
 - **吃完隨機小反應(v5)**:room.js `startFeed()` 抽 burp / spin(轉圈) / hops / hearts,1/8 出「幸運星」→ `store.bonusXp(d,1)`;語錄在 `config.talkCare`。
+- **雙寵物互訪(無 schema 變更)**:每次進房 **1/3 機率**(測試版必來),另一隻寵物過 6~14 秒從房間邊緣走進來作客(`room.js` 的 `this._visit` 狀態機:wait→in→stay→join→leave,`updateVisit()`)。作客期間在地板漫遊(與主寵物共用 `wanderStep()`)、**餵食時走到食物墊右側一起咀嚼**(主寵物站 -64、訪客站 +64)、陪玩時在旁邊蹦跳加油、可以點牠摸摸;約 45 秒後道別走出房間。**純演出,不讀寫任何存檔**(訪客外觀 stage 進房時讀一次)。語錄在 `config.talkCare.visit*`(`{name}` 會代換成訪客名);訪客有自己的泡泡(`sayG()`/`gBubble`),兩隻寵物繪製依 z 深度排序(遠的先畫)。
 - **收集圖鑑(v5)**:`pet.dex`(吃過/玩過自動點亮,`feed()`/`playToy()` 寫入),畫面在 `app/dex.js`(房間點掛畫進入)。**新增畫面檔要同時加進 `index.html` 的 script 與 `sw.js` 的 ASSETS。**
 - **答題遊戲感**:quiz/eplay 有連對 combo 徽章(streak≥2)、同一題錯 2 次給提示並重唸、最後一題答對加大慶祝。
 - 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` → 已是 schema **v7**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
