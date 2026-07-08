@@ -95,6 +95,7 @@
     next: function () {
       this.wrong = new Set();
       this.firstTry = true;
+      this.wrongTries = 0;
       const diff = this.streak >= 4 ? 2 : this.streak >= 2 ? 1 : 0;
       if (this.lv.bank) {
         this.q = this.pickBank();
@@ -175,26 +176,33 @@
       const opt = this.q.options[i];
       if (opt === this.q.answer) {
         this.locked = true;
+        const prevStreak = this.streak;
         if (this.firstTry) { this.firstTryCount++; this.streak++; }
         else this.streak = 0;
+        // 連對里程碑泡泡
+        const newStreak = this.streak;
+        if (newStreak === 3) { this.bubbleText = '3 連對!好厲害!'; this.bubbleUntil = PLS.t + 2; }
+        else if (newStreak === 5) { this.bubbleText = '5 連對!你是天才嗎!'; this.bubbleUntil = PLS.t + 2; }
         PLS.sfx.correct();
         const tile = this.tiles[i];
         const fx = tile.x + tile.w / 2, fy = tile.y + tile.h / 2;
+        const isLast = (this.qIndex + 1 >= CFG.questionsPerLevel);
         if (this.practice) {
           this.stars++;
           PLS.burst(fx, fy, 'small');
+          if (isLast) { PLS.burst(QC.x + QC.w / 2, QC.y + QC.h / 2, 'feast'); PLS.burst(PET.x, PET.y - 60, 'feast'); this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3; }
+          else if (newStreak !== 3 && newStreak !== 5) { this.petMode = 'happy'; this.bubbleText = pickTalk(CFG.talk.practiceCorrect); this.bubbleUntil = PLS.t + 1.6; }
           this.petMode = 'happy';
-          this.bubbleText = pickTalk(CFG.talk.practiceCorrect);
-          this.bubbleUntil = PLS.t + 1.6;
           setTimeout(function () { self.petMode = 'idle'; self.advance(); }, 1100);
         } else {
           this.flying = { x0: fx, y0: fy, x1: PET.x, y1: PET.y - 40, start: PLS.t, dur: 0.55 };
+          if (isLast) { PLS.burst(QC.x + QC.w / 2, QC.y + QC.h / 2, 'feast'); PLS.burst(PET.x, PET.y - 60, 'feast'); this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3; }
           setTimeout(function () {
             self.flying = null;
             self.petMode = 'chew';
             PLS.sfx.bite();
             self.plate++;
-            if (Math.random() < 0.45) {
+            if (!isLast && newStreak !== 3 && newStreak !== 5 && Math.random() < 0.45) {
               self.bubbleText = pickTalk(CFG.talk.correct);
               self.bubbleUntil = PLS.t + 1.5;
             }
@@ -206,9 +214,27 @@
         this.wrong.add(i);
         this.firstTry = false;
         this.streak = 0;
+        this.wrongTries = (this.wrongTries || 0) + 1;
         PLS.sfx.wrong();
-        this.bubbleText = pickTalk(CFG.talk.wrong);
-        this.bubbleUntil = PLS.t + 2.2;
+        if (this.wrongTries >= 2) {
+          // 第 2 次答錯:給提示
+          let hint = '再仔細想想喔';
+          const q = this.q;
+          if (q.kind === 'number') {
+            if (q.display.op === '+' || q.display.op === '−') hint = '先算個位,再算十位喔';
+            else if (q.display.op === '×') hint = '想想看,是幾個幾相加?';
+          } else if (q.kind === 'repeatadd') { hint = '一個一個慢慢加上去'; }
+          else if (q.kind === 'visual') { hint = '一堆一堆數,再加起來'; }
+          else if (q.kind === 'shape') { hint = '找找看:' + q.display.targetZh; }
+          else if (q.kind === 'compose') { hint = '想像兩塊拼起來的樣子'; }
+          else if (q.kind === 'text') { hint = '再聽一次題目,慢慢想沒關係'; }
+          this.bubbleText = hint;
+          this.bubbleUntil = PLS.t + 3.5;
+          PLS.say(q.say);
+        } else {
+          this.bubbleText = pickTalk(CFG.talk.wrong);
+          this.bubbleUntil = PLS.t + 2.2;
+        }
       }
     },
 
@@ -344,6 +370,22 @@
           const p = 1 + Math.sin(t * 4) * 0.18;
           ctx.fillStyle = '#F2B96B'; A.el(ctx, x, y, 12 * p, 12 * p); ctx.fill();
         } else { ctx.fillStyle = 'rgba(180,150,120,0.3)'; A.el(ctx, x, y, 9, 9); ctx.fill(); }
+      }
+      // Combo 徽章(streak >= 2)
+      if (this.streak >= 2) {
+        const pulse = 1 + Math.sin(t * 5) * 0.04;
+        const bx = W / 2 + 220, by = 120;
+        const label = '🔥 ' + this.streak + ' 連對!';
+        const bg = this.streak >= 5 ? '#E84A1A' : '#F2A040';
+        ctx.save();
+        ctx.translate(bx, by); ctx.scale(pulse, pulse); ctx.translate(-bx, -by);
+        ctx.font = '700 22px ' + FONT;
+        const tw = ctx.measureText(label).width;
+        const pw = tw + 28, ph = 36, pr = 18;
+        ctx.fillStyle = bg; A.rr(ctx, bx - pw / 2, by - ph / 2, pw, ph, pr); ctx.fill();
+        ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(label, bx, by + 1);
+        ctx.restore();
       }
 
       this.drawQuestion(ctx, t);

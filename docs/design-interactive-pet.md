@@ -2,7 +2,7 @@
 
 > 目標:女兒覺得「沒有很好玩」→ 把「解題拿獎勵動畫」改成「養成式電子雞」。
 > 食物/玩具是**會被消耗的資源**,寵物**會成長、有心情**,小朋友解題的動機從「過關」變成「照顧我的寵物」。
-> 狀態:Phase 1(題庫)與 Phase 2(背包/餵食/陪玩/成長,schema v4)已完成上線;Phase 3 待做。
+> 狀態:Phase 1–3 皆已完成上線(schema v5)。未做:雙寵物互訪、金色食物庫存變體、限時挑戰(見 §3 殘項)。
 
 ---
 
@@ -112,6 +112,6 @@
 |---|---|---|---|
 | 1 | 題庫 ≥50 + 回合內不重複 | gen.js, quiz.js, english.js, questions/*.xml, sw.js | ✅ 完成 |
 | 2 | 背包+餵食/玩玩具互動+成長階段+豐收畫面+摸寵物(2.1–2.4、2.7 部分) | store.js(v4), config.js, room.js, quiz.js(feast), english.js(etoy), pets.js, screens.js, points.js | ✅ 完成 |
-| 3 | 吃完隨機小變化/心情圖示/許願/Combo/圖鑑(2.5–2.6、§3) | room.js, quiz.js, points.js, 新檔 | 待做 |
+| 3 | 吃完隨機小變化/心情圖示+撒嬌/許願/Combo/答錯提示/最後一題儀式/圖鑑(2.5–2.6、§3 前 6 項) | store.js(v5), room.js, quiz.js, english.js, dex.js(新) | ✅ 完成 |
 
 每 Phase 完成都走:migration 驗證 → 舊匯出檔匯入實測 → sw VERSION+1 → commit/push。

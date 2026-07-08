@@ -7,7 +7,8 @@
   // v2:每筆寵物新增 points(可兌換積分)、hwEarned(手寫練習累計給分),daily 新增 hw(今日手寫輪數)。
   // v3:每筆寵物新增 hwRound(本輪已描完的字母清單;描滿 A–Z 大寫+a–z 小寫共 52 個才 +1 分)。
   // v4:電子雞化 — 新增 inv(背包:食物/玩具數量)、growth(成長值 xp)、care(今日餵食/陪玩計數)。
-  const SCHEMA_VERSION = 4;
+  // v5:新增 wish(寵物今日許願的食物;餵中成長值加倍)、dex(圖鑑:吃過的食物/玩過的玩具)。
+  const SCHEMA_VERSION = 5;
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
   const HW_ROUND_TOTAL = 52;
@@ -36,6 +37,8 @@
       inv: { foods: {}, toys: {} },  // v4:背包(key -> 數量);過關賺到、餵食/陪玩消耗
       growth: { xp: 0 },             // v4:成長值(餵食+2、陪玩+3、每日首次各+1)
       care: { date: today(), fed: 0, played: 0 },  // v4:今日照顧計數(跨日歸零)
+      wish: null,                    // v5:今日許願 {key, date, done};由 getWish() 產生
+      dex: { foods: [], toys: [] },  // v5:圖鑑(吃過的食物 / 玩過的玩具 key 清單)
       home: {                     // 家裡展示:3 食物格 + 3 玩具格(各格每天可換一次)
         foods: [emptySlot(), emptySlot(), emptySlot()],
         toys:  [emptySlot(), emptySlot(), emptySlot()]
@@ -118,6 +121,11 @@
     if (!p.care || typeof p.care !== 'object') p.care = { date: today(), fed: 0, played: 0 };
     if (typeof p.care.fed !== 'number') p.care.fed = 0;
     if (typeof p.care.played !== 'number') p.care.played = 0;
+    // ── v5:許願 / 圖鑑 ──
+    if (!('wish' in p) || (p.wish && (typeof p.wish !== 'object' || !p.wish.key))) p.wish = null;
+    if (!p.dex || typeof p.dex !== 'object') p.dex = {};
+    if (!Array.isArray(p.dex.foods)) p.dex.foods = [];
+    if (!Array.isArray(p.dex.toys)) p.dex.toys = [];
     p.home = migrateHome(p.home);
 
     p._v = SCHEMA_VERSION;   // 升級完成,標記為目前版本
@@ -331,14 +339,19 @@
     return { gain: gain, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: after !== before };
   }
 
-  // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1)。
-  // 沒有該食物回 null;成功回 gainXp 的結果(含 grew 供升階慶祝)。
+  // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1);餵中今日許願的食物 → 基礎值加倍。
+  // 沒有該食物回 null;成功回 gainXp 的結果(含 grew 供升階慶祝、wishGranted 供許願慶祝)。
   function feed(d, key) {
     if (!d.inv || !d.inv.foods || !(d.inv.foods[key] > 0)) return null;
     d.inv.foods[key]--;
     if (d.inv.foods[key] <= 0) delete d.inv.foods[key];
     d.care.fed++;
-    var res = gainXp(d, GROW.FEED_XP, d.care.fed === 1);
+    // v5:許願命中 → 基礎成長值 ×2,並把願望標記完成
+    var wishGranted = !!(d.wish && d.wish.date === today() && !d.wish.done && d.wish.key === key);
+    if (wishGranted) d.wish.done = true;
+    var res = gainXp(d, GROW.FEED_XP * (wishGranted ? 2 : 1), d.care.fed === 1);
+    res.wishGranted = wishGranted;
+    if (d.dex.foods.indexOf(key) < 0) d.dex.foods.push(key);   // v5:圖鑑點亮
     save(d);
     return res;
   }
@@ -350,8 +363,48 @@
     if (d.inv.toys[key] <= 0) delete d.inv.toys[key];
     d.care.played++;
     var res = gainXp(d, GROW.PLAY_XP, d.care.played === 1);
+    if (d.dex.toys.indexOf(key) < 0) d.dex.toys.push(key);     // v5:圖鑑點亮
     save(d);
     return res;
+  }
+
+  // 額外成長值(吃出幸運星等驚喜):回 gainXp 結果(可能觸發升階)。
+  function bonusXp(d, n) {
+    var res = gainXp(d, Math.max(1, n | 0), false);
+    save(d);
+    return res;
+  }
+
+  // ── v5:寵物許願(每天一個想吃的食物;餵中成長值加倍)──
+  // 池子 = 前三關 + 已解過的數學關卡的 feast 食物(確保拿得到)。
+  // 回 { key, date, done, levelName }(levelName = 可以賺到這個食物的關卡,給小朋友提示)。
+  function wishPool(d) {
+    var pool = {};
+    var math = (window.PLS_CONFIG && window.PLS_CONFIG.math) || [];
+    math.forEach(function (lv, i) {
+      if (!lv.feast || !lv.feast.items) return;
+      var r = d.levels[lv.id];
+      var reachable = i < 3 || (r && (r.clears || r.cleared));
+      if (!reachable) return;
+      lv.feast.items.forEach(function (k) { if (!pool[k]) pool[k] = lv; });
+    });
+    return pool;
+  }
+  function getWish(d) {
+    if (!d.wish || d.wish.date !== today()) {
+      var pool = wishPool(d);
+      var keys = Object.keys(pool);
+      if (!keys.length) return null;
+      var key = keys[Math.floor(Math.random() * keys.length)];
+      d.wish = { key: key, date: today(), done: false };
+      save(d);
+    }
+    var pool2 = wishPool(d);
+    var lv2 = pool2[d.wish.key];
+    return {
+      key: d.wish.key, date: d.wish.date, done: !!d.wish.done,
+      levelName: lv2 ? (lv2.name + '(' + lv2.sub + ')') : null
+    };
   }
 
   // ── 獎品目錄(全域,所有寵物共用;只存名稱與所需點數)──
@@ -433,6 +486,8 @@
     // v4:背包 / 成長 / 照顧
     stageOf: stageOf, growthInfo: growthInfo,
     invList: invList, invTotal: invTotal,
-    addFoods: addFoods, addToy: addToy, feed: feed, playToy: playToy
+    addFoods: addFoods, addToy: addToy, feed: feed, playToy: playToy,
+    // v5:驚喜加成 / 許願
+    bonusXp: bonusXp, getWish: getWish
   };
 })();

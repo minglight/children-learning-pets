@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 4`（v4 電子雞化:背包 / 成長 / 照顧)
+## 目前版本:`version = 5`（v5 許願 / 收集圖鑑)
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -53,6 +53,12 @@
   "growth": { "xp": 42 },     // v4:成長值(餵食+2、陪玩+3、每日首次各多+1;<30 幼幼、<100 小寶、≥100 大寶)
   "care": {                   // v4:今日照顧計數(跨日歸零,只用來判斷「每日首次加成」)
     "date": "2026-7-6", "fed": 1, "played": 0
+  },
+  "wish": {                   // v5:今日許願(null = 尚未產生;跨日由 getWish() 重新抽)
+    "key": "sushi", "date": "2026-7-8", "done": false
+  },
+  "dex": {                    // v5:收集圖鑑(吃過的食物 / 玩過的玩具 key;只增不減)
+    "foods": ["apple", "sushi"], "toys": ["doll"]
   },
   "levels": {                 // 關卡進度:levelId -> 紀錄
     "e2": {
@@ -126,7 +132,14 @@
 - 相關 API:`addFoods / addToy / feed / playToy / invList / invTotal / stageOf / growthInfo`(見 `store.js`)。
 - 匯出/匯入沿用整包寵物物件,無需另外處理;v3(含更舊)備份檔匯入後自動補齊。
 
+### v5（2026-07,許願 / 收集圖鑑)
+- **寵物**新增:
+  - `wish`(`null` 或 `{key, date, done}`)— 寵物今日想吃的食物,由 `store.getWish()` 產生(跨日重抽;池子 = 前三關 + 已解過關卡的 feast 食物,確保拿得到)。餵中願望食物 → 該次餵食基礎成長值 ×2、`done=true`。
+  - `dex`(`{foods:[key], toys:[key]}`,預設空)— 收集圖鑑;`feed()`/`playToy()` 自動點亮,只增不減。圖鑑畫面在 `app/dex.js`(房間點掛畫進入)。
+- 其他新 API:`bonusXp(d, n)`(吃出幸運星等額外成長,約 1/8 機率在 room.js 觸發)。
+- `migratePet()` 對舊檔補 `wish=null`、`dex={foods:[],toys:[]}`;v4(含更舊)備份檔匯入自動補齊。
+
 <!-- 新版本請依此格式往上加:
-### v5（YYYY-MM,變更摘要）
+### v6（YYYY-MM,變更摘要）
 - 新增欄位 X(預設值 …);migratePet 對舊檔補 X。
 -->

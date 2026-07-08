@@ -59,7 +59,11 @@
 - **餵食 / 陪玩在房間**(`app/room.js`):點房間前緣的「食物籃 / 玩具箱」開背包托盤 → 點一個道具 → 寵物走過去吃(三口吃完)/ 玩(玩具彈跳),**消耗 1 個**。資料在點下去那一刻就由 `store.feed()` / `store.playToy()` 扣掉,動畫只是演出。點寵物本體 = 摸摸牠(純互動)。
 - **成長**:`pet.growth.xp`(餵食 +2、陪玩 +3、每天第一次各多 +1,計數在 `pet.care`,跨日歸零)。階段門檻在 `store.js` 的 `GROW`:<30 幼幼(0.85×+呆毛)、<100 小寶、≥100 大寶(1.12×+兔兔蝴蝶結/倉倉領巾)。外觀由 `pets.js` 的 `draw(petId, ctx, t, {stage})` 處理,**所有畫寵物的地方都要帶 stage**(用 `store.growthInfo(d).stage`)。升階時房間會播全螢幕慶祝(`room.js drawGrow`)。
 - **老玩家補償**:`migratePet()` 對無 `growth` 的舊資料,用「各關 clears 總和 × 2、封頂 99」換算初始 xp。
-- 動到 `inv` / `growth` / `care` → 已是 schema **v4**,migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
+- **許願(v5)**:`pet.wish` 每天由 `store.getWish()` 抽一個「拿得到的」食物(池 = 前三關 + 已解過關卡的 feast 食物);房間寵物旁有許願泡泡(點了提示去哪一關賺),餵中 → 成長加倍 + `wishGranted` 慶祝。
+- **吃完隨機小反應(v5)**:room.js `startFeed()` 抽 burp / spin(轉圈) / hops / hearts,1/8 出「幸運星」→ `store.bonusXp(d,1)`;語錄在 `config.talkCare`。
+- **收集圖鑑(v5)**:`pet.dex`(吃過/玩過自動點亮,`feed()`/`playToy()` 寫入),畫面在 `app/dex.js`(房間點掛畫進入)。**新增畫面檔要同時加進 `index.html` 的 script 與 `sw.js` 的 ASSETS。**
+- **答題遊戲感**:quiz/eplay 有連對 combo 徽章(streak≥2)、同一題錯 2 次給提示並重唸、最後一題答對加大慶祝。
+- 動到 `inv` / `growth` / `care` / `wish` / `dex` → 已是 schema **v5**,migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
 
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。

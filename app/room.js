@@ -29,8 +29,10 @@
     else { const k = smooth(14, 18, ph); x = px + (fx - px) * k; mode = 'idle'; hop = -Math.abs(Math.sin((ph - 14) * 6.2)) * 18; }
     return { x: x, hop: hop, mode: mode };
   }
-  function petAt(ctx, petId, t, x, footY, s, mode, stage) {
+  // rot:整隻旋轉角度(開心轉圈用),以身體中心為軸
+  function petAt(ctx, petId, t, x, footY, s, mode, stage, rot) {
     ctx.save(); ctx.translate(x, footY - 140 * s); ctx.scale(s, s);
+    if (rot) { ctx.translate(0, 20); ctx.rotate(rot); ctx.translate(0, -20); }
     P.draw(petId, ctx, t, { mode: mode, stage: stage }); ctx.restore();
   }
 
@@ -270,6 +272,15 @@
       }
       if (inR(this._foodBasket)) { this.tray = 'food'; PLS.sfx.tap(); return; }
       if (inR(this._toyBox)) { this.tray = 'toy'; PLS.sfx.tap(); return; }
+      // 掛畫 → 收集圖鑑
+      if (inR(this._picRect)) { PLS.sfx.tap(); PLS.go('dex', { pet: this.petId }); return; }
+      // 許願泡泡 → 提示去哪一關賺這個食物
+      if (inR(this._wishRect)) {
+        PLS.sfx.tap();
+        const w2 = this._wishInfo;
+        this.say(w2 && w2.levelName ? ('在「' + w2.levelName + '」過關就能賺到喔!') : '解數學題就能賺到喔!');
+        return;
+      }
       // 點寵物:摸摸牠(純互動,不消耗任何東西)
       if (this._petX != null && Math.abs(x - this._petX) < 82 && y > (this._petY || 0) - 175 && y < (this._petY || 0) + 16) {
         this.pat = { t0: PLS.t };
@@ -284,7 +295,12 @@
     startFeed: function (key) {
       const res = ST.feed(ST.load(this.petId), key);
       if (!res) { this.say(CFG.talkCare.noFood[0]); return; }
-      this.act = { kind: 'feed', key: key, t0: PLS.t, fromX: this._petX || 0, bites: 0, result: res };
+      // v5:吃完的隨機小反應。許願命中最優先;1/8 吃出幸運星(+1 成長);其餘四選一。
+      let reaction;
+      if (res.wishGranted) reaction = 'wishGranted';
+      else if (Math.random() < 1 / 8) reaction = 'star';
+      else reaction = pickTalk(['burp', 'spin', 'hops', 'hearts']);
+      this.act = { kind: 'feed', key: key, t0: PLS.t, fromX: this._petX || 0, bites: 0, result: res, reaction: reaction };
     },
     startPlay: function (key) {
       const res = ST.playToy(ST.load(this.petId), key);
@@ -310,10 +326,35 @@
           return { x: stand, hop: 0, mode: 'chew' };
         }
         if (e < 4.9) {
+          // v5:吃完的隨機小反應(burp / spin / hops / hearts / star / wishGranted)
+          const re = e - 3.35;
           if (!a.reacted) {
             a.reacted = true; PLS.sfx.correct();
-            PLS.burst(stand, frontY - 140, 'feast');
-            this.say(pickTalk(CFG.talkCare.feedDone));
+            if (a.reaction === 'wishGranted') {
+              PLS.sfx.feast();
+              PLS.burst(stand, frontY - 150, 'feast'); PLS.burst(stand + 40, frontY - 100, 'feast');
+              this.say(pickTalk(CFG.talkCare.wishGranted));
+            } else if (a.reaction === 'star') {
+              // 幸運星:額外 +1 成長(可能因此升階 → 蓋掉原本的結果一起慶祝)
+              const bres = ST.bonusXp(ST.load(this.petId), 1);
+              if (bres.grew) a.result = bres;
+              PLS.burst(stand, frontY - 160, 'feast');
+              this.say(pickTalk(CFG.talkCare.star));
+            } else {
+              if (a.reaction === 'hearts') { PLS.burst(stand, frontY - 140, 'feast'); }
+              this.say(pickTalk(CFG.talkCare[a.reaction] || CFG.talkCare.feedDone));
+            }
+          }
+          if (a.reaction === 'hearts' && !a.hb2 && re > 0.6) { a.hb2 = true; PLS.burst(stand - 30, frontY - 110, 'feast'); }
+          if (a.reaction === 'spin') {
+            const sk = Math.min(1, re / 0.9);
+            return { x: stand, hop: -Math.sin(sk * Math.PI) * 14, mode: 'happy', rot: sk * TAU };
+          }
+          if (a.reaction === 'hops') {
+            return { x: stand, hop: -Math.abs(Math.sin(re * 9)) * 30, mode: 'happy' };
+          }
+          if (a.reaction === 'burp') {
+            return { x: stand, hop: 0, mode: re < 0.5 ? 'chew' : 'happy' };
           }
           return { x: stand, hop: 0, mode: 'happy' };
         }
@@ -339,6 +380,54 @@
         PLS.say((d.name || CFG.pets[this.petId].name) + '長大了!');
       }
       return { x: stand, hop: 0, mode: 'happy' };
+    },
+
+    // ── v5:照顧圖示(頭上兩顆:飯碗=今天餵過、球=今天玩過;沒做的半透明)──
+    drawCareIcons: function (ctx, d, cx, y) {
+      const fed = d.care.fed > 0, played = d.care.played > 0;
+      const self = this;
+      [{ done: fed, dx: -26, kind: 'bowl' }, { done: played, dx: 26, kind: 'ball' }].forEach(function (it) {
+        const x = cx + it.dx;
+        ctx.save();
+        ctx.globalAlpha = it.done ? 1 : 0.35;
+        ctx.fillStyle = '#FFFFFF'; el(ctx, x, y, 17, 17); ctx.fill();
+        ctx.strokeStyle = it.done ? '#F2B96B' : '#C9BCA8'; ctx.lineWidth = 2.5; el(ctx, x, y, 17, 17); ctx.stroke();
+        if (it.kind === 'bowl') {
+          ctx.fillStyle = '#E8965E';
+          ctx.beginPath(); ctx.arc(x, y - 1, 9, 0, Math.PI); ctx.closePath(); ctx.fill();
+          ctx.fillStyle = '#FFF3DC'; el(ctx, x, y - 3, 8, 3); ctx.fill();
+        } else {
+          ctx.fillStyle = '#8FB8D8'; el(ctx, x, y, 9, 9); ctx.fill();
+          ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(x - 8, y - 3); ctx.quadraticCurveTo(x, y + 4, x + 8, y - 3); ctx.stroke();
+        }
+        if (it.done) {   // 小綠勾
+          ctx.fillStyle = '#8FC9A8'; el(ctx, x + 12, y - 12, 8, 8); ctx.fill();
+          ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(x + 8.5, y - 12); ctx.lineTo(x + 11, y - 9.5); ctx.lineTo(x + 15.5, y - 15); ctx.stroke();
+        }
+        ctx.restore();
+      });
+    },
+
+    // ── v5:許願泡泡(想吃的食物;點泡泡告訴你去哪關賺)──
+    drawWish: function (ctx, t, wish, petX, frontY) {
+      const bx = Math.min(this._box.ix + this._box.iw - 110, petX + 128);
+      const by = frontY - 236 + Math.sin(t * 2) * 4;
+      ctx.save();
+      ctx.shadowColor = 'rgba(150,110,70,0.2)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
+      ctx.fillStyle = 'rgba(255,255,255,0.96)'; el(ctx, bx, by, 78, 56); ctx.fill();
+      ctx.shadowColor = 'transparent';
+      // 思考小圓點(往寵物方向)
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      el(ctx, bx - 62, by + 52, 10, 10); ctx.fill();
+      el(ctx, bx - 82, by + 70, 6, 6); ctx.fill();
+      ctx.restore();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '17px ' + FONT; ctx.fillStyle = '#A8865E';
+      ctx.fillText('好想吃…', bx, by - 30);
+      A.drawFood(ctx, wish.key, bx, by + 8, 0.62);
+      this._wishRect = { x: bx - 80, y: by - 58, w: 160, h: 116 };
     },
 
     // ── 食物籃 / 玩具箱(畫在房間前緣兩角,回傳點擊範圍)──
@@ -548,8 +637,29 @@
         }
       }
       if (this.pat && t - this.pat.t0 < 1.0 && !this.act) pose.mode = 'happy';
-      petAt(ctx, pid, t, pose.x, frontY + pose.hop, 0.46, pose.mode, gi.stage);
+      petAt(ctx, pid, t, pose.x, frontY + pose.hop, 0.46, pose.mode, gi.stage, pose.rot);
       this._petX = pose.x; this._petY = frontY;
+
+      // ── v5:照顧圖示(飯碗/球)+ 許願泡泡 + 撒嬌 ──
+      if (!this.act && !this.grow) {
+        this.drawCareIcons(ctx, d, pose.x, frontY - 196);
+        const wish = ST.getWish(d);
+        this._wishRect = null;
+        if (wish && !wish.done) this.drawWish(ctx, t, wish, pose.x, frontY);
+        this._wishInfo = wish;
+        // 撒嬌:今天還沒餵(每 16 秒)/ 餵了但還沒陪玩且有玩具(每 26 秒)
+        if (!this.bubble || t >= this.bubble.until) {
+          if (d.care.fed === 0 && t - (this._nagT || -99) > 16) {
+            this._nagT = t; this.say(pickTalk(CFG.talkCare.hungryNag));
+          } else if (d.care.fed > 0 && d.care.played === 0 && ST.invTotal(d, 'toys') > 0 && t - (this._nagT || -99) > 26) {
+            this._nagT = t; this.say(pickTalk(CFG.talkCare.playNag));
+          }
+        }
+      } else { this._wishRect = null; }
+
+      // ── v5:掛畫 = 收集圖鑑入口 ──
+      this._picRect = { x: box.ix + 54, y: box.iy + 50, w: 116, h: 118 };
+      A.pill(ctx, box.ix + 112, box.iy + 162, '圖鑑', '#B06A86', 'rgba(255,255,255,0.9)', 16);
 
       // 食物籃 / 玩具箱(前緣兩角,可點)
       this._foodBasket = this.drawBasket(ctx, box.ix + 88, box.iy + box.ih - 64, 'food', ST.invTotal(d, 'foods'), t);

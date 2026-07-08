@@ -292,6 +292,7 @@
       this.count = this.lv.count || 10;
       this.qIndex = 0;
       this.firstTryCount = 0;
+      this.streak = 0;
       this.accent = CFG.pets[this.petId].theme.accent;
       this.deep = CFG.pets[this.petId].theme.deep;
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
@@ -423,6 +424,7 @@
     next: function () {
       this.wrong = new Set();
       this.firstTry = true;
+      this.wrongTries = 0;
       this.clearStrokes();
       this.locked = false;
       const self = this;
@@ -515,27 +517,49 @@
       else sayLetter(this.q.base || this.q.letter);
     },
 
-    // ── 選擇題(pick / match)──
+    // ── 選擇題(pick / match / wpick)──
     answer: function (i) {
       if (this.locked || !this.q) return;
       const self = this;
       const opt = this.q.options[i];
       if (opt === this.q.answer) {
         this.locked = true;
-        if (this.firstTry) this.firstTryCount++;
+        if (this.firstTry) { this.firstTryCount++; this.streak++; }
+        else this.streak = 0;
+        // 連對里程碑泡泡
+        const newStreak = this.streak;
+        if (newStreak === 3) { this.bubbleText = '3 連對!好厲害!'; this.bubbleUntil = PLS.t + 2; }
+        else if (newStreak === 5) { this.bubbleText = '5 連對!你是天才嗎!'; this.bubbleUntil = PLS.t + 2; }
         PLS.sfx.correct();
         const tile = this.tiles[i];
-        PLS.burst(tile.x + tile.w / 2, tile.y + tile.h / 2, 'small');
-        this.bubbleText = pickTalk(CFG.talkEng.correct);
-        this.bubbleUntil = PLS.t + 1.6;
+        const fx = tile.x + tile.w / 2, fy = tile.y + tile.h / 2;
+        PLS.burst(fx, fy, 'small');
+        const isLast = (this.qIndex + 1 >= this.count);
+        if (isLast) {
+          PLS.burst(PC.x + PC.w / 2, PC.y + PC.h / 2, 'feast');
+          const pp = this._petPos || { x: 150, y: 742 };
+          PLS.burst(pp.x, pp.y - 60, 'feast');
+          this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3;
+        } else if (newStreak !== 3 && newStreak !== 5) {
+          this.bubbleText = pickTalk(CFG.talkEng.correct);
+          this.bubbleUntil = PLS.t + 1.6;
+        }
         setTimeout(function () { self.advance(); }, 1000);
       } else {
         this.wrong.add(i);
         this.firstTry = false;
+        this.streak = 0;
+        this.wrongTries = (this.wrongTries || 0) + 1;
         PLS.sfx.wrong();
-        this.bubbleText = pickTalk(CFG.talkEng.wrong);
-        this.bubbleUntil = PLS.t + 2;
-        this.replay();
+        if (this.wrongTries >= 2) {
+          this.bubbleText = '仔細聽,再選一次喔';
+          this.bubbleUntil = PLS.t + 3.5;
+          this.replay();
+        } else {
+          this.bubbleText = pickTalk(CFG.talkEng.wrong);
+          this.bubbleUntil = PLS.t + 2;
+          this.replay();
+        }
       }
     },
 
@@ -560,15 +584,21 @@
       const self = this;
       if (this.slots.join('') === this.word) {
         this.locked = true;
-        if (this.firstTry) this.firstTryCount++;
+        if (this.firstTry) { this.firstTryCount++; this.streak++; }
+        else this.streak = 0;
         PLS.sfx.correct();
         PLS.burst(W / 2, SLOT.y + SLOT.h / 2, 'small');
-        this.bubbleText = pickTalk(CFG.talkEng.correct);
-        this.bubbleUntil = PLS.t + 1.6;
+        const isLast = (this.qIndex + 1 >= this.count);
+        if (isLast) {
+          const pp = this._petPos || { x: 150, y: 742 };
+          PLS.burst(W / 2, SLOT.y + SLOT.h / 2, 'feast'); PLS.burst(pp.x, pp.y - 60, 'feast');
+          this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3;
+        } else { this.bubbleText = pickTalk(CFG.talkEng.correct); this.bubbleUntil = PLS.t + 1.6; }
         sayWord(this.word);
         setTimeout(function () { self.advance(); }, 1150);
       } else {
         this.firstTry = false;
+        this.streak = 0;
         PLS.sfx.wrong();
         this.bubbleText = pickTalk(CFG.talkEng.wrong);
         this.bubbleUntil = PLS.t + 2;
@@ -629,10 +659,15 @@
         }
         this.locked = true;
         this.firstTryCount++;
+        this.streak++;
         PLS.sfx.correct();
         this.boxes.forEach(function (b) { PLS.burst(b.x + b.w / 2, b.y + b.h / 2, 'small'); });
-        this.bubbleText = pickTalk(CFG.talkEng.nice);
-        this.bubbleUntil = PLS.t + 1.6;
+        const isLast = (this.qIndex + 1 >= this.count);
+        if (isLast) {
+          const pp = this._petPos || { x: 150, y: 742 };
+          PLS.burst(W / 2, (TCARD.y + TCARD.h / 2), 'feast'); PLS.burst(pp.x, pp.y - 60, 'feast');
+          this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3;
+        } else { this.bubbleText = pickTalk(CFG.talkEng.nice); this.bubbleUntil = PLS.t + 1.6; }
         setTimeout(function () { self.advance(); }, 1100);
         return;
       }
@@ -657,10 +692,15 @@
         }
         this.locked = true;
         this.firstTryCount++;
+        this.streak++;
         PLS.sfx.correct();
         PLS.burst(tb.x + tb.w / 2, tb.y + tb.h / 2, 'small');
-        this.bubbleText = pickTalk(CFG.talkEng.nice);
-        this.bubbleUntil = PLS.t + 1.6;
+        const isLastW = (this.qIndex + 1 >= this.count);
+        if (isLastW) {
+          const ppW = this._petPos || { x: 150, y: 742 };
+          PLS.burst(W / 2, TCARD.y + TCARD.h / 2, 'feast'); PLS.burst(ppW.x, ppW.y - 60, 'feast');
+          this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3;
+        } else { this.bubbleText = pickTalk(CFG.talkEng.nice); this.bubbleUntil = PLS.t + 1.6; }
         setTimeout(function () { self.advance(); }, 1100);
         return;
       }
@@ -671,10 +711,15 @@
       }
       this.locked = true;
       this.firstTryCount++;
+      this.streak++;
       PLS.sfx.correct();
       PLS.burst(TCARD.x + TCARD.w / 2, TCARD.y + TCARD.h / 2, 'small');
-      this.bubbleText = pickTalk(CFG.talkEng.nice);
-      this.bubbleUntil = PLS.t + 1.6;
+      const isLastT = (this.qIndex + 1 >= this.count);
+      if (isLastT) {
+        const ppT = this._petPos || { x: 150, y: 742 };
+        PLS.burst(TCARD.x + TCARD.w / 2, TCARD.y + TCARD.h / 2, 'feast'); PLS.burst(ppT.x, ppT.y - 60, 'feast');
+        this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3;
+      } else { this.bubbleText = pickTalk(CFG.talkEng.nice); this.bubbleUntil = PLS.t + 1.6; }
       setTimeout(function () { self.advance(); }, 1100);
     },
 
@@ -721,6 +766,22 @@
         if (i < this.qIndex) { ctx.fillStyle = '#A8D8B8'; A.el(ctx, x, y, 11, 11); ctx.fill(); }
         else if (i === this.qIndex) { const p = 1 + Math.sin(t * 4) * 0.18; ctx.fillStyle = '#8FC9A8'; A.el(ctx, x, y, 12 * p, 12 * p); ctx.fill(); }
         else { ctx.fillStyle = 'rgba(150,175,150,0.32)'; A.el(ctx, x, y, 9, 9); ctx.fill(); }
+      }
+      // Combo 徽章(streak >= 2)
+      if (this.streak >= 2) {
+        const pulse = 1 + Math.sin(t * 5) * 0.04;
+        const bx = W / 2 + (this.count - 1) * 20 + 60, by = 118;
+        const label = '🔥 ' + this.streak + ' 連對!';
+        const bg = this.streak >= 5 ? '#1A8C3E' : '#3DAA6A';
+        ctx.save();
+        ctx.translate(bx, by); ctx.scale(pulse, pulse); ctx.translate(-bx, -by);
+        ctx.font = '700 22px ' + FONT;
+        const tw = ctx.measureText(label).width;
+        const pw = tw + 28, ph = 36, pr = 18;
+        ctx.fillStyle = bg; A.rr(ctx, bx - pw / 2, by - ph / 2, pw, ph, pr); ctx.fill();
+        ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(label, bx, by + 1);
+        ctx.restore();
       }
       // 玩具進度(右上,愈做愈亮)
       const tk = this.lv.toyArt && this.lv.toyArt[this.petId];
