@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 5`（v5 許願 / 收集圖鑑)
+## 目前版本:`version = 6`（v6 移除佈置/換擺設）
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -76,14 +76,15 @@
     "english": 1,
     "hw": 1                   // v2:今日字母手寫練習已給分的「輪數」(每天上限 3;一輪 = 52 個字母)
   },
-  "home": {                   // 家裡展示:食物 3 格 + 玩具 3 格,各格每天可換一次
-    "foods": [ { "key": null, "deluxe": false, "date": null }, /* 共 3 格 */ ],
-    "toys":  [ { "key": null, "deluxe": false, "date": null }, /* 共 3 格 */ ]
+  "home": {                   // v6 起不再使用(佈置功能移除);欄位保留為空格結構以相容舊備份檔
+    "foods": [ { "key": null, "deluxe": false, "date": null }, /* 共 3 格,v6 起永遠為空 */ ],
+    "toys":  [ { "key": null, "deluxe": false, "date": null }, /* 共 3 格,v6 起永遠為空 */ ]
   }
 }
 ```
 
-**展示格(slot)欄位**:`key`(寶物 id,null=空格)、`deluxe`(是否豪華版)、`date`(最後更換日期,用來限制每天一次)。
+**展示格(slot)欄位**:`key`(寶物 id,null=空格)、`deluxe`(是否豪華版)、`date`(最後更換日期)。
+**注意**:v6 起 `home` 欄位不再使用(佈置/換擺設功能已移除)。欄位結構保留以相容舊版備份檔匯入;migration 會把舊檔 `home` 各格的 key 轉進 `inv` 背包(deluxe 格算 2 份)後清空格子。
 
 ---
 
@@ -139,7 +140,13 @@
 - 其他新 API:`bonusXp(d, n)`(吃出幸運星等額外成長,約 1/8 機率在 room.js 觸發)。
 - `migratePet()` 對舊檔補 `wish=null`、`dex={foods:[],toys:[]}`;v4(含更舊)備份檔匯入自動補齊。
 
+### v6（2026-07,移除佈置/換擺設功能)
+- **佈置功能移除**:`home` 欄位保留為空格結構(向後相容舊備份檔),但 v6 起 App 不再讀取或寫入任何展示格。
+- **migration**:對 `_v < 6` 的舊資料,把 `home.foods` / `home.toys` 各格有 key 的項目轉進 `inv.foods` / `inv.toys` 背包(deluxe 格 +2 份、一般格 +1 份),轉完後將各格清空(`key=null, deluxe=false, date=null`)。
+- **GROW 加重**:`FEED_XP` 2→4、`PLAY_XP` 3→6、`DAILY_BONUS` 1→2(食物變稀有,單次餵食/陪玩成長值加倍)。
+- 相容性:v5(含更舊)備份檔匯入後自動執行上述 migration,進度不遺失;已清空的 home 欄位作為保留結構但不顯示。
+
 <!-- 新版本請依此格式往上加:
-### v6（YYYY-MM,變更摘要）
+### v7（YYYY-MM,變更摘要）
 - 新增欄位 X(預設值 …);migratePet 對舊檔補 X。
 -->

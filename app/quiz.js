@@ -245,10 +245,21 @@
         const res = ST.recordRun(d, 'math', this.lv.id,
           this.firstTryCount, CFG.questionsPerLevel, this.practice);
         if (res.feast) {
-          // v4:食物收進背包(同一個 d,recordRun 已 save;addFoods 再 save 一次)
-          const items = res.deluxe ? deluxeItems(this.lv) : this.lv.feast.items;
-          ST.addFoods(d, items);
-          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears });
+          // v5:1 個食物;滿分或豪華 → 2 個
+          const perfect = this.firstTryCount >= CFG.questionsPerLevel;
+          const n = (res.deluxe || perfect) ? 2 : 1;
+          const pool = this.lv.feast.items;
+          const wish = ST.getWish(d);
+          const picks = [];
+          // 若今日許願食物在池中且未完成,第一個優先給它
+          if (wish && !wish.done && pool.indexOf(wish.key) >= 0) {
+            picks.push(wish.key);
+          }
+          while (picks.length < n) {
+            picks.push(pool[Math.floor(Math.random() * pool.length)]);
+          }
+          ST.addFoods(d, picks);
+          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks });
         } else {
           PLS.go('result', {
             pet: this.petId, levelIdx: this.levelIdx,
@@ -494,8 +505,10 @@
       this.petId = params.pet;
       this.lv = CFG.math[params.levelIdx];
       this.deluxe = !!params.deluxe;
+      this.perfect = !!params.perfect;
       this.clears = params.clears || 0;
-      this.items = this.deluxe ? deluxeItems(this.lv) : this.lv.feast.items;
+      // v5:優先用 params.items;fallback 向下相容
+      this.items = params.items || (this.deluxe ? deluxeItems(this.lv) : this.lv.feast.items);
       this.feastName = this.deluxe
         ? (this.lv.feast.deluxeName || ('豪華版 · ' + this.lv.feast.name))
         : (this.lv.feast.basicName  || this.lv.feast.name);
@@ -507,8 +520,12 @@
       // 飛入食物動畫:每個食物一個 flying 物件
       this.flyings = [];
       PLS.sfx.feast();
-      // v4:語意改成「收穫」
-      PLS.say(this.deluxe ? '豪華大豐收!背包裝得滿滿的!' : '太棒了,食物收進背包囉!');
+      // v5:語音依情境
+      var sayText;
+      if (this.deluxe) { sayText = '豪華大豐收!背包裝得滿滿的!'; }
+      else if (this.perfect) { sayText = '滿分!多送一份食物!'; }
+      else { sayText = '太棒了,食物收進背包囉!'; }
+      PLS.say(sayText);
       PLS.addButton({
         x: W / 2 - 160, y: 706, w: 320, h: 100,
         hidden: function () { return PLS.t - self.start < 2.5; },
@@ -566,12 +583,22 @@
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '56px ' + FONT;
-      // v4:標題改「豐收」語意
-      const title = this.deluxe ? '豪華大豐收!' : '收穫滿滿!';
+      // v5:標題依豪華/滿分/普通分三種
+      const title = this.deluxe ? '豪華大豐收!' : (this.perfect ? '滿分收穫!' : '收穫滿滿!');
+      const titleColor = this.deluxe ? '#C2591E' : (this.perfect ? '#C2791E' : '#C97B4A');
       ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillText(title, W / 2, 134);
-      ctx.fillStyle = this.deluxe ? '#C2591E' : '#C97B4A'; ctx.fillText(title, W / 2, 130);
-      if (this.deluxe) A.pill(ctx, W / 2, 192, '✨ ' + this.feastName + ' ✨', '#C2591E', 'rgba(255,240,205,0.96)', 28);
-      else A.pill(ctx, W / 2, 192, this.feastName, '#B98A4F', 'rgba(255,255,255,0.92)', 28);
+      ctx.fillStyle = titleColor; ctx.fillText(title, W / 2, 130);
+      // pill 行:豪華用食物名稱;滿分/普通若 items.length >= 2 加 ×2 獎勵 pill
+      const pillY = 192;
+      if (this.deluxe) {
+        A.pill(ctx, W / 2, pillY, '✨ ' + this.feastName + ' ✨', '#C2591E', 'rgba(255,240,205,0.96)', 28);
+      } else {
+        A.pill(ctx, W / 2, pillY, this.feastName, '#B98A4F', 'rgba(255,255,255,0.92)', 28);
+        // ×2 徽章放標題右側(W/2, 252 有寵物對話泡泡,別壓到)
+        if (this.items.length >= 2) {
+          A.pill(ctx, W / 2 + 300, 130, '×2 獎勵!', '#FFFFFF', '#E8964E', 24);
+        }
+      }
 
       // 桌子
       ctx.fillStyle = '#E0B98A'; A.rr(ctx, 160, 600, W - 320, 44, 20); ctx.fill();
@@ -593,8 +620,9 @@
 
       // 食物依序彈出:計算各個食物位置與 pop
       const items = this.items;
-      const feastScale = this.deluxe ? 1.28 : 1.1;
-      const gap = items.length > 5 ? 76 : 90;
+      // v5:1–2 個時放大顯示;3+ 沿用原比例
+      const feastScale = this.deluxe ? 1.28 : (items.length <= 2 ? 1.1 * 1.4 : 1.1);
+      const gap = items.length > 5 ? 76 : (items.length <= 2 ? 130 : 90);
 
       // 籃子座標(右側,桌子上方)
       const bx = W - 110, by = 552;

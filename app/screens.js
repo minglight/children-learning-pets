@@ -276,16 +276,6 @@
     ctx.fillStyle = 'rgba(255,255,255,0.34)'; A.el(ctx, left + w * 0.5, top + h - 30, w * 0.42, 30); ctx.fill();
     // 寵物
     ctx.save(); ctx.translate(left + w * 0.30, top + h - 64); ctx.scale(0.56, 0.56); P.draw(petId, ctx, t, { stage: stage }); ctx.restore();
-    // 佈置:一個食物 + 一個玩具(與房間、佈置小窩一模一樣)
-    var _fa = d.home.foods || [], _ta = d.home.toys || [];
-    var _ff = null, _ft = null;
-    for (var _fi = 0; _fi < _fa.length; _fi++) { if (_fa[_fi] && _fa[_fi].key) { _ff = _fa[_fi]; break; } }
-    for (var _ti = 0; _ti < _ta.length;  _ti++) { if (_ta[_ti] && _ta[_ti].key) { _ft = _ta[_ti];  break; } }
-    if (_ff) {
-      if (_ff.deluxe) A.drawFoodDeluxe(ctx, _ff.key, left + w * 0.62, top + h - 76, 1.0);
-      else A.drawFood(ctx, _ff.key, left + w * 0.62, top + h - 76, 0.95);
-    }
-    if (_ft) TOY.drawToy(ctx, _ft.key, left + w * 0.85, top + h - 72, 0.95);
     ctx.restore();
     A.pill(ctx, left + 80, top + 36, name, th.accent, 'rgba(255,255,255,0.92)', 26);
     A.bubble(ctx, left + w * 0.62, top + 84, pickStable(petId, t), { size: 24 });

@@ -8,14 +8,16 @@
   // v3:每筆寵物新增 hwRound(本輪已描完的字母清單;描滿 A–Z 大寫+a–z 小寫共 52 個才 +1 分)。
   // v4:電子雞化 — 新增 inv(背包:食物/玩具數量)、growth(成長值 xp)、care(今日餵食/陪玩計數)。
   // v5:新增 wish(寵物今日許願的食物;餵中成長值加倍)、dex(圖鑑:吃過的食物/玩過的玩具)。
-  const SCHEMA_VERSION = 5;
+  // v6:移除佈置/換擺設功能 — migration 把 home 各格的食物/玩具轉進 inv 背包(deluxe 算 2 份)後清空格子。
+  //     GROW 加重:FEED_XP 4、PLAY_XP 6、DAILY_BONUS 2。
+  const SCHEMA_VERSION = 6;
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
   const HW_ROUND_TOTAL = 52;
 
   // ── 成長系統常數(v4)──
   // 階段門檻:xp < KID_AT = 幼幼;< GROWN_AT = 小寶;之後 = 大寶。
-  const GROW = { KID_AT: 30, GROWN_AT: 100, FEED_XP: 2, PLAY_XP: 3, DAILY_BONUS: 1 };
+  const GROW = { KID_AT: 30, GROWN_AT: 100, FEED_XP: 4, PLAY_XP: 6, DAILY_BONUS: 2 };
   const STAGE_NAMES = { baby: '幼幼', kid: '小寶', grown: '大寶' };
 
   function today() {
@@ -127,6 +129,18 @@
     if (!Array.isArray(p.dex.foods)) p.dex.foods = [];
     if (!Array.isArray(p.dex.toys)) p.dex.toys = [];
     p.home = migrateHome(p.home);
+    // ── v6:移除佈置功能 — 把家裡擺出的食物/玩具轉進背包(deluxe 算 2 份),格子清空 ──
+    if (from < 6) {
+      ['foods', 'toys'].forEach(function (kind) {
+        (p.home[kind] || []).forEach(function (s) {
+          if (s && s.key) {
+            var box = kind === 'foods' ? p.inv.foods : p.inv.toys;
+            box[s.key] = (box[s.key] || 0) + (s.deluxe ? 2 : 1);
+            s.key = null; s.deluxe = false; s.date = null;
+          }
+        });
+      });
+    }
 
     p._v = SCHEMA_VERSION;   // 升級完成,標記為目前版本
     return p;
