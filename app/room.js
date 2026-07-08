@@ -27,11 +27,18 @@
   function xRange(geo, z) {                              // 地板梯形 + 前緣兩角讓給籃子
     return { min: geo.x0 + 90 + 90 * z, max: geo.x1 - 90 - 90 * z };
   }
-  // rot:整隻旋轉角度(開心轉圈用);face:-1 = 向左翻面(走路轉身)
-  function petAt(ctx, petId, t, x, footY, s, mode, stage, rot, face) {
-    ctx.save(); ctx.translate(x, footY - 140 * s); ctx.scale(s * (face || 1), s);
+  // rot:整隻旋轉角度(開心轉圈用);face:-1 = 向左(只在側面時翻面);dir:'front'|'side'|'back'
+  function petAt(ctx, petId, t, x, footY, s, mode, stage, rot, face, dir) {
+    ctx.save(); ctx.translate(x, footY - 140 * s);
+    ctx.scale(s * (dir === 'side' ? (face || 1) : 1), s);
     if (rot) { ctx.translate(0, 20); ctx.rotate(rot); ctx.translate(0, -20); }
-    P.draw(petId, ctx, t, { mode: mode, stage: stage }); ctx.restore();
+    P.draw(petId, ctx, t, { mode: mode, stage: stage, dir: dir }); ctx.restore();
+  }
+  // 依移動向量決定視角:縱向為主 → 走遠=背面/走近=正面;橫向為主 → 側面
+  function dirOf(geo, ddx, ddz) {
+    const ddy = ddz * (geo.yBot - geo.yTop);
+    if (Math.abs(ddy) > Math.abs(ddx) * 1.15) return ddy < 0 ? 'back' : 'front';
+    return 'side';
   }
 
   // ── 共用美術 ─────────────────────────────────────────
@@ -318,7 +325,8 @@
         const sc = scAt(a.fromZ + (stand.z - a.fromZ) * k);
         return {
           x: a.fromX + (stand.x - a.fromX) * k, z: a.fromZ + (stand.z - a.fromZ) * k,
-          hop: -Math.abs(Math.sin(e * 7)) * 38 * sc, mode: 'idle', face: face
+          hop: -Math.abs(Math.sin(e * 7)) * 38 * sc, mode: 'idle', face: face,
+          dir: dirOf(this._geo, stand.x - a.fromX, stand.z - a.fromZ)
         };
       }
       const dz = stand.z;
@@ -406,6 +414,7 @@
         w.x += clamp(dx, -300 * sc * dt, 300 * sc * dt);
         w.z += clamp(dzz, -0.24 * dt, 0.24 * dt);
         if (Math.abs(dx) > 3) w.face = dx < 0 ? -1 : 1;
+        w.dir = dirOf(geo, dx, dzz);
         w.hop = -Math.abs(Math.sin(t * 7)) * 38 * sc;
         w.mode = 'idle';
         if (Math.abs(dx) < 4 && Math.abs(dzz) < 0.02) {
@@ -413,8 +422,10 @@
           w.state = r < 0.6 ? 'idle' : 'happy';
           w.until = t + (w.state === 'happy' ? 1.3 : 1.6 + Math.random() * 2.4);
           w.hop = 0;
+          w.dir = 'front';   // 停下來就轉回來看鏡頭
         }
       } else {
+        w.dir = 'front';
         w.hop = w.state === 'happy' ? -Math.abs(Math.sin(t * 6)) * 26 * scAt(w.z) : 0;
         w.mode = w.state === 'happy' ? 'happy' : 'idle';
         if (t >= w.until) {
@@ -680,12 +691,12 @@
       }
       if (!pose) {
         const w = this.updateWander(t, geo);
-        pose = { x: w.x, z: w.z, hop: w.hop, mode: w.mode, face: w.face };
+        pose = { x: w.x, z: w.z, hop: w.hop, mode: w.mode, face: w.face, dir: w.dir };
       }
-      if (this.pat && t - this.pat.t0 < 1.0 && !this.act) pose.mode = 'happy';
+      if (this.pat && t - this.pat.t0 < 1.0 && !this.act) { pose.mode = 'happy'; pose.dir = 'front'; }
       const psc = scAt(pose.z), groundY = yAt(geo, pose.z);
       ctx.fillStyle = 'rgba(150,110,70,0.16)'; el(ctx, pose.x, groundY + 4, 150 * psc, 34 * psc); ctx.fill();
-      petAt(ctx, pid, t, pose.x, groundY + pose.hop, psc, pose.mode, gi.stage, pose.rot, pose.face);
+      petAt(ctx, pid, t, pose.x, groundY + pose.hop, psc, pose.mode, gi.stage, pose.rot, pose.face, pose.dir);
       this._petX = pose.x; this._petY = groundY; this._petS = psc;
 
       // ── v5:照顧圖示(飯碗/球)+ 許願泡泡 + 撒嬌 ──

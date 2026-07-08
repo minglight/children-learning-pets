@@ -1,5 +1,7 @@
 // pets.js(app 版)— 角色繪製,含模式:idle / chew(咀嚼) / happy(開心跳) / sad(輕微失落)
 // v4:o.stage('baby'|'kid'|'grown')控制成長外觀 — 幼幼縮小+呆毛、大寶放大+配件;不傳=kid(現在的樣子)。
+// 2.5D:o.dir('front'|'side'|'back')控制視角 — side 是 3/4 側面(五官前移、耳朵後倒、露尾巴,
+// 預設面向右,呼叫端用 ctx.scale(-1,1) 翻面朝左)、back 是背面(無臉、耳背、屁股尾巴);不傳=front。
 (function () {
   const TAU = Math.PI * 2;
 
@@ -139,20 +141,25 @@
   // ── 兔兔 ──────────────────────────────────────────────
   function drawRabbit(ctx, t, o) {
     o = o || {};
+    const dir = (o.dir === 'back' || o.dir === 'side') ? o.dir : 'front';
+    const fx = dir === 'side' ? 30 : 0;   // 3/4 側面:五官與耳根往面向側偏移
     const sway = Math.sin(t * 1.1) * 0.05;
     ctx.save();
     shadow(ctx, 92);
     const mode = motion(ctx, t, o, 0);
 
-    // 耳朵(開心時豎直擺動大)
+    // 耳朵(開心時豎直擺動大;側面往後倒、背面只見耳背不畫內耳粉)
     [-1, 1].forEach(function (s) {
       ctx.save();
-      ctx.translate(s * 40, -98);
-      ctx.rotate(s * (mode === 'happy' ? 0.06 : 0.16) - sway * s * (mode === 'happy' ? 2.5 : 1));
+      ctx.translate(s * 40 + fx * 0.45, -98);
+      ctx.rotate(s * (mode === 'happy' ? 0.06 : 0.16) - sway * s * (mode === 'happy' ? 2.5 : 1)
+        - (dir === 'side' ? 0.34 : 0));
       ctx.fillStyle = '#FFF9F0';
       el(ctx, 0, -58, 24, 66); ctx.fill();
-      ctx.fillStyle = '#FAD2DA';
-      el(ctx, 0, -50, 12, 46); ctx.fill();
+      if (dir !== 'back') {
+        ctx.fillStyle = '#FAD2DA';
+        el(ctx, dir === 'side' ? 4 : 0, -50, 12, 46); ctx.fill();
+      }
       ctx.restore();
     });
 
@@ -163,41 +170,61 @@
     el(ctx, 0, 58, 92, 80); ctx.fill();
     el(ctx, 0, -58, 78, 74); ctx.fill();
 
-    // 手:開心時舉高
+    // 尾巴(圓絨球):背面在屁股正中、側面在身後
+    if (dir === 'back') {
+      ctx.fillStyle = '#FFFDF8'; el(ctx, 0, 94, 23, 21); ctx.fill();
+      ctx.strokeStyle = 'rgba(205,175,145,0.55)'; ctx.lineWidth = 3;
+      el(ctx, 0, 94, 23, 21); ctx.stroke();
+    } else if (dir === 'side') {
+      ctx.fillStyle = '#FFFDF8'; el(ctx, -84, 74, 17, 15); ctx.fill();
+    }
+
+    // 手:開心時舉高(背面藏在身體後,不畫)
     ctx.fillStyle = '#F9EDDC';
-    if (mode === 'happy') {
-      el(ctx, -82, -10, 19, 27, -0.9); ctx.fill();
-      el(ctx, 82, -10, 19, 27, 0.9); ctx.fill();
-    } else if (mode === 'chew') {
-      el(ctx, -42, 4, 17, 24, 0.9); ctx.fill();
-      el(ctx, 42, 4, 17, 24, -0.9); ctx.fill();
-    } else {
-      el(ctx, -78, 38, 19, 27, 0.45); ctx.fill();
-      el(ctx, 78, 38, 19, 27, -0.45); ctx.fill();
+    if (dir !== 'back') {
+      if (mode === 'happy') {
+        el(ctx, -82, -10, 19, 27, -0.9); ctx.fill();
+        el(ctx, 82, -10, 19, 27, 0.9); ctx.fill();
+      } else if (mode === 'chew') {
+        el(ctx, -42, 4, 17, 24, 0.9); ctx.fill();
+        el(ctx, 42, 4, 17, 24, -0.9); ctx.fill();
+      } else {
+        el(ctx, -78 + fx * 0.3, 38, 19, 27, 0.45); ctx.fill();
+        el(ctx, 78 + fx * 0.3, 38, 19, 27, -0.45); ctx.fill();
+      }
     }
     el(ctx, -38, 130, 30, 16); ctx.fill();
     el(ctx, 38, 130, 30, 16); ctx.fill();
 
-    face(ctx, t, o, -62, 30, '#4B3A2F', '#C98A77', '#F2A0AC', 'rgba(246,160,150,0.40)', 52, -42, 0.3);
+    if (dir !== 'back') {
+      ctx.save(); ctx.translate(fx, 0);
+      face(ctx, t, o, -62, 30, '#4B3A2F', '#C98A77', '#F2A0AC', 'rgba(246,160,150,0.40)', 52, -42, 0.3);
+      ctx.restore();
+    }
 
-    // 成長階段裝飾(跟著身體的彈跳一起動)
+    // 成長階段裝飾(跟著身體的彈跳一起動;頭頂/耳旁的從背面側面也看得到)
     if (o.stage === 'baby') babySprout(ctx, -128, '#E8C9A8');
-    else if (o.stage === 'grown') bow(ctx, 40, -118, 1, '#E88AA0', '#D06A84');
+    else if (o.stage === 'grown') bow(ctx, 40 + fx * 0.45, -118, 1, '#E88AA0', '#D06A84');
     ctx.restore();
   }
 
   // ── 倉倉 ──────────────────────────────────────────────
   function drawHamster(ctx, t, o) {
     o = o || {};
+    const dir = (o.dir === 'back' || o.dir === 'side') ? o.dir : 'front';
+    const fx = dir === 'side' ? 30 : 0;   // 3/4 側面:五官與耳朵往面向側偏移
     ctx.save();
     shadow(ctx, 100);
     const mode = motion(ctx, t, o, 1.3);
 
+    // 耳朵(背面只見耳背,不畫內耳粉)
     [-1, 1].forEach(function (s) {
       ctx.fillStyle = '#EFAF66';
-      el(ctx, s * 54, -112, 21, 21); ctx.fill();
-      ctx.fillStyle = '#F6BFA8';
-      el(ctx, s * 54, -110, 11, 11); ctx.fill();
+      el(ctx, s * 54 + fx * 0.4, -112, 21, 21); ctx.fill();
+      if (dir !== 'back') {
+        ctx.fillStyle = '#F6BFA8';
+        el(ctx, s * 54 + fx * 0.4 + (dir === 'side' ? 3 : 0), -110, 11, 11); ctx.fill();
+      }
     });
 
     const g = ctx.createLinearGradient(0, -140, 0, 150);
@@ -207,45 +234,70 @@
     el(ctx, 0, 58, 100, 82); ctx.fill();
     el(ctx, 0, -52, 80, 74); ctx.fill();
 
-    // 咀嚼時臉頰鼓起
-    if (mode === 'chew') {
+    // 背面:屁股淺色橢圓 + 小尾巴;側面:身後小尾巴
+    if (dir === 'back') {
+      ctx.fillStyle = 'rgba(214,140,70,0.25)';
+      el(ctx, 0, 74, 54, 42); ctx.fill();
+      ctx.fillStyle = '#F4C685'; el(ctx, 0, 106, 12, 9); ctx.fill();
+    } else if (dir === 'side') {
+      ctx.fillStyle = '#F4C685'; el(ctx, -92, 66, 11, 9); ctx.fill();
+    }
+
+    // 咀嚼時臉頰鼓起(只有正面看得到)
+    if (mode === 'chew' && dir === 'front') {
       ctx.fillStyle = '#FFDFA6';
       const p = 1 + 0.12 * Math.sin(t * 14);
       el(ctx, -58, -34, 26 * p, 24 * p); ctx.fill();
       el(ctx, 58, -34, 26 * p, 24 * p); ctx.fill();
     }
 
-    ctx.fillStyle = '#FFF3DC';
-    el(ctx, 0, -28, 46, 34); ctx.fill();
-    el(ctx, 0, 78, 58, 46); ctx.fill();
+    if (dir !== 'back') {
+      // 臉口鼻淺色塊 + 肚皮
+      ctx.fillStyle = '#FFF3DC';
+      el(ctx, fx, -28, 46, 34); ctx.fill();
+      el(ctx, fx * 0.5, 78, 58, 46); ctx.fill();
 
-    ctx.strokeStyle = 'rgba(160,120,80,0.35)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
-    [-1, 1].forEach(function (s) {
-      for (let i = -1; i <= 1; i++) {
-        ctx.beginPath();
-        ctx.moveTo(s * 48, -32 + i * 8);
-        ctx.lineTo(s * 78, -38 + i * 11);
-        ctx.stroke();
+      // 鬍鬚(側面只畫面向側那撮)
+      ctx.strokeStyle = 'rgba(160,120,80,0.35)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      (dir === 'side' ? [1] : [-1, 1]).forEach(function (s) {
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.moveTo(s * 48 + fx, -32 + i * 8);
+          ctx.lineTo(s * 78 + fx, -38 + i * 11);
+          ctx.stroke();
+        }
+      });
+    }
+
+    // 手(背面藏在身體後,不畫)
+    if (dir !== 'back') {
+      ctx.fillStyle = '#EFAC60';
+      if (mode === 'happy') {
+        el(ctx, -84, -16, 14, 17, -0.9); ctx.fill();
+        el(ctx, 84, -16, 14, 17, 0.9); ctx.fill();
+      } else {
+        el(ctx, -26 + fx * 0.4, 18, 14, 17, 0.5); ctx.fill();
+        el(ctx, 26 + fx * 0.4, 18, 14, 17, -0.5); ctx.fill();
       }
-    });
-
-    ctx.fillStyle = '#EFAC60';
-    if (mode === 'happy') {
-      el(ctx, -84, -16, 14, 17, -0.9); ctx.fill();
-      el(ctx, 84, -16, 14, 17, 0.9); ctx.fill();
-    } else {
-      el(ctx, -26, 18, 14, 17, 0.5); ctx.fill();
-      el(ctx, 26, 18, 14, 17, -0.5); ctx.fill();
     }
     ctx.fillStyle = '#F4C685';
     el(ctx, -42, 132, 27, 14); ctx.fill();
     el(ctx, 42, 132, 27, 14); ctx.fill();
 
-    face(ctx, t, o, -58, 34, '#503823', '#B98358', '#E89BA2', 'rgba(243,150,130,0.40)', 60, -34, 1.1);
+    if (dir !== 'back') {
+      ctx.save(); ctx.translate(fx, 0);
+      face(ctx, t, o, -58, 34, '#503823', '#B98358', '#E89BA2', 'rgba(243,150,130,0.40)', 60, -34, 1.1);
+      ctx.restore();
+    }
 
-    // 成長階段裝飾(跟著身體的彈跳一起動)
+    // 成長階段裝飾(跟著身體的彈跳一起動;領巾繞脖子一圈,背面也看得到,垂角只在非背面畫)
     if (o.stage === 'baby') babySprout(ctx, -122, '#D89A55');
-    else if (o.stage === 'grown') scarf(ctx, 8, '#D9705E', '#B85648');
+    else if (o.stage === 'grown') {
+      if (dir === 'back') {
+        ctx.fillStyle = '#D9705E';
+        el(ctx, 0, 8, 50, 13); ctx.fill();
+      } else scarf(ctx, 8, '#D9705E', '#B85648');
+    }
     ctx.restore();
   }
 
