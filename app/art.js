@@ -328,6 +328,46 @@
     ctx.restore();
   }
 
+  // ── 金色食物(v7 神秘獎勵:同一個食物鍍上金光,吃了成長值 ×2)──
+  // 做法同 toys.js 的豪華玩具:離屏 canvas 畫好普通版,再以 source-atop 疊金色漸層
+  // 只染食物本體;結果快取,之後 drawImage 縮放即可,避免每幀重畫。
+  const goldCache = {};
+  function gildedFood(key) {
+    const ck = FOODS[key] ? key : 'apple';
+    if (goldCache[ck] !== undefined) return goldCache[ck];
+    const S = 3, buf = 300;   // 食物圖形約在 ±45 內,±50 邏輯單位夠用
+    const oc = document.createElement('canvas');
+    oc.width = buf; oc.height = buf;
+    const o = oc.getContext('2d');
+    o.save();
+    o.translate(buf / 2, buf / 2); o.scale(S, S);
+    (FOODS[ck] || FOODS.apple)(o);          // 普通版食物
+    o.globalCompositeOperation = 'source-atop';
+    const g = o.createLinearGradient(0, -46, 0, 46);
+    g.addColorStop(0, 'rgba(255,238,176,0.62)');
+    g.addColorStop(0.5, 'rgba(246,196,74,0.50)');
+    g.addColorStop(1, 'rgba(206,146,32,0.60)');
+    o.fillStyle = g; o.fillRect(-buf / 2 / S, -buf / 2 / S, buf / S, buf / S);
+    o.fillStyle = 'rgba(255,255,255,0.38)'; el(o, -10, -16, 13, 7); o.fill();  // 高光
+    o.globalCompositeOperation = 'source-over';
+    o.restore();
+    goldCache[ck] = { c: oc, S: S, buf: buf };
+    return goldCache[ck];
+  }
+  function drawFoodGold(ctx, key, x, y, s) {
+    s = s || 1;
+    const g = gildedFood(key);
+    const dw = g.buf * s / g.S;
+    ctx.save();
+    ctx.shadowColor = 'rgba(246,196,74,0.55)'; ctx.shadowBlur = 22 * s;
+    ctx.drawImage(g.c, x - dw / 2, y - dw / 2, dw, dw);
+    ctx.restore();
+    // 閃亮星星(位置固定,跟著縮放)
+    [[-36, -26, 6], [40, -14, 7], [-30, 26, 5], [34, 30, 6]].forEach(function (p) {
+      sparkle(ctx, x + p[0] * s, y + p[1] * s, p[2] * s, '#FFFFFF', 0.92);
+    });
+  }
+
   // ── 形狀(m6)──────────────────────────────────────────
   const SHAPE_COLORS = { circle: '#F4A8A0', triangle: '#8FC9A8', square: '#92B8E0', rect: '#C5A8E0', star: '#F6C95E', oval: '#B8E0F4', diamond: '#D4B8E0', heart: '#F4B8C8' };
   function drawShape(ctx, id, x, y, s, color) {
@@ -501,7 +541,7 @@
 
   window.PLS_ART = {
     FONT: FONT, el: el, rr: rr, pill: pill, bubble: bubble, sparkle: sparkle, heart: heart,
-    drawFood: drawFood, drawFoodDeluxe: drawFoodDeluxe,
+    drawFood: drawFood, drawFoodDeluxe: drawFoodDeluxe, drawFoodGold: drawFoodGold,
     drawShape: drawShape, drawPair: drawPair, drawIcon: drawIcon,
     fitText: fitText, drawLines: drawLines, wrapLines: wrapLines,
     SHAPE_COLORS: SHAPE_COLORS

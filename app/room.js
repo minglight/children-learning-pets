@@ -256,7 +256,7 @@
         for (let i = 0; i < cells.length; i++) {
           if (inR(cells[i])) {
             const kind = this.tray; this.tray = null;
-            if (kind === 'food') this.startFeed(cells[i].key); else this.startPlay(cells[i].key);
+            if (kind === 'food') this.startFeed(cells[i].key, cells[i].gold); else this.startPlay(cells[i].key);
             return;
           }
         }
@@ -296,8 +296,8 @@
     say: function (text) { this.bubble = { text: text, until: PLS.t + 2.4 }; },
 
     // ── 餵食 / 陪玩:點托盤的那一刻就先扣資料(store),動畫只是演出來 ──
-    startFeed: function (key) {
-      const res = ST.feed(ST.load(this.petId), key);
+    startFeed: function (key, gold) {
+      const res = ST.feed(ST.load(this.petId), key, gold);
       if (!res) { this.say(CFG.talkCare.noFood[0]); return; }
       // v5:吃完的隨機小反應。許願命中最優先;1/8 吃出幸運星(+1 成長);其餘四選一。
       let reaction;
@@ -305,7 +305,7 @@
       else if (Math.random() < 1 / 8) reaction = 'star';
       else reaction = pickTalk(['burp', 'spin', 'hops', 'hearts']);
       const w = this._wander || { x: 0, z: 0.7 };
-      this.act = { kind: 'feed', key: key, t0: PLS.t, fromX: w.x, fromZ: w.z, bites: 0, result: res, reaction: reaction };
+      this.act = { kind: 'feed', key: key, gold: !!gold, t0: PLS.t, fromX: w.x, fromZ: w.z, bites: 0, result: res, reaction: reaction };
     },
     startPlay: function (key) {
       const res = ST.playToy(ST.load(this.petId), key);
@@ -334,7 +334,11 @@
       const at = function (mode, hop, rot) { return { x: stand.x, z: dz, hop: hop || 0, mode: mode, rot: rot, face: face }; };
       if (a.kind === 'feed') {
         if (e < 3.35) {
-          if (!a.saidStart) { a.saidStart = true; this.say(pickTalk(CFG.talkCare.feedStart)); }
+          if (!a.saidStart) {
+            a.saidStart = true;
+            // v7:金色食物有專屬開吃語錄
+            this.say(pickTalk(a.gold && CFG.talkCare.goldFood ? CFG.talkCare.goldFood : CFG.talkCare.feedStart));
+          }
           const bites = [1.5, 2.2, 2.9];
           while (a.bites < 3 && e >= bites[a.bites]) {
             a.bites++; PLS.sfx.bite(); PLS.burst(foodPt.x, matY - 10, 'small');
@@ -527,7 +531,13 @@
     // ── 背包托盤(蓋在房間下半,列出可餵/可玩的東西)──
     drawTray: function (ctx, t, d) {
       const B = this._box, kind = this.tray;
-      const list = ST.invList(d, kind === 'food' ? 'foods' : 'toys');
+      let list = ST.invList(d, kind === 'food' ? 'foods' : 'toys');
+      // v7:金色食物排在一般食物後面,格子鍍金
+      if (kind === 'food') {
+        list = list.concat(ST.invList(d, 'gold').map(function (it) {
+          return { key: it.key, n: it.n, gold: true };
+        }));
+      }
       const pw2 = B.iw - 56, ph2 = 292;
       const px = B.ix + 28, py = B.iy + B.ih - ph2 - 14;
       this._trayPanel = { x: px, y: py, w: pw2, h: ph2 };
@@ -571,15 +581,17 @@
       list.slice(0, 14).forEach(function (it, i) {
         const r = Math.floor(i / 7), c = i % 7;
         const x = gx0 + c * (cell + gap2), y = py + 66 + r * (cell + gap2);
-        ctx.fillStyle = '#FFFFFF'; rr(ctx, x, y, cell, cell, 18); ctx.fill();
-        ctx.strokeStyle = '#EFE0CE'; ctx.lineWidth = 2; rr(ctx, x, y, cell, cell, 18); ctx.stroke();
-        if (kind === 'food') A.drawFood(ctx, it.key, x + cell / 2, y + cell / 2 - 4, 0.72);
-        else TOY.drawToy(ctx, it.key, x + cell / 2, y + cell / 2 - 2, 0.6);
-        ctx.fillStyle = '#E8734E'; el(ctx, x + cell - 16, y + 16, 15, 15); ctx.fill();
+        ctx.fillStyle = it.gold ? '#FFF6DC' : '#FFFFFF'; rr(ctx, x, y, cell, cell, 18); ctx.fill();
+        ctx.strokeStyle = it.gold ? '#E8B23C' : '#EFE0CE'; ctx.lineWidth = it.gold ? 3 : 2;
+        rr(ctx, x, y, cell, cell, 18); ctx.stroke();
+        if (kind === 'food') {
+          (it.gold ? A.drawFoodGold : A.drawFood)(ctx, it.key, x + cell / 2, y + cell / 2 - 4, 0.72);
+        } else TOY.drawToy(ctx, it.key, x + cell / 2, y + cell / 2 - 2, 0.6);
+        ctx.fillStyle = it.gold ? '#D89A18' : '#E8734E'; el(ctx, x + cell - 16, y + 16, 15, 15); ctx.fill();
         ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px ' + FONT;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(String(it.n > 99 ? 99 : it.n), x + cell - 16, y + 17);
-        self._trayRects.push({ x: x, y: y, w: cell, h: cell, key: it.key });
+        self._trayRects.push({ x: x, y: y, w: cell, h: cell, key: it.key, gold: !!it.gold });
       });
       if (list.length > 14) {
         ctx.textAlign = 'center'; ctx.font = '18px ' + FONT; ctx.fillStyle = '#B9A88F';
@@ -677,7 +689,7 @@
           if (actRef.bites < 3) {
             const fs = [0.95, 0.72, 0.5][actRef.bites] * msc;
             itemShadow(ctx, foodPt.x, matY + 7, 30 * fs);
-            A.drawFood(ctx, actRef.key, foodPt.x, matY - 8, fs);
+            (actRef.gold ? A.drawFoodGold : A.drawFood)(ctx, actRef.key, foodPt.x, matY - 8, fs);
           }
         } else {
           const doing = e >= 1.1 && e < 3.6;
@@ -721,7 +733,7 @@
       A.pill(ctx, box.ix + 112, box.iy + 162, '圖鑑', '#B06A86', 'rgba(255,255,255,0.9)', 16);
 
       // 食物籃 / 玩具箱(前緣兩角,可點)
-      this._foodBasket = this.drawBasket(ctx, box.ix + 88, box.iy + box.ih - 64, 'food', ST.invTotal(d, 'foods'), t);
+      this._foodBasket = this.drawBasket(ctx, box.ix + 88, box.iy + box.ih - 64, 'food', ST.invTotal(d, 'foods') + ST.invTotal(d, 'gold'), t);
       this._toyBox = this.drawBasket(ctx, box.ix + box.iw - 88, box.iy + box.ih - 64, 'toy', ST.invTotal(d, 'toys'), t);
       ctx.restore();
 

@@ -55,7 +55,8 @@
 - 動到 `pet.points` / `daily.hw` / `hwEarned` / `hwRound` / `prizes` / `rewardsHidden` → 已是 schema **v3**(v3 新增 `pet.hwRound`),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
 
 ## 電子雞化:背包 / 餵食 / 成長(schema v4,v6 調整)
-- **背包本寵物獨立**:`pet.inv = {foods:{key:數量}, toys:{key:數量}}`。**v6 起獎勵一次只給 1 個**:數學過關 → 從該關 `feast.items` 抽 **1 個**食物進 `foods`(**滿分(10 題第一次全對)或豪華(第 10 次通關)→ 2 個**;若寵物今日許願食物在這關且未完成,優先給它 — 邏輯在 `quiz.js advance()`);英文過關 → 玩具 1 個進 `toys`(豪華 ×2,`english.js advance()`)。豐收畫面(`feast`)以 `params.items` 顯示實拿的 1–2 個,滿分標題「滿分收穫!」+ ×2 徽章(徽章在標題右側,W/2,252 有寵物對話泡泡別壓到)。
+- **背包本寵物獨立**:`pet.inv = {foods:{key:數量}, toys:{key:數量}, gold:{key:數量}}`。**v6 起獎勵一次只給 1 個**:數學過關 → 從該關 `feast.items` 抽 **1 個**食物進 `foods`(**滿分(10 題第一次全對)或豪華(第 10 次通關)→ 2 個**;若寵物今日許願食物在這關且未完成,優先給它 — 邏輯在 `quiz.js advance()`);英文過關 → 玩具 1 個進 `toys`(豪華 ×2,`english.js advance()`)。豐收畫面(`feast`)以 `params.items` 顯示實拿的 1–2 個,滿分標題「滿分收穫!」+ ×2 徽章(徽章在標題右側,W/2,252 有寵物對話泡泡別壓到)。
+- **神秘金色食物(v7)**:數學過關 **1/10 機率**整份食物獎勵變金色(`quiz.js advance()` 擲骰 → `store.addFoods(d, keys, gold)` 進 `inv.gold`,與 `foods` 同 key 空間、獨立計數)。餵金色食物 `store.feed(d, key, gold=true)` → 基礎成長值 **×2**(與許願命中 ×2 **可疊 ×4**),圖鑑點亮同一基礎 key。渲染用 `art.js drawFoodGold`(離屏 source-atop 鍍金 + 閃星,做法同 `toys.js` 豪華玩具);豐收畫面金色徽章在標題**左**側(右側是 ×2 徽章),房間托盤金色食物排在一般食物後、金框格子,開吃語錄 `config.talkCare.goldFood`。
 - **餵食 / 陪玩在房間**(`app/room.js`):點房間前緣的「食物籃 / 玩具箱」開背包托盤 → 點一個道具 → 寵物走過去吃(三口吃完)/ 玩(玩具彈跳),**消耗 1 個**。資料在點下去那一刻就由 `store.feed()` / `store.playToy()` 扣掉,動畫只是演出。點寵物本體 = 摸摸牠(純互動)。
 - **房間是 2.5D**(v6):寵物在整片地板漫遊(`room.js updateWander`,狀態存 `this._wander`),z=0 靠牆 ~ z=1 前緣,`scAt(z)` 近大遠小,**點地板可叫牠走過去**。**視角**:`pets.js draw()` 的 `o.dir`('front'|'side'|'back') — 走遠看到背面(屁股尾巴/耳背/無臉),橫走看到 3/4 側面(五官前移、兔耳後倒、露尾巴;預設朝右,`petAt` 只在 side 時用 `face=-1` 翻面朝左),停下/吃玩回正面;方向由 `room.js dirOf()`(移動向量縱橫比)決定。其他畫面不傳 `dir` = 正面,不受影響。食物墊/遊戲墊(`station()`)只是餵食/陪玩定點(`matZ=0.34`);畫在寵物頭上的東西(照顧圖示/許願泡泡/對話泡泡)都要用 `_petX`/`_petY`/`_petS` 隨深度縮放定位。
 - **成長**:`pet.growth.xp`(v6:餵食 +4、陪玩 +6、每天第一次各多 +2,計數在 `pet.care`,跨日歸零)。階段門檻在 `store.js` 的 `GROW`:<30 幼幼(0.85×+呆毛)、<100 小寶、≥100 大寶(1.12×+兔兔蝴蝶結/倉倉領巾)。外觀由 `pets.js` 的 `draw(petId, ctx, t, {stage})` 處理,**所有畫寵物的地方都要帶 stage**(用 `store.growthInfo(d).stage`)。升階時房間會播全螢幕慶祝(`room.js drawGrow`)。
@@ -65,7 +66,7 @@
 - **吃完隨機小反應(v5)**:room.js `startFeed()` 抽 burp / spin(轉圈) / hops / hearts,1/8 出「幸運星」→ `store.bonusXp(d,1)`;語錄在 `config.talkCare`。
 - **收集圖鑑(v5)**:`pet.dex`(吃過/玩過自動點亮,`feed()`/`playToy()` 寫入),畫面在 `app/dex.js`(房間點掛畫進入)。**新增畫面檔要同時加進 `index.html` 的 script 與 `sw.js` 的 ASSETS。**
 - **答題遊戲感**:quiz/eplay 有連對 combo 徽章(streak≥2)、同一題錯 2 次給提示並重唸、最後一題答對加大慶祝。
-- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` → 已是 schema **v6**(v6 移除佈置、home 轉背包、GROW 加重),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
+- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` → 已是 schema **v7**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
 
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。

@@ -10,7 +10,9 @@
   // v5:新增 wish(寵物今日許願的食物;餵中成長值加倍)、dex(圖鑑:吃過的食物/玩過的玩具)。
   // v6:移除佈置/換擺設功能 — migration 把 home 各格的食物/玩具轉進 inv 背包(deluxe 算 2 份)後清空格子。
   //     GROW 加重:FEED_XP 4、PLAY_XP 6、DAILY_BONUS 2。
-  const SCHEMA_VERSION = 6;
+  // v7:神秘金色食物 — inv 新增 gold(金色食物數量,與 foods 同 key 空間);
+  //     數學過關 1/10 機率整份獎勵變金色,餵金色食物成長值 ×2(與許願加倍可疊)。
+  const SCHEMA_VERSION = 7;
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
   const HW_ROUND_TOTAL = 52;
@@ -36,7 +38,7 @@
       hwEarned: 0,                // 字母手寫練習累計已給的積分(上限 100)
       hwRound: [],                // v3:本輪已描完的字母(描滿 52 個才 +1 分)
       daily: { date: today(), math: 0, english: 0, hw: 0 },
-      inv: { foods: {}, toys: {} },  // v4:背包(key -> 數量);過關賺到、餵食/陪玩消耗
+      inv: { foods: {}, toys: {}, gold: {} },  // v4:背包(key -> 數量);過關賺到、餵食/陪玩消耗。v7:gold=金色食物
       growth: { xp: 0 },             // v4:成長值(餵食+2、陪玩+3、每日首次各+1)
       care: { date: today(), fed: 0, played: 0 },  // v4:今日照顧計數(跨日歸零)
       wish: null,                    // v5:今日許願 {key, date, done};由 getWish() 產生
@@ -110,6 +112,7 @@
     if (!p.inv || typeof p.inv !== 'object') p.inv = {};
     if (!p.inv.foods || typeof p.inv.foods !== 'object') p.inv.foods = {};
     if (!p.inv.toys || typeof p.inv.toys !== 'object') p.inv.toys = {};
+    if (!p.inv.gold || typeof p.inv.gold !== 'object') p.inv.gold = {};   // v7:金色食物
     if (!p.growth || typeof p.growth !== 'object' || typeof p.growth.xp !== 'number') {
       // 老玩家補償:依既有過關次數換算成長值(每次過關 +2),封頂 99(小寶),
       // 讓玩很久的孩子升級後不會從幼幼重養。
@@ -333,9 +336,12 @@
   }
 
   // 過關收穫:食物(陣列,可重複 key)/ 玩具(單一 key × n 個)進背包
-  function addFoods(d, keys) {
-    if (!d.inv) d.inv = { foods: {}, toys: {} };
-    (keys || []).forEach(function (k) { if (k) d.inv.foods[k] = (d.inv.foods[k] || 0) + 1; });
+  // v7:gold=true 時整份收進金色食物庫存(inv.gold)
+  function addFoods(d, keys, gold) {
+    if (!d.inv) d.inv = { foods: {}, toys: {}, gold: {} };
+    if (gold && (!d.inv.gold || typeof d.inv.gold !== 'object')) d.inv.gold = {};
+    var box = gold ? d.inv.gold : d.inv.foods;
+    (keys || []).forEach(function (k) { if (k) box[k] = (box[k] || 0) + 1; });
     save(d);
   }
   function addToy(d, key, n) {
@@ -354,17 +360,20 @@
   }
 
   // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1);餵中今日許願的食物 → 基礎值加倍。
+  // v7:gold=true 消耗金色食物(inv.gold),基礎成長值再 ×2(與許願加倍可疊)。
   // 沒有該食物回 null;成功回 gainXp 的結果(含 grew 供升階慶祝、wishGranted 供許願慶祝)。
-  function feed(d, key) {
-    if (!d.inv || !d.inv.foods || !(d.inv.foods[key] > 0)) return null;
-    d.inv.foods[key]--;
-    if (d.inv.foods[key] <= 0) delete d.inv.foods[key];
+  function feed(d, key, gold) {
+    var box = gold ? (d.inv && d.inv.gold) : (d.inv && d.inv.foods);
+    if (!box || !(box[key] > 0)) return null;
+    box[key]--;
+    if (box[key] <= 0) delete box[key];
     d.care.fed++;
-    // v5:許願命中 → 基礎成長值 ×2,並把願望標記完成
+    // v5:許願命中 → 基礎成長值 ×2,並把願望標記完成(金色也算,加倍可疊)
     var wishGranted = !!(d.wish && d.wish.date === today() && !d.wish.done && d.wish.key === key);
     if (wishGranted) d.wish.done = true;
-    var res = gainXp(d, GROW.FEED_XP * (wishGranted ? 2 : 1), d.care.fed === 1);
+    var res = gainXp(d, GROW.FEED_XP * (wishGranted ? 2 : 1) * (gold ? 2 : 1), d.care.fed === 1);
     res.wishGranted = wishGranted;
+    res.gold = !!gold;
     if (d.dex.foods.indexOf(key) < 0) d.dex.foods.push(key);   // v5:圖鑑點亮
     save(d);
     return res;

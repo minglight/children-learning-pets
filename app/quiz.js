@@ -258,8 +258,10 @@
           while (picks.length < n) {
             picks.push(pool[Math.floor(Math.random() * pool.length)]);
           }
-          ST.addFoods(d, picks);
-          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks });
+          // v7:神秘金色食物 — 1/10 機率整份獎勵變金色(餵食成長值 ×2)
+          const golden = Math.random() < 0.1;
+          ST.addFoods(d, picks, golden);
+          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks, golden: golden });
         } else {
           PLS.go('result', {
             pet: this.petId, levelIdx: this.levelIdx,
@@ -506,6 +508,7 @@
       this.lv = CFG.math[params.levelIdx];
       this.deluxe = !!params.deluxe;
       this.perfect = !!params.perfect;
+      this.golden = !!params.golden;   // v7:金色食物開獎
       this.clears = params.clears || 0;
       // v5:優先用 params.items;fallback 向下相容
       this.items = params.items || (this.deluxe ? deluxeItems(this.lv) : this.lv.feast.items);
@@ -520,9 +523,10 @@
       // 飛入食物動畫:每個食物一個 flying 物件
       this.flyings = [];
       PLS.sfx.feast();
-      // v5:語音依情境
+      // v5:語音依情境(v7:金色最稀有,優先講)
       var sayText;
-      if (this.deluxe) { sayText = '豪華大豐收!背包裝得滿滿的!'; }
+      if (this.golden) { sayText = '哇!是金色食物!吃了會長得特別快!'; }
+      else if (this.deluxe) { sayText = '豪華大豐收!背包裝得滿滿的!'; }
       else if (this.perfect) { sayText = '滿分!多送一份食物!'; }
       else { sayText = '太棒了,食物收進背包囉!'; }
       PLS.say(sayText);
@@ -599,6 +603,10 @@
           A.pill(ctx, W / 2 + 300, 130, '×2 獎勵!', '#FFFFFF', '#E8964E', 24);
         }
       }
+      // v7:金色食物徽章(標題左側,與 ×2 徽章對稱;豪華也可能開出金色)
+      if (this.golden) {
+        A.pill(ctx, W / 2 - 300, 130, '✨ 金色食物!', '#7A5410', '#FFE08A', 24);
+      }
 
       // 桌子
       ctx.fillStyle = '#E0B98A'; A.rr(ctx, 160, 600, W - 320, 44, 20); ctx.fill();
@@ -627,6 +635,9 @@
       // 籃子座標(右側,桌子上方)
       const bx = W - 110, by = 552;
 
+      // v7:金色開獎 → 食物用金色版渲染
+      const dFood = this.golden ? A.drawFoodGold : A.drawFood;
+
       // 食物彈出 + 飛入籃
       items.forEach(function (key, i) {
         const ik = (k - 0.4 - i * 0.3);
@@ -640,14 +651,14 @@
         if (ek < 0) {
           // 尚未飛走:盤子上彈出
           const pop = ik < 0.35 ? 1 + Math.sin(ik / 0.35 * Math.PI) * 0.28 : 1;
-          A.drawFood(ctx, key, itemX, itemY, feastScale * pop);
+          dFood(ctx, key, itemX, itemY, feastScale * pop);
         } else if (ek < flyDur) {
           // 飛行中:拋物線飛向籃子
           const fe = ek / flyDur;
           const ease = 1 - (1 - fe) * (1 - fe);
           const fx = itemX + (bx - itemX) * ease;
           const fy = itemY + (by - itemY) * ease - Math.sin(fe * Math.PI) * 90;
-          A.drawFood(ctx, key, fx, fy, feastScale * (1 - 0.3 * fe));
+          dFood(ctx, key, fx, fy, feastScale * (1 - 0.3 * fe));
         } else {
           // 已飛入籃:標記 basketCount 並觸發粒子
           if (self.basketCount <= i) {
