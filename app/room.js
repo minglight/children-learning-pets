@@ -28,11 +28,12 @@
     return { min: geo.x0 + 90 + 90 * z, max: geo.x1 - 90 - 90 * z };
   }
   // rot:整隻旋轉角度(開心轉圈用);face:-1 = 向左(只在側面時翻面);dir:'front'|'side'|'back'
-  function petAt(ctx, petId, t, x, footY, s, mode, stage, rot, face, dir) {
+  // species = 物種 id;growDeco = 大寶配件 index(隨機抽的那款)
+  function petAt(ctx, species, t, x, footY, s, mode, stage, rot, face, dir, growDeco) {
     ctx.save(); ctx.translate(x, footY - 140 * s);
     ctx.scale(s * (dir === 'side' ? (face || 1) : 1), s);
     if (rot) { ctx.translate(0, 20); ctx.rotate(rot); ctx.translate(0, -20); }
-    P.draw(petId, ctx, t, { mode: mode, stage: stage, dir: dir }); ctx.restore();
+    P.draw(species, ctx, t, { mode: mode, stage: stage, dir: dir, growDeco: growDeco }); ctx.restore();
   }
   // 依移動向量決定視角:縱向為主 → 走遠=背面/走近=正面;橫向為主 → 側面
   function dirOf(geo, ddx, ddz) {
@@ -216,11 +217,12 @@
   // v4 電子雞化:食物籃/玩具箱(背包)、餵食/陪玩動畫、成長條、升階慶祝、摸寵物。
   // ════════════════════════════════════════════════════
   const room = {
-    petId: 'rabbit',
+    petId: 'kidL',
     enter: function (params) {
       const self = this;
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';         // v9:petId = 儲存 slot(kidL/kidR)
       const pid = this.petId;
+      this.species = ST.load(pid).species || 'rabbit';   // v9:外觀物種
       // 互動狀態
       this.tray = null;      // 開啟中的背包托盤:'food' | 'toy' | null
       this.act = null;       // 進行中的餵食/陪玩動畫
@@ -233,13 +235,17 @@
       // 雙寵物互訪:每次進房 1/3 機率,另一隻寵物過一會兒來作客(測試版必來,方便驗證)
       this.gBubble = null;   // 訪客的對話泡泡
       this._guestX = null;
-      this._visit = null;    // {id, phase:'wait'|'in'|'stay'|'join'|'leave', at, stage, w}
-      const gid = pid === 'rabbit' ? 'hamster' : 'rabbit';
-      if (Math.random() < (ST.isTest() ? 1 : 1 / 3)) {
+      this._visit = null;    // {id(物種), name, deco, phase, at, stage, w}
+      // 訪客 = 另一個小孩正在養的寵物;對方還沒選寵物(species=null)就不來作客
+      const otherSlot = pid === 'kidL' ? 'kidR' : 'kidL';
+      const other = ST.load(otherSlot);
+      const gid = other.species;
+      if (gid && Math.random() < (ST.isTest() ? 1 : 1 / 3)) {
+        const ogi = ST.growthInfo(other);
         this._visit = {
-          id: gid, phase: 'wait',
+          id: gid, name: other.name || CFG.pets[gid].name, deco: ogi.deco, phase: 'wait',
           at: PLS.t + (ST.isTest() ? 3 : 6 + Math.random() * 8),
-          stage: ST.growthInfo(ST.load(gid)).stage
+          stage: ogi.stage
         };
       }
       // 回首頁
@@ -269,6 +275,20 @@
           onTap: function () { PLS.go(it.go, { pet: pid }); }
         });
       });
+      // v9:大寶滿 3 天 → 畢業入珍藏(金色脈動卡)
+      if (ST.canGraduate(ST.load(pid))) {
+        const gy = NTOP + NAV.length * NSTEP;
+        PLS.addButton({
+          x: 30, y: gy, w: PW - 60, h: NH,
+          draw: function (ctx) {
+            const pulse = 0.5 + 0.5 * Math.sin(PLS.t * 3);
+            ctx.save(); ctx.shadowColor = 'rgba(230,168,60,' + (0.25 + 0.35 * pulse) + ')'; ctx.shadowBlur = 22;
+            navCard(ctx, 30, gy, PW - 60, NH, '#FBEFC8', '#C2851E', '🎓 讓牠畢業', '養大成功!收進珍藏館,再養一隻', ICON.gift);
+            ctx.restore();
+          },
+          onTap: function () { PLS.go('graduate', { pet: pid }); }
+        });
+      }
       // 測試版:預覽獎勵
       if (ST.isTest()) {
         PLS.addButton({
@@ -467,7 +487,7 @@
         this.grow = { t0: t, stage: res.stage, stageZh: res.stageZh };
         PLS.sfx.feast();
         const d = ST.load(this.petId);
-        PLS.say((d.name || CFG.pets[this.petId].name) + '長大了!');
+        PLS.say((d.name || CFG.pets[this.species || d.species || 'rabbit'].name) + '長大了!');
       }
       return at('happy');
     },
@@ -508,7 +528,7 @@
       const w = v.w, act = this.act;
       if (v.hostSayAt && t >= v.hostSayAt) {
         v.hostSayAt = 0;
-        this.say(pickTalk(CFG.talkCare.visitHost).replace('{name}', CFG.pets[v.id].name));
+        this.say(pickTalk(CFG.talkCare.visitHost).replace('{name}', v.name || CFG.pets[v.id].name));
       }
       if (v.phase === 'in') {
         if (walkStep(t, geo, w, w.tx, w.tz)) {
@@ -729,7 +749,9 @@
     // ── 升階慶祝(蓋在房間框上)──
     drawGrow: function (ctx, t, d) {
       const g = this.grow, B = this._box, e = t - g.t0;
-      const name = d.name || CFG.pets[this.petId].name;
+      const species = this.species || d.species || 'rabbit';
+      const name = d.name || CFG.pets[species].name;
+      const gDeco = ST.growthInfo(d).deco;
       ctx.save();
       ctx.beginPath(); rr(ctx, B.ix, B.iy, B.iw, B.ih, 14); ctx.clip();
       ctx.fillStyle = 'rgba(80,60,35,0.45)'; ctx.fillRect(B.ix, B.iy, B.iw, B.ih);
@@ -748,7 +770,7 @@
       }
       const pop = e < 0.5 ? 0.6 + 0.4 * Math.sin(e / 0.5 * Math.PI / 2) : 1;
       ctx.save(); ctx.translate(cx, cy + 110); ctx.scale(0.62 * pop, 0.62 * pop);
-      P.draw(this.petId, ctx, t, { mode: 'happy', stage: g.stage });
+      P.draw(species, ctx, t, { mode: 'happy', stage: g.stage, growDeco: gDeco });
       ctx.restore();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '52px ' + FONT;
@@ -761,8 +783,10 @@
     },
 
     draw: function (ctx, t) {
-      const pid = this.petId, th = CFG.pets[pid].theme;
-      const d = ST.load(pid), name = d.name || CFG.pets[pid].name;
+      const pid = this.petId;                          // 儲存 slot
+      const species = this.species || ST.load(pid).species || 'rabbit';
+      const th = CFG.pets[species].theme;
+      const d = ST.load(pid), name = d.name || CFG.pets[species].name;
       const gi = ST.growthInfo(d);
       ctx.fillStyle = '#EFE3D2'; ctx.fillRect(0, 0, W, H);
 
@@ -814,14 +838,14 @@
       if (this.pat && t - this.pat.t0 < 1.0 && !this.act) { pose.mode = 'happy'; pose.dir = 'front'; }
       // 訪客(另一隻寵物來作客);兩隻依深度排序,遠的先畫
       const gpose = this.updateVisit(t, geo, foodPt);
-      const petsDraw = [{ id: pid, pose: pose, stage: gi.stage, main: true }];
-      if (gpose) petsDraw.push({ id: this._visit.id, pose: gpose, stage: this._visit.stage, main: false });
+      const petsDraw = [{ id: species, pose: pose, stage: gi.stage, deco: gi.deco, main: true }];
+      if (gpose) petsDraw.push({ id: this._visit.id, pose: gpose, stage: this._visit.stage, deco: this._visit.deco, main: false });
       petsDraw.sort(function (a, b) { return a.pose.z - b.pose.z; });
       const self = this;
       petsDraw.forEach(function (it) {
         const s = scAt(it.pose.z), gy = yAt(geo, it.pose.z);
         ctx.fillStyle = 'rgba(150,110,70,0.16)'; el(ctx, it.pose.x, gy + 4, 150 * s, 34 * s); ctx.fill();
-        petAt(ctx, it.id, t, it.pose.x, gy + it.pose.hop, s, it.pose.mode, it.stage, it.pose.rot, it.pose.face, it.pose.dir);
+        petAt(ctx, it.id, t, it.pose.x, gy + it.pose.hop, s, it.pose.mode, it.stage, it.pose.rot, it.pose.face, it.pose.dir, it.deco);
         if (it.main) { self._petX = it.pose.x; self._petY = gy; self._petS = s; }
         else { self._guestX = it.pose.x; self._guestY = gy; self._guestS = s; }
       });
@@ -863,7 +887,7 @@
       // 頭像
       ctx.save(); ctx.beginPath(); el(ctx, 132, 116, 42, 42); ctx.clip();
       ctx.fillStyle = '#FCEFE6'; ctx.fillRect(86, 66, 92, 100);
-      petAt(ctx, pid, t, 132, 168, 0.32, 'idle', gi.stage); ctx.restore();
+      petAt(ctx, species, t, 132, 168, 0.32, 'idle', gi.stage, 0, 1, 'front', gi.deco); ctx.restore();
       ctx.strokeStyle = '#F2D8C0'; ctx.lineWidth = 4; el(ctx, 132, 116, 42, 42); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.font = '34px ' + FONT; ctx.fillStyle = th.deep; ctx.fillText(name + '的房間', 190, 100);

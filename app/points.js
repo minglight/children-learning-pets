@@ -127,9 +127,10 @@
   // 獎品商店(shop):顯示本寵物積分 + 獎品清單,點「兌換」扣點數
   // ════════════════════════════════════════════════════
   const shop = {
-    petId: 'rabbit',
+    petId: 'kidL',
     enter: function (params) {
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';
+      this.species = ST.load(this.petId).species || 'rabbit';
       this.prizes = ST.getPrizes();
       this.scroll = 0;
       this.mode = 'list';           // 'list' | 'confirm' | 'done'
@@ -223,7 +224,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('獎品商店', W / 2, 72);
       ctx.fillStyle = '#C2851E'; ctx.fillText('獎品商店', W / 2, 68);
       const d = ST.load(this.petId), pts = ST.getPoints(d);
-      const name = d.name || CFG.pets[this.petId].name;
+      const name = d.name || CFG.pets[this.species || d.species || 'rabbit'].name;
       A.pill(ctx, W / 2, 138, name + ' 目前有 ' + pts + ' 點', '#B98A4F', 'rgba(255,255,255,0.94)', 24);
 
       ctx.save();
@@ -289,12 +290,13 @@
   const hwpass = {
     enter: function (params) {
       const self = this;
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';
       this.awarded = !!params.awarded;
       this.capped = !!params.capped;
       this.dailyLeft = params.dailyLeft | 0;
       this.start = PLS.t; this.heartTimer = 0;
-      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
+      var _hd = ST.load(this.petId); this.species = _hd.species || 'rabbit';
+      this.stage = ST.growthInfo(_hd).stage;
       if (this.awarded) PLS.sfx.feast(); else PLS.sfx.correct();
       PLS.addButton({
         x: W / 2 - 330, y: 700, w: 300, h: 100,
@@ -338,7 +340,7 @@
       else msg = '今天的手寫積分拿完了,明天再來!';
       A.pill(ctx, W / 2, 198, msg, this.awarded ? '#C2591E' : '#7A6450', 'rgba(255,255,255,0.95)', 26);
       ctx.save(); ctx.translate(W / 2, 560); ctx.scale(1.15, 1.15);
-      P.draw(this.petId, ctx, t, { mode: k < 5 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
+      P.draw(this.species, ctx, t, { mode: k < 5 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
       if (this.awarded) {
         this.heartTimer -= 1 / 60;
         if (this.heartTimer <= 0 && k < 5) { this.heartTimer = 0.4; PLS.burst(W / 2 + (Math.random() - 0.5) * 240, 360, 'small'); }

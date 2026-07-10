@@ -29,13 +29,14 @@
     return list;
   }
 
-  // 玩具:依 CFG.english 關卡順序,取 lv.toyArt[petId],去重。
+  // 玩具:依 CFG.english 關卡順序,取全物種共用玩具 lv.toyArtU,去重。
+  // v9:玩具改共用一套,不再分寵物;參數保留相容,實際不使用。
   function buildToyCatalog(petId) {
     var seen = {};
     var list = [];
     var english = CFG.english || [];
     english.forEach(function (lv) {
-      var k = lv.toyArt && lv.toyArt[petId];
+      var k = lv.toyArtU;
       if (k && !seen[k]) { seen[k] = true; list.push(k); }
     });
     return list;
@@ -145,7 +146,7 @@
 
   // ── 畫面物件 ──────────────────────────────────────────
   var dex = {
-    petId: 'rabbit',
+    petId: 'kidL',
     scroll: 0,
     maxScroll: 0,
     _pdown: false,
@@ -157,7 +158,7 @@
     _offsets: null,
 
     enter: function (params) {
-      this.petId = (params && params.pet) || 'rabbit';
+      this.petId = (params && params.pet) || 'kidL';
       this.scroll = 0;
       this._pdown = false;
       this._drag = false;

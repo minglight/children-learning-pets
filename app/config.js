@@ -14,6 +14,33 @@ window.PLS_CONFIG = {
     hamster: {
       id: 'hamster', name: '倉倉',
       theme: { wall: '#E6EFF5', dot: 'rgba(140,175,205,0.22)', accent: '#6E8BA4', deep: '#4E6B84' }
+    },
+    // 備用物種(可從首頁選來養;繪製在 pets.js,大寶配件各 5 款由 growth.deco 隨機決定)
+    tabby: {
+      id: 'tabby', name: '斑斑',
+      theme: { wall: '#FBEEDD', dot: 'rgba(230,170,110,0.22)', accent: '#C58A4E', deep: '#8A5A2E' }
+    },
+    meerkat: {
+      id: 'meerkat', name: '蒙蒙',
+      theme: { wall: '#F0E4CD', dot: 'rgba(190,150,95,0.20)', accent: '#B26A3C', deep: '#7A4526' }
+    },
+    capybara: {
+      id: 'capybara', name: '豚豚',
+      theme: { wall: '#DCE8E0', dot: 'rgba(120,160,140,0.20)', accent: '#5E8A72', deep: '#3E5F4E' }
+    },
+    husky: {
+      id: 'husky', name: '哈哈',
+      theme: { wall: '#E2E9F2', dot: 'rgba(120,150,190,0.20)', accent: '#3E9E8E', deep: '#33506E' }
+    },
+    // 大象 — 向日葵草原(薄荷綠牆 + 向日葵/雛菊佈景)
+    elephant: {
+      id: 'elephant', name: '象象',
+      theme: { wall: '#CFE9E1', dot: 'rgba(110,175,155,0.20)', accent: '#3F9E8C', deep: '#2E6E60' }
+    },
+    // 橘白貓 — 聖誕場景(紅牆 + 冬青花圈/金星星,大寶配件含酒紅領結)
+    xmascat: {
+      id: 'xmascat', name: '橘橘',
+      theme: { wall: '#C24E5A', dot: 'rgba(244,198,78,0.22)', accent: '#2E7D46', deep: '#7A2530' }
     }
   },
 
@@ -64,30 +91,41 @@ window.PLS_CONFIG = {
   ],
 
   // ── 英文關卡(階梯,難度非常緩慢遞增)──────────────────
-  // 英文獎勵是「玩具」:兔兔 = 扮家家酒/娃娃,倉倉 = 機器人/汽車
+  // 英文獎勵是「玩具」。v9:全物種共用一套玩具(toyU / toyArtU),不再分寵物;
+  //   舊欄位 toy/toyArt(rabbit/hamster)保留純為顯示舊背包裡既有的玩具名稱。
   // play: pick(聽音/看字選) | match(大小寫配對) | trace(描寫) | write(自己寫)
-  // cs: upper|lower(字母大小寫)  toyArt: 對應 toys.js 的玩具 key
+  // cs: upper|lower(字母大小寫)  toyArtU: 對應 toys.js 的玩具 key
   // count: 本關題數(描寫/手寫較花時間,題數少一點)
   english: [
     { id: 'e1', name: '聽音選字母', sub: '大寫 A–Z', play: 'pick', cs: 'upper', count: 10,
+      toyU: '小汽車', toyArtU: 'car',
       toy: { rabbit: '小娃娃', hamster: '小汽車' }, toyArt: { rabbit: 'doll', hamster: 'car' } },
     { id: 'e2', name: '描寫大寫', sub: '描著寫', play: 'trace', cs: 'upper', count: 10,
+      toyU: '小火車', toyArtU: 'train',
       toy: { rabbit: '茶具組', hamster: '小火車' }, toyArt: { rabbit: 'teaset', hamster: 'train' } },
     { id: 'e3', name: '大寫手寫', sub: '自己寫', play: 'write', cs: 'upper', count: 10, boxes: 6,
+      toyU: '玩具廚房', toyArtU: 'kitchen',
       toy: { rabbit: '玩具廚房', hamster: '挖土機' }, toyArt: { rabbit: 'kitchen', hamster: 'digger' } },
     { id: 'e4', name: '大小寫配對', sub: 'A→a', play: 'match', cs: 'lower', count: 10,
+      toyU: '遙控車', toyArtU: 'rccar',
       toy: { rabbit: '娃娃床', hamster: '遙控車' }, toyArt: { rabbit: 'dollbed', hamster: 'rccar' } },
     { id: 'e5', name: '描寫小寫', sub: '描著寫', play: 'trace', cs: 'lower', count: 10,
+      toyU: '小飛機', toyArtU: 'plane',
       toy: { rabbit: '野餐籃', hamster: '小飛機' }, toyArt: { rabbit: 'basket', hamster: 'plane' } },
     { id: 'e6', name: '小寫手寫', sub: '自己寫', play: 'write', cs: 'lower', count: 10, boxes: 6,
+      toyU: '布偶熊', toyArtU: 'teddy',
       toy: { rabbit: '布偶熊', hamster: '機器狗' }, toyArt: { rabbit: 'teddy', hamster: 'robodog' } },
     { id: 'e7', name: '聽音選單字', sub: '純CVC短母音', play: 'wpick', cs: 'lower', count: 8, wordPool: 'cvc',
+      toyU: '小機器人', toyArtU: 'robot',
       toy: { rabbit: '玩具屋', hamster: '小機器人' }, toyArt: { rabbit: 'dollhouse', hamster: 'robot' } },
     { id: 'e7b', name: '長母音單字', sub: 'magic-e 拼音', play: 'wpick', cs: 'lower', count: 8, wordPool: 'magic_e',
+      toyU: '小火箭', toyArtU: 'rocket',
       toy: { rabbit: '魔法棒', hamster: '小火箭' }, toyArt: { rabbit: 'wand', hamster: 'rocket' } },
     { id: 'e8', name: '拼拼單字', sub: '三個字母', play: 'spell', cs: 'lower', count: 6, wordPool: 'cvc',
+      toyU: '玩具屋', toyArtU: 'dollhouse',
       toy: { rabbit: '公主裙', hamster: '太空梭' }, toyArt: { rabbit: 'dress', hamster: 'shuttle' } },
     { id: 'e9', name: '單字手寫', sub: '寫出單字', play: 'wword', cs: 'lower', count: 5,
+      toyU: '旋轉木馬', toyArtU: 'carousel',
       toy: { rabbit: '旋轉木馬', hamster: '大機器人' }, toyArt: { rabbit: 'carousel', hamster: 'bigrobot' } }
   ],
 

@@ -85,9 +85,10 @@
   // 玩具中文名(由英文關卡設定推得)
   const TOY_NAMES = {};
   CFG.english.forEach(function (lv) {
-    if (lv.toyArt && lv.toy) {
-      if (lv.toyArt.rabbit) TOY_NAMES[lv.toyArt.rabbit] = lv.toy.rabbit;
-      if (lv.toyArt.hamster) TOY_NAMES[lv.toyArt.hamster] = lv.toy.hamster;
+    if (lv.toyArtU) TOY_NAMES[lv.toyArtU] = lv.toyU;              // v9:全物種共用玩具
+    if (lv.toyArt && lv.toy) {                                    // 相容:舊背包裡既有的分寵物玩具名稱
+      if (lv.toyArt.rabbit) TOY_NAMES[lv.toyArt.rabbit] = TOY_NAMES[lv.toyArt.rabbit] || lv.toy.rabbit;
+      if (lv.toyArt.hamster) TOY_NAMES[lv.toyArt.hamster] = TOY_NAMES[lv.toyArt.hamster] || lv.toy.hamster;
     }
   });
   // 已過關可展示的寶物清單:食物(數學)+ 玩具(英文)。測試版顯示全部
@@ -119,10 +120,9 @@
         });
       });
       CFG.english.forEach(function (lv) {
-        if (!lv.toyArt) return;
         const rec = d.levels[lv.id];
         if (!(rec && rec.cleared) && !test) return;
-        const k = lv.toyArt[petId];
+        const k = lv.toyArtU;                                     // v9:共用玩具
         if (k && !seen['t:' + k]) { seen['t:' + k] = 1; out.push({ key: k, type: 'toy', label: TOY_NAMES[k] || '玩具' }); }
       });
       return out;
@@ -211,15 +211,26 @@
 
   const home = {
     enter: function () {
-      PLS.addButton({
-        x: CARD1_X, y: CARD_Y, w: CARD_W, h: CARD_H,
-        draw: function (ctx, t) { drawRoomCard(ctx, t, 'rabbit', CARD1_X, CARD_Y, CARD_W, CARD_H); },
-        onTap: function () { PLS.go('room', { pet: 'rabbit' }); }
+      // v9:兩張卡 = 左/右小孩(各自養一隻寵物);還沒選寵物就進 pickpet
+      [['kidL', CARD1_X], ['kidR', CARD2_X]].forEach(function (kv) {
+        const slot = kv[0], X = kv[1];
+        PLS.addButton({
+          x: X, y: CARD_Y, w: CARD_W, h: CARD_H,
+          draw: function (ctx, t) { drawRoomCard(ctx, t, slot, X, CARD_Y, CARD_W, CARD_H); },
+          onTap: function () {
+            PLS.go(ST.load(slot).species ? 'room' : 'pickpet', { pet: slot });
+          }
+        });
       });
+      // 寵物珍藏館(左下)
       PLS.addButton({
-        x: CARD2_X, y: CARD_Y, w: CARD_W, h: CARD_H,
-        draw: function (ctx, t) { drawRoomCard(ctx, t, 'hamster', CARD2_X, CARD_Y, CARD_W, CARD_H); },
-        onTap: function () { PLS.go('room', { pet: 'hamster' }); }
+        x: 30, y: H - 66, w: 220, h: 48,
+        draw: function (ctx) {
+          ctx.globalAlpha = 0.9;
+          A.pill(ctx, 140, H - 42, '🏅 寵物珍藏館', '#B0752E', 'rgba(255,255,255,0.85)', 22);
+          ctx.globalAlpha = 1;
+        },
+        onTap: function () { PLS.go('museum', {}); }
       });
       // 家長區(小、低調)
       PLS.addButton({
@@ -254,18 +265,31 @@
       ctx.moveTo(hx - 14, hy + 12); ctx.lineTo(W / 2, hy - 64); ctx.lineTo(hx + hw + 14, hy + 12);
       ctx.closePath(); ctx.stroke(); ctx.fill();
 
-      const rName = ST.load('rabbit').name || CFG.pets.rabbit.name;
-      const hName = ST.load('hamster').name || CFG.pets.hamster.name;
-      A.pill(ctx, W / 2, hy + 30, rName + ' 和 ' + hName + ' 的家', '#A07B58', 'rgba(255,255,255,0.9)', 24);
+      const dL = ST.load('kidL'), dR = ST.load('kidR');
+      const nL = dL.species ? (dL.name || CFG.pets[dL.species].name) : '左邊';
+      const nR = dR.species ? (dR.name || CFG.pets[dR.species].name) : '右邊';
+      A.pill(ctx, W / 2, hy + 30, nL + ' 和 ' + nR + ' 的家', '#A07B58', 'rgba(255,255,255,0.9)', 24);
       A.pill(ctx, W / 2, H - 48, '點一下你的寵物,開始今天的學習', '#9A7B5C', 'rgba(255,255,255,0.85)', 26);
     }
   };
 
-  function drawRoomCard(ctx, t, petId, left, top, w, h) {
-    const th = CFG.pets[petId].theme;
-    const d = ST.load(petId);
-    const name = d.name || CFG.pets[petId].name;
-    const stage = window.PLS_STORE.growthInfo(d).stage;
+  // slot = 'kidL' | 'kidR'。species=null 時畫「＋ 選寵物」空卡。
+  function drawRoomCard(ctx, t, slot, left, top, w, h) {
+    const d = ST.load(slot);
+    const species = d.species;
+    if (!species) {
+      ctx.fillStyle = '#F4ECDD'; A.rr(ctx, left, top, w, h, 24); ctx.fill();
+      ctx.save(); ctx.strokeStyle = '#D8C4A6'; ctx.lineWidth = 3;
+      ctx.setLineDash([11, 9]); A.rr(ctx, left + 8, top + 8, w - 16, h - 16, 18); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#D0B488'; ctx.font = '110px ' + FONT; ctx.fillText('＋', left + w / 2, top + h / 2 - 16);
+      A.pill(ctx, left + w / 2, top + h - 52, (slot === 'kidL' ? '左邊' : '右邊') + '小孩 · 選一隻寵物', '#A07B58', 'rgba(255,255,255,0.92)', 23);
+      return;
+    }
+    const th = CFG.pets[species].theme;
+    const name = d.name || CFG.pets[species].name;
+    const gi = window.PLS_STORE.growthInfo(d);
     ctx.fillStyle = th.wall; A.rr(ctx, left, top, w, h, 24); ctx.fill();
     ctx.fillStyle = th.dot;
     for (let xx = left + 40; xx < left + w; xx += 80)
@@ -274,15 +298,17 @@
     ctx.beginPath(); A.rr(ctx, left, top, w, h, 24); ctx.clip();
     // 地毯
     ctx.fillStyle = 'rgba(255,255,255,0.34)'; A.el(ctx, left + w * 0.5, top + h - 30, w * 0.42, 30); ctx.fill();
-    // 寵物
-    ctx.save(); ctx.translate(left + w * 0.30, top + h - 64); ctx.scale(0.56, 0.56); P.draw(petId, ctx, t, { stage: stage }); ctx.restore();
+    // 寵物(帶大寶配件)
+    ctx.save(); ctx.translate(left + w * 0.30, top + h - 64); ctx.scale(0.56, 0.56);
+    P.draw(species, ctx, t, { stage: gi.stage, growDeco: gi.deco }); ctx.restore();
     ctx.restore();
     A.pill(ctx, left + 80, top + 36, name, th.accent, 'rgba(255,255,255,0.92)', 26);
-    A.bubble(ctx, left + w * 0.62, top + 84, pickStable(petId, t), { size: 24 });
+    A.pill(ctx, left + w - 74, top + 36, gi.stageZh, 'rgba(255,255,255,0.95)', th.accent, 20);
+    A.bubble(ctx, left + w * 0.62, top + 92, pickStable(slot, t), { size: 24 });
   }
   function pickStable(seed, t) {
     const list = CFG.talk.welcome;
-    const i = Math.floor(t / 6 + (seed === 'rabbit' ? 0 : 1)) % list.length;
+    const i = Math.floor(t / 6 + (seed === 'kidL' ? 0 : 1)) % list.length;
     return list[i];
   }
 
@@ -290,11 +316,11 @@
   // 寵物房間:選科目(寬版:寵物在左,三張卡在右)
   // ════════════════════════════════════════════════════
   const room = {
-    petId: 'rabbit',
+    petId: 'kidL',
     bubbleText: '',
     enter: function (params) {
       const self = this;
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';
       this.bubbleText = pickTalk(CFG.talk.welcome);
       backBtn('home', {});
       // 數學餐廳
@@ -402,10 +428,10 @@
       }
     },
     draw: function (ctx, t) {
-      const th = CFG.pets[this.petId].theme;
+      const th = (CFG.pets[this.petId] || CFG.pets.rabbit).theme;
       drawWall(ctx, th.wall, th.dot);
       const d = ST.load(this.petId);
-      const name = d.name || CFG.pets[this.petId].name;
+      const name = d.name || (CFG.pets[this.petId] || CFG.pets.rabbit).name;
       const stage = window.PLS_STORE.growthInfo(d).stage;
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -465,12 +491,12 @@
   // 數學餐廳:關卡圖
   // ════════════════════════════════════════════════════
   const map = {
-    petId: 'rabbit',
+    petId: 'kidL',
     nodes: [],
     note: '',
     enter: function (params) {
       const self = this;
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';
       this.note = '';
       this.scrollY = 0;
       this._pdown = false;
@@ -641,7 +667,7 @@
   const SL_TOY_CX  = [738, 842, 946];
 
   const shelf = {
-    petId: 'rabbit', note: '',
+    petId: 'kidL', note: '',
     allFoods: [], allToys: [],
     curFoods: [{key:null,deluxe:false},{key:null,deluxe:false},{key:null,deluxe:false}],
     curToys:  [{key:null,deluxe:false},{key:null,deluxe:false},{key:null,deluxe:false}],
@@ -650,7 +676,7 @@
     scrollY: 0, maxScroll: 0,
     _pdown: false, _drag: false, _py: 0, _ps: 0, _sbdrag: false,
     enter: function (params) {
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';
       this.note = '';
       this.scrollY = 0;
       this.activeSlot = { type: 'food', idx: 0 };
@@ -823,7 +849,7 @@
     draw: function (ctx, t) {
       var self = this;
       drawWall(ctx, '#FBF1E2', 'rgba(214,178,146,0.14)');
-      var name = ST.load(this.petId).name || CFG.pets[this.petId].name;
+      var name = ST.load(this.petId).name || (CFG.pets[this.petId] || CFG.pets.rabbit).name;
       // 固定標題
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '44px ' + FONT;
@@ -883,10 +909,10 @@
   // 測試版:獎勵預覽畫面
   // ════════════════════════════════════════════════════
   const rewardPreview = {
-    petId: 'rabbit',
+    petId: 'kidL',
     enter: function (params) {
       const self = this;
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';
       backBtn('rewardPreview', { pet: this.petId });
       // 返回房間
       PLS.addButton({

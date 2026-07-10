@@ -1,7 +1,14 @@
-// store.js — 本機進度(localStorage,雙寵物各自獨立)
+// store.js — 本機進度(localStorage,兩個小孩各自獨立存檔)
 // ⚠ 改動儲存/匯出結構前,務必閱讀 docs/export-import-schema.md 與 CLAUDE.md 的相容規則。
 (function () {
-  const KEY = function (pet) { return 'pls.' + pet; };
+  const KEY = function (slot) { return 'pls.' + slot; };
+
+  // v9:存檔改成「以小孩為單位」。slot = 左/右小孩(pls.kidL / pls.kidR);
+  //     species = 這個小孩目前在養的物種(可從 8 種挑,大寶畢業後重選)。
+  const SLOTS = ['kidL', 'kidR'];
+  const SLOT_NAMES = { kidL: '左邊', kidR: '右邊' };
+  // 舊版以物種為鍵(pls.rabbit / pls.hamster)→ 對應到左/右小孩,首次讀取時自動搬遷。
+  const LEGACY_SLOT = { kidL: 'rabbit', kidR: 'hamster' };
 
   // 目前匯出檔的 schema 版本。動到結構就 +1,並更新 docs/export-import-schema.md。
   // v2:每筆寵物新增 points(可兌換積分)、hwEarned(手寫練習累計給分),daily 新增 hw(今日手寫輪數)。
@@ -12,14 +19,24 @@
   //     GROW 加重:FEED_XP 4、PLAY_XP 6、DAILY_BONUS 2。
   // v7:神秘金色食物 — inv 新增 gold(金色食物數量,與 foods 同 key 空間);
   //     數學過關 1/10 機率整份獎勵變金色,餵金色食物成長值 ×2(與許願加倍可疊)。
-  const SCHEMA_VERSION = 7;
+  // v8:成長節奏 — growth 新增 deco(升大寶隨機抽的配件 index 0-4,固定到畢業);
+  //     care 新增 xpToday(今日已累積成長值,跨日歸零);GROW 加 DAILY_XP_CAP(每日成長上限=平板時間煞車)。
+  // v9:存檔改「以小孩為單位」— slot(kidL/kidR)取代物種當儲存鍵;新增 species(目前養的物種)、
+  //     collection(已畢業大寶清單 [{species,deco,date}])、growth.grownAt(升大寶日期,滿 3 天可畢業)。
+  //     畢業/換寵物只重置 species+growth+care+wish;points/dex/inv/levels/collection 留給小孩。
+  //     英文玩具改「全物種共用一套」(config 的 toyU/toyArtU)。
+  // v10:配件可收集 — 每小孩新增 decoDex({species:[5 bool]}),養大寶抽到哪款就解鎖那款;
+  //     珍藏館可把已畢業大寶(及正在養的大寶)換成「已收集」的配件。每物種各 5 款(兔兔/倉倉也補到 5)。
+  const SCHEMA_VERSION = 10;
+  const GRADUATE_DAYS = 3;   // 大寶停留幾天後可畢業入珍藏(測試版不限)
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
   const HW_ROUND_TOTAL = 52;
 
   // ── 成長系統常數(v4)──
   // 階段門檻:xp < KID_AT = 幼幼;< GROWN_AT = 小寶;之後 = 大寶。
-  const GROW = { KID_AT: 30, GROWN_AT: 100, FEED_XP: 4, PLAY_XP: 6, DAILY_BONUS: 2 };
+  // v8:DAILY_XP_CAP = 每日成長值上限(平板時間煞車)。100xp ÷ 15 ≈ 7 天,最快一週長大;測試模式不限。
+  const GROW = { KID_AT: 30, GROWN_AT: 100, FEED_XP: 4, PLAY_XP: 6, DAILY_BONUS: 2, DAILY_XP_CAP: 15 };
   const STAGE_NAMES = { baby: '幼幼', kid: '小寶', grown: '大寶' };
 
   function today() {
@@ -29,20 +46,24 @@
 
   function emptySlot() { return { key: null, deluxe: false, date: null }; }
 
-  function blank(petId) {
+  function blank(slot, species) {
     return {
-      pet: petId,
+      slot: slot || 'kidL',       // v9:儲存分割 = 小孩(kidL/kidR)
+      species: species || null,   // v9:目前在養的物種(null = 尚未選,進 pickpet 挑一隻)
+      pet: species || slot,       // 相容舊欄位:盡量放物種(舊讀者/舊匯出檔用)
       name: null,                 // null = 用預設名
+      collection: [],             // v9:已畢業大寶 [{species, deco, date}](本小孩專屬,只增不減)
       levels: {},                 // levelId -> {attempts, bestRate, cleared, plays}
-      points: 0,                  // 可兌換獎品的積分(本寵物獨立)
+      points: 0,                  // 可兌換獎品的積分(本小孩獨立,畢業不歸零)
       hwEarned: 0,                // 字母手寫練習累計已給的積分(上限 100)
       hwRound: [],                // v3:本輪已描完的字母(描滿 52 個才 +1 分)
       daily: { date: today(), math: 0, english: 0, hw: 0 },
       inv: { foods: {}, toys: {}, gold: {} },  // v4:背包(key -> 數量);過關賺到、餵食/陪玩消耗。v7:gold=金色食物
-      growth: { xp: 0 },             // v4:成長值(餵食+2、陪玩+3、每日首次各+1)
-      care: { date: today(), fed: 0, played: 0 },  // v4:今日照顧計數(跨日歸零)
+      growth: { xp: 0, deco: null, grownAt: null },  // v4:成長值。v8:deco=大寶配件 index。v9:grownAt=升大寶日期
+      decoDex: {},                // v10:配件圖鑑 {species:[5 bool]};養大寶抽到的款式會解鎖,珍藏館換裝只能用已解鎖的
+      care: { date: today(), fed: 0, played: 0, xpToday: 0 },  // v4:今日照顧計數(跨日歸零)。v8:xpToday=今日已累積成長值
       wish: null,                    // v5:今日許願 {key, date, done};由 getWish() 產生
-      dex: { foods: [], toys: [] },  // v5:圖鑑(吃過的食物 / 玩過的玩具 key 清單)
+      dex: { foods: [], toys: [] },  // v5:圖鑑(吃過的食物 / 玩過的玩具 key 清單,畢業不歸零)
       home: {                     // 家裡展示:3 食物格 + 3 玩具格(各格每天可換一次)
         foods: [emptySlot(), emptySlot(), emptySlot()],
         toys:  [emptySlot(), emptySlot(), emptySlot()]
@@ -89,13 +110,23 @@
 
   // 把單一寵物資料正規化/升級到目前結構;向後相容所有舊版(localStorage 或匯出檔)。
   // 規則:缺的欄位補安全預設值,絕不因缺欄位而丟掉既有進度。
-  function migratePet(p, petId) {
-    if (!p || typeof p !== 'object') return blank(petId);
+  function migratePet(p, slot, defaultSpecies) {
+    if (!p || typeof p !== 'object') return blank(slot, defaultSpecies || null);
     var from = (typeof p._v === 'number') ? p._v : 0;   // 來源 schema 版本(無戳記視為 0=最舊)
 
     // ── 版本升級階梯:每次 SCHEMA_VERSION +1 就在這裡加一段 if (from < N) {...} ──
     // 目前的相容處理(對 from 0~1 都適用):缺欄位補預設、舊結構轉新結構。
-    if (!p.pet) p.pet = petId;
+    // ── v9:小孩存檔分割 ──
+    // slot = 儲存鍵(kidL/kidR);species = 目前養的物種。
+    // 舊資料的 p.pet 就是物種('rabbit'/'hamster'…),沿用它當 species。
+    if (!p.slot) p.slot = slot || 'kidL';
+    // 只有「沒有 species 欄位」的舊資料才推斷物種;v9 存檔的 species:null(畢業後待重選)要保留 null。
+    if (!('species' in p) || p.species === undefined) {
+      p.species = (p.pet && window.PLS_CONFIG && PLS_CONFIG.pets && PLS_CONFIG.pets[p.pet])
+        ? p.pet : (defaultSpecies || null);
+    }
+    if (!Array.isArray(p.collection)) p.collection = [];   // v9:已畢業大寶清單
+    if (!p.pet) p.pet = p.species || slot;
     if (!('name' in p)) p.name = null;
     if (!p.levels || typeof p.levels !== 'object') p.levels = {};
     // 舊資料補 clears 欄位(由 cleared 推回)
@@ -123,9 +154,19 @@
       });
       p.growth = { xp: Math.min(99, totalClears * 2) };
     }
-    if (!p.care || typeof p.care !== 'object') p.care = { date: today(), fed: 0, played: 0 };
+    if (!p.care || typeof p.care !== 'object') p.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
     if (typeof p.care.fed !== 'number') p.care.fed = 0;
     if (typeof p.care.played !== 'number') p.care.played = 0;
+    if (typeof p.care.xpToday !== 'number') p.care.xpToday = 0;   // v8:今日已累積成長值
+    // v8:大寶配件 index。舊的大寶資料沒有 → 給 0(第一款);還沒到大寶 → null
+    if (typeof p.growth.deco !== 'number') p.growth.deco = (p.growth.xp >= GROW.GROWN_AT) ? 0 : null;
+    // v9:升大寶日期。已是大寶但沒記日期的舊資料 → 用今天起算 3 天畢業(公平);還沒大寶 → null
+    if (typeof p.growth.grownAt !== 'string') p.growth.grownAt = (p.growth.xp >= GROW.GROWN_AT) ? today() : null;
+    // ── v10:配件圖鑑 ──
+    if (!p.decoDex || typeof p.decoDex !== 'object') p.decoDex = {};
+    // 相容/修正:目前的大寶 + 已畢業珍藏戴過的配件,一律算「已收集」(idempotent,每次載入補一次無妨)
+    if (p.species && p.growth.xp >= GROW.GROWN_AT && typeof p.growth.deco === 'number') markDeco(p.decoDex, p.species, p.growth.deco);
+    if (Array.isArray(p.collection)) p.collection.forEach(function (e) { if (e) markDeco(p.decoDex, e.species, e.deco); });
     // ── v5:許願 / 圖鑑 ──
     if (!('wish' in p) || (p.wish && (typeof p.wish !== 'object' || !p.wish.key))) p.wish = null;
     if (!p.dex || typeof p.dex !== 'object') p.dex = {};
@@ -149,21 +190,32 @@
     return p;
   }
 
-  function load(petId) {
+  function load(slot) {
+    slot = slot || 'kidL';
     try {
-      const raw = localStorage.getItem(KEY(petId));
-      if (!raw) return blank(petId);
-      const d = migratePet(JSON.parse(raw), petId);
+      var raw = localStorage.getItem(KEY(slot));
+      // v9:新鍵不存在 → 試著搬遷舊的物種鍵(pls.rabbit → kidL、pls.hamster → kidR)
+      if (!raw && LEGACY_SLOT[slot]) {
+        var lraw = localStorage.getItem(KEY(LEGACY_SLOT[slot]));
+        if (lraw) {
+          var ld = migratePet(JSON.parse(lraw), slot, LEGACY_SLOT[slot]);
+          save(ld);                       // 寫進新鍵(舊鍵保留不動,當備份)
+          raw = localStorage.getItem(KEY(slot));
+        }
+      }
+      if (!raw) return blank(slot, null);   // 全新小孩:尚未選寵物(species = null)
+      const d = migratePet(JSON.parse(raw), slot, LEGACY_SLOT[slot] || null);
       if (d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0, hw: 0 };  // 跨日歸零
-      if (d.care.date !== today()) d.care = { date: today(), fed: 0, played: 0 };             // v4:照顧計數跨日歸零
+      if (d.care.date !== today()) d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };   // v4:照顧計數跨日歸零(v8:含 xpToday)
       return d;
-    } catch (e) { return blank(petId); }
+    } catch (e) { return blank(slot, null); }
   }
 
   function save(d) {
     try {
       d._v = SCHEMA_VERSION;   // 蓋上 schema 版本戳記,讓日後升級可判斷來源版本做 migrate
-      localStorage.setItem(KEY(d.pet), JSON.stringify(d));
+      d.pet = d.species || d.slot;   // 保持相容欄位同步
+      localStorage.setItem(KEY(d.slot || 'kidL'), JSON.stringify(d));
     } catch (e) {}
   }
 
@@ -313,6 +365,35 @@
   // xp → 成長階段
   function stageOf(xp) { return xp >= GROW.GROWN_AT ? 'grown' : xp >= GROW.KID_AT ? 'kid' : 'baby'; }
 
+  // ── v10:配件圖鑑(每物種 5 款,養大寶抽到才解鎖)──
+  const DECO_N = 5;   // 每物種配件款數(8 隻都是 5)
+  function markDeco(dex, sp, idx) {          // 在圖鑑上把某物種的某款配件標記為已收集
+    if (!dex || sp == null || typeof idx !== 'number' || idx < 0 || idx >= DECO_N) return;
+    if (!Array.isArray(dex[sp])) { dex[sp] = []; for (var i = 0; i < DECO_N; i++) dex[sp][i] = false; }
+    dex[sp][idx] = true;
+  }
+  function ownsDeco(d, sp, idx) { var a = d && d.decoDex && d.decoDex[sp]; return !!(Array.isArray(a) && a[idx]); }
+  // 回某物種已收集的配件 index 清單(如 [0,2,4])
+  function decoOwned(d, sp) {
+    var a = d && d.decoDex && d.decoDex[sp], out = [];
+    if (Array.isArray(a)) for (var i = 0; i < DECO_N; i++) if (a[i]) out.push(i);
+    return out;
+  }
+  // 換「已畢業珍藏大寶」的配件(index=collection 索引);只能換成已收集的。回成功與否。
+  function setCollectionDeco(slot, index, decoIdx) {
+    var d = load(slot);
+    if (!Array.isArray(d.collection) || !d.collection[index]) return false;
+    if (!ownsDeco(d, d.collection[index].species, decoIdx)) return false;
+    d.collection[index].deco = decoIdx; save(d); return true;
+  }
+  // 換「正在養的大寶」的配件;只能換成已收集的、且必須已是大寶。回成功與否。
+  function setCurrentDeco(slot, decoIdx) {
+    var d = load(slot);
+    if (!d.species || stageOf(d.growth.xp) !== 'grown') return false;
+    if (!ownsDeco(d, d.species, decoIdx)) return false;
+    d.growth.deco = decoIdx; save(d); return true;
+  }
+
   // 成長總覽:{ xp, stage, stageZh, next(下一階門檻,大寶為 null), progress(本階段進度 0~1) }
   function growthInfo(d) {
     var xp = (d.growth && typeof d.growth.xp === 'number') ? d.growth.xp : 0;
@@ -321,9 +402,65 @@
     var next = stage === 'baby' ? GROW.KID_AT : stage === 'kid' ? GROW.GROWN_AT : null;
     return {
       xp: xp, stage: stage, stageZh: STAGE_NAMES[stage], next: next,
+      deco: (d.growth && typeof d.growth.deco === 'number') ? d.growth.deco : 0,  // v8:大寶配件 index
       progress: next ? Math.min(1, (xp - lo) / (next - lo)) : 1
     };
   }
+
+  // ── v9:成長生命週期(選寵物 → 養大 → 大寶滿 3 天畢業入珍藏 → 重選)──
+  // today() 格式 'Y-M-D'(月/日不補零),用 UTC 換算避開時區問題。
+  function dateNum(s) { var p = (s || '').split('-'); return p.length === 3 ? Date.UTC(+p[0], +p[1] - 1, +p[2]) : NaN; }
+  function daysSince(s) { var n = dateNum(s); return isNaN(n) ? 0 : Math.floor((dateNum(today()) - n) / 86400000); }
+
+  function speciesOf(slot) { return load(slot).species; }
+
+  // 這個小孩選了(或畢業後重選)一隻物種,從幼幼開始養。
+  // 只重置寵物本身:species / growth / care / wish;points / dex / inv / levels / collection 全部保留給小孩。
+  function chooseSpecies(slot, species) {
+    var d = load(slot);
+    d.species = species || null;
+    d.name = null;                 // 用新物種的預設名
+    d.growth = { xp: 0, deco: null, grownAt: null };
+    d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
+    d.wish = null;
+    save(d);
+    return d;
+  }
+
+  // 大寶滿 GRADUATE_DAYS 天才能畢業(測試版即可)。回 { can, grown, daysLeft }。
+  function graduateInfo(d) {
+    var grown = !!(d.growth && stageOf(d.growth.xp) === 'grown');
+    if (!grown) return { can: false, grown: false, daysLeft: 0 };
+    if (isTest()) return { can: true, grown: true, daysLeft: 0 };
+    var since = d.growth.grownAt ? daysSince(d.growth.grownAt) : 0;
+    var left = Math.max(0, GRADUATE_DAYS - since);
+    return { can: left <= 0, grown: true, daysLeft: left };
+  }
+  function canGraduate(d) { return graduateInfo(d).can; }
+
+  // 畢業:把「大寶的樣子 + 抽到的配件 + 日期」永久收進本小孩的 collection,寵物 slot 重置成需重選。
+  // 回 collection entry(成功)或 null(還不能畢業)。
+  function graduate(slot) {
+    var d = load(slot);
+    if (!canGraduate(d)) return null;
+    var entry = {
+      species: d.species,
+      deco: (d.growth && typeof d.growth.deco === 'number') ? d.growth.deco : 0,
+      name: d.name || (window.PLS_CONFIG && PLS_CONFIG.pets[d.species] && PLS_CONFIG.pets[d.species].name) || null,
+      date: today()
+    };
+    if (!Array.isArray(d.collection)) d.collection = [];
+    d.collection.push(entry);
+    markDeco(d.decoDex || (d.decoDex = {}), entry.species, entry.deco);  // v10:確保畢業戴的配件已收集
+    d.species = null;              // 需要重新選一隻
+    d.growth = { xp: 0, deco: null, grownAt: null };
+    d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
+    d.wish = null;
+    save(d);
+    return entry;
+  }
+
+  function collectionOf(slot) { var c = load(slot).collection; return Array.isArray(c) ? c : []; }
 
   // 背包清單(依 key 排序,回 [{key, n}];n > 0 才列)
   function invList(d, kind) {
@@ -350,13 +487,30 @@
     save(d);
   }
 
-  // 加成長值(內部):回 { gain, xp, stage, grew(有沒有升階), stageZh }
+  // 加成長值(內部):回 { gain, capped, xp, stage, grew(有沒有升階), stageZh, deco }
+  // v8:每日成長上限(平板時間煞車)。超過上限的部分不再加 xp(但呼叫端動畫/圖鑑/積分照常);測試模式不限。
   function gainXp(d, base, firstToday) {
     var before = stageOf(d.growth.xp);
-    var gain = base + (firstToday ? GROW.DAILY_BONUS : 0);
+    var want = base + (firstToday ? GROW.DAILY_BONUS : 0);
+    var gain = want;
+    if (!isTest()) {
+      if (typeof d.care.xpToday !== 'number') d.care.xpToday = 0;
+      var room = Math.max(0, GROW.DAILY_XP_CAP - d.care.xpToday);
+      gain = Math.min(want, room);
+      d.care.xpToday += gain;
+    }
     d.growth.xp += gain;
     var after = stageOf(d.growth.xp);
-    return { gain: gain, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: after !== before };
+    var grew = after !== before;
+    // v8:第一次升上大寶 → 隨機抽一款配件(0-4)存住,固定戴到畢業
+    // v10:抽到的那款同時在配件圖鑑上解鎖(之後珍藏館可換成已解鎖的)
+    if (grew && after === 'grown' && d.growth.deco == null) {
+      d.growth.deco = Math.floor(Math.random() * DECO_N);
+      markDeco(d.decoDex || (d.decoDex = {}), d.species, d.growth.deco);
+    }
+    // v9:第一次升上大寶 → 記日期,開始 3 天畢業倒數
+    if (grew && after === 'grown' && !d.growth.grownAt) d.growth.grownAt = today();
+    return { gain: gain, capped: gain < want, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: grew, deco: d.growth.deco };
   }
 
   // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1);餵中今日許願的食物 → 基礎值加倍。
@@ -469,17 +623,20 @@
   function exportAll() {
     return JSON.stringify({
       app: 'pls', version: SCHEMA_VERSION, exportedAt: new Date().toISOString(),
-      rabbit: load('rabbit'), hamster: load('hamster'),
+      kidL: load('kidL'), kidR: load('kidR'),
       prizes: getPrizes(), rewardsHidden: rewardsHidden()      // v2:獎品目錄與隱藏設定(全域)
     }, null, 2);
   }
   // 向後相容:任何舊版(含沒有 version 欄位)的備份檔都先經 migratePet 正規化再存。
+  // v9:新檔用 kidL/kidR;舊檔用 rabbit/hamster → 對應到 左/右 小孩(兔兔→左、倉倉→右)。
   // 較新版本(version > SCHEMA_VERSION)則盡力匯入已知欄位,不直接拒絕。
   function importAll(json) {
     const d = JSON.parse(json);
     if (!d || d.app !== 'pls') throw new Error('不是寵物小學堂的備份檔');
-    if (d.rabbit)  save(migratePet(d.rabbit, 'rabbit'));
-    if (d.hamster) save(migratePet(d.hamster, 'hamster'));
+    if (d.kidL) save(migratePet(d.kidL, 'kidL', 'rabbit'));
+    else if (d.rabbit) save(migratePet(d.rabbit, 'kidL', 'rabbit'));       // 舊檔:兔兔 → 左小孩
+    if (d.kidR) save(migratePet(d.kidR, 'kidR', 'hamster'));
+    else if (d.hamster) save(migratePet(d.hamster, 'kidR', 'hamster'));    // 舊檔:倉倉 → 右小孩
     if (Array.isArray(d.prizes)) setPrizes(d.prizes);                       // 舊檔沒有就略過
     if (typeof d.rewardsHidden === 'boolean') setRewardsHidden(d.rewardsHidden);
   }
@@ -495,6 +652,13 @@
   }
 
   window.PLS_STORE = {
+    SLOTS: SLOTS, SLOT_NAMES: SLOT_NAMES,
+    // v9:小孩存檔 / 成長生命週期
+    speciesOf: speciesOf, chooseSpecies: chooseSpecies,
+    graduate: graduate, canGraduate: canGraduate, graduateInfo: graduateInfo, collectionOf: collectionOf,
+    // v10:配件圖鑑 / 換裝
+    DECO_N: DECO_N, decoOwned: decoOwned, ownsDeco: ownsDeco,
+    setCollectionDeco: setCollectionDeco, setCurrentDeco: setCurrentDeco,
     load: load, save: save, levelState: levelState,
     remainToday: remainToday, recordRun: recordRun,
     exportAll: exportAll, importAll: importAll, today: today,

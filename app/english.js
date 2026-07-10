@@ -76,9 +76,10 @@
   // 英文遊戲間:關卡圖
   // ════════════════════════════════════════════════════
   const emap = {
-    petId: 'rabbit', nodes: [], note: '',
+    petId: 'kidL', nodes: [], note: '',
     enter: function (params) {
-      this.petId = params.pet || 'rabbit';
+      this.petId = params.pet || 'kidL';           // v9:petId = 儲存 slot(kidL/kidR)
+      this.species = ST.load(this.petId).species || 'rabbit';
       this.note = '';
       this.scrollY = 0; this._pdown = false; this._drag = false; this._sbdrag = false;
       this._enteredAt = Date.now(); // 防止切換畫面時誤觸節點
@@ -154,7 +155,7 @@
         ctx.strokeStyle = 'rgba(143,201,168,0.95)'; ctx.lineWidth = 5;
         A.el(ctx, x, y, 56 * p, 56 * p); ctx.stroke();
       }
-      const tk = n.lv.toyArt && n.lv.toyArt[this.petId];
+      const tk = n.lv.toyArtU;
       if (tk) TOY.drawToy(ctx, tk, x, y, 0.66);
       else { ctx.fillStyle = 'rgba(150,170,150,0.5)'; ctx.font = '46px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('?', x, y + 2); }
       if (state === 'cleared') {
@@ -293,9 +294,11 @@
       this.qIndex = 0;
       this.firstTryCount = 0;
       this.streak = 0;
-      this.accent = CFG.pets[this.petId].theme.accent;
-      this.deep = CFG.pets[this.petId].theme.deep;
-      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
+      var _ed = ST.load(this.petId);
+      this.species = _ed.species || 'rabbit';
+      this.accent = CFG.pets[this.species].theme.accent;
+      this.deep = CFG.pets[this.species].theme.deep;
+      this.stage = ST.growthInfo(_ed).stage;
       this.bubbleText = pickTalk(CFG.talkEng.welcome);
       this.bubbleUntil = PLS.t + 2.6;
       this.locked = false;
@@ -730,7 +733,7 @@
         const res = ST.recordRun(d, 'english', this.lv.id, this.count, this.count, this.practice);
         if (res.feast) {
           // v4:玩具收進玩具箱(豪華版給 2 個)
-          const toyKey = this.lv.toyArt && this.lv.toyArt[this.petId];
+          const toyKey = this.lv.toyArtU;
           ST.addToy(d, toyKey, res.deluxe ? 2 : 1);
           PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears });
         } else {
@@ -784,7 +787,7 @@
         ctx.restore();
       }
       // 玩具進度(右上,愈做愈亮)
-      const tk = this.lv.toyArt && this.lv.toyArt[this.petId];
+      const tk = this.lv.toyArtU;
       if (tk) {
         ctx.save();
         ctx.globalAlpha = 0.28 + 0.72 * (this.qIndex / this.count);
@@ -805,7 +808,7 @@
           : this.mode === 'spell' ? { x: 96, y: 744, s: 0.4 }
             : { x: 160, y: 660, s: 0.55 };
       ctx.save(); ctx.translate(petPos.x, petPos.y); ctx.scale(petPos.s, petPos.s);
-      P.draw(this.petId, ctx, t, { stage: this.stage });
+      P.draw(this.species, ctx, t, { stage: this.stage });
       ctx.restore();
       this._petPos = petPos;
     },
@@ -982,9 +985,10 @@
     enter: function (params) {
       const self = this;
       this.petId = params.pet;
+      this.species = ST.load(this.petId).species || 'rabbit';
       this.lv = CFG.english[params.levelIdx];
-      this.toyKey = this.lv.toyArt[this.petId];
-      this.toyName = this.lv.toy[this.petId];
+      this.toyKey = this.lv.toyArtU;
+      this.toyName = this.lv.toyU;
       this.deluxe = !!params.deluxe;
       this.clears = params.clears || 0;
       this.start = PLS.t; this.heartTimer = 0;
@@ -1042,7 +1046,7 @@
       A.pill(ctx, W / 2, this.deluxe ? 272 : 240, '回房間陪牠玩吧!', '#5E7A56', 'rgba(220,240,220,0.90)', 21);
 
       // 寵物(左)+ 展示台(右)
-      ctx.save(); ctx.translate(360, 480); P.draw(this.petId, ctx, t, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
+      ctx.save(); ctx.translate(360, 480); P.draw(this.species, ctx, t, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
       const talk = this.deluxe ? CFG.talkEng.rewardDeluxe : CFG.talkEng.reward;
       A.bubble(ctx, 360, 300, k < 3.4 ? talk[0] : talk[1], { size: 27 });
 
@@ -1081,7 +1085,8 @@
     enter: function (params) {
       const self = this;
       this.petId = params.pet; this.levelIdx = params.levelIdx; this.practice = params.practice;
-      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
+      var _md = ST.load(this.petId); this.species = _md.species || 'rabbit';
+      this.stage = ST.growthInfo(_md).stage;
       this.msg = this.practice ? '練習完成!明天再來拿新玩具喔' : pickTalk(CFG.talkEng.full);
       PLS.addButton({
         x: W / 2 - 160, y: 720, w: 320, h: 100,
@@ -1109,10 +1114,10 @@
       ctx.restore();
       ctx.font = '32px ' + FONT; ctx.fillStyle = '#8AA08A';
       ctx.fillText(lv.name + '(' + lv.sub + ')', W / 2, 240);
-      const tk = lv.toyArt && lv.toyArt[this.petId];
+      const tk = lv.toyArtU;
       if (tk) TOY.drawToy(ctx, tk, W / 2, 318, 1.2);
 
-      ctx.save(); ctx.translate(W / 2, 600); ctx.scale(0.72, 0.72); P.draw(this.petId, ctx, t, { stage: this.stage }); ctx.restore();
+      ctx.save(); ctx.translate(W / 2, 600); ctx.scale(0.72, 0.72); P.draw(this.species, ctx, t, { stage: this.stage }); ctx.restore();
       A.bubble(ctx, W / 2, 440, this.msg, { size: 26 });
     }
   };
@@ -1123,11 +1128,12 @@
   const epractice = {
     enter: function (params) {
       const self = this;
-      this.petId = params.pet || 'rabbit';
-      this.accent = CFG.pets[this.petId].theme.accent;
+      this.petId = params.pet || 'kidL';
+      var _pd = ST.load(this.petId); this.species = _pd.species || 'rabbit';
+      this.accent = CFG.pets[this.species].theme.accent;
       this.cs = (params.cs === 'lower') ? 'lower' : 'upper';
       this.idx = 0;
-      this.stage = ST.growthInfo(ST.load(this.petId)).stage;
+      this.stage = ST.growthInfo(_pd).stage;
       if (params.letter) {
         const k = UP.indexOf(String(params.letter).toUpperCase());
         if (k >= 0) this.idx = k;
@@ -1312,7 +1318,7 @@
         ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.beginPath(); ctx.moveTo(cx - 10, cy + 1); ctx.lineTo(cx - 2, cy + 9); ctx.lineTo(cx + 11, cy - 8); ctx.stroke();
       }
-      ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.petId, ctx, t, { stage: this.stage }); ctx.restore();
+      ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.species, ctx, t, { stage: this.stage }); ctx.restore();
       if (this.hint && t - this.hintT < 1.8) A.bubble(ctx, W / 2, 150, this.hint, { size: 23 });
     }
   };
@@ -1323,11 +1329,12 @@
   const emenu = {
     enter: function (params) {
       const self = this;
-      this.petId = params.pet || 'rabbit';
-      this.accent = CFG.pets[this.petId].theme.accent;
+      this.petId = params.pet || 'kidL';
+      const _d = ST.load(this.petId);
+      this.species = _d.species || 'rabbit';
+      this.accent = CFG.pets[this.species].theme.accent;
       this.cs = (params.cs === 'lower') ? 'lower' : 'upper';
       // 本輪已描完的字母(大小寫各自獨立),用來在格子上打勾 + 顯示進度
-      const _d = ST.load(this.petId);
       this.doneSet = new Set(ST.hwRoundProgress(_d).letters);
       this.stage = ST.growthInfo(_d).stage;
       backButton('room', this.petId);
@@ -1388,7 +1395,7 @@
         A.pill(ctx, W / 2, 116, '本輪已完成 ' + this.doneSet.size + ' / 52 個 · 寫滿整輪 +1 分',
           '#C2851E', 'rgba(255,255,255,0.92)', 21);
       }
-      ctx.save(); ctx.translate(120, 720); ctx.scale(0.42, 0.42); P.draw(this.petId, ctx, t, { stage: this.stage }); ctx.restore();
+      ctx.save(); ctx.translate(120, 720); ctx.scale(0.42, 0.42); P.draw(this.species, ctx, t, { stage: this.stage }); ctx.restore();
     }
   };
 

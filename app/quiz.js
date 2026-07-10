@@ -41,6 +41,7 @@
       this.firstTryCount = 0;
       this.streak = 0;
       this.petMode = 'idle';
+      this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       this.bubbleText = this.practice ? pickTalk(CFG.talk.practice) : pickTalk(CFG.talk.welcome);
       this.bubbleUntil = PLS.t + 3;
@@ -405,7 +406,7 @@
 
       // 寵物 + 盤子 / 星星(左側)
       ctx.save(); ctx.translate(PET.x, PET.y); ctx.scale(PET.s, PET.s);
-      P.draw(this.petId, ctx, t, { mode: this.petMode, stage: this.stage });
+      P.draw(this.species, ctx, t, { mode: this.petMode, stage: this.stage });
       ctx.restore();
 
       if (this.practice) {
@@ -458,6 +459,7 @@
       this.levelIdx = params.levelIdx;
       this.correct = params.correct;
       this.practice = params.practice;
+      this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       this.msg = this.practice
         ? '練習完成!明天再請我吃大餐喔'
@@ -492,7 +494,7 @@
       ctx.fillText('答對 ' + this.correct + ' / ' + CFG.questionsPerLevel + ' 題', W / 2, 332);
 
       ctx.save(); ctx.translate(W / 2, 590); ctx.scale(0.7, 0.7);
-      P.draw(this.petId, ctx, t, { stage: this.stage });
+      P.draw(this.species, ctx, t, { stage: this.stage });
       ctx.restore();
       A.bubble(ctx, W / 2, 430, this.msg, { size: 26 });
     }
@@ -517,6 +519,7 @@
         : (this.lv.feast.basicName  || this.lv.feast.name);
       this.start = PLS.t;
       this.heartTimer = 0;
+      this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       // 籃子:已飛進幾個
       this.basketCount = 0;
@@ -756,7 +759,7 @@
 
       // v4:寵物模式改 'happy'(食物收進背包,牠很開心但沒在吃)
       ctx.save(); ctx.translate(W / 2, 410);
-      P.draw(this.petId, ctx, t, { mode: 'happy', stage: this.stage });
+      P.draw(this.species, ctx, t, { mode: 'happy', stage: this.stage });
       ctx.restore();
       if (this.deluxe) window.PLS_CROWN(ctx, W / 2, 322, 2.1, '#F6C44A');
       // v4:對話泡泡改用 harvest / harvestDeluxe
