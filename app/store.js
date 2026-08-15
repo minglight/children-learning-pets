@@ -6,7 +6,9 @@
   // 目前匯出檔的 schema 版本。動到結構就 +1,並更新 docs/export-import-schema.md。
   // v2:每筆寵物新增 points(可兌換積分)、hwEarned(手寫練習累計給分),daily 新增 hw(今日手寫輪數)。
   // v3:每筆寵物新增 hwRound(本輪已描完的字母清單;描滿 A–Z 大寫+a–z 小寫共 52 個才 +1 分)。
-  const SCHEMA_VERSION = 3;
+  // v4:每筆寵物新增 childNickname(小朋友暱稱,身份錨點,原本只存在 app/cloud.js 的雲端快取、換裝置匯入/還原會遺失,
+  //     現在進正式 schema 一起匯出/匯入/還原)、giftsGiven(拜訪好友時分享食物/玩具的次數小統計,不影響經驗值/點數)。
+  const SCHEMA_VERSION = 4;
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
   const HW_ROUND_TOTAL = 52;
@@ -22,6 +24,8 @@
     return {
       pet: petId,
       name: null,                 // null = 用預設名
+      childNickname: null,        // v4:小朋友暱稱(身份錨點,獨立於寵物名字/種類,隨進度一起匯出/匯入/還原)
+      giftsGiven: 0,               // v4:拜訪好友時分享食物/玩具的次數(小統計,不影響經驗值/點數)
       levels: {},                 // levelId -> {attempts, bestRate, cleared, plays}
       points: 0,                  // 可兌換獎品的積分(本寵物獨立)
       hwEarned: 0,                // 字母手寫練習累計已給的積分(上限 100)
@@ -62,6 +66,17 @@
     return h;
   }
 
+  // v4 一次性回填用:讀 app/cloud.js 舊版留下的 localStorage['pls.cloud.'+petId].childNickname。
+  // 純盡力而為,任何失敗都安靜回傳 null,不影響 migratePet 其餘欄位。
+  function readLegacyCloudNickname(petId) {
+    try {
+      var raw = localStorage.getItem('pls.cloud.' + petId);
+      if (!raw) return null;
+      var rec = JSON.parse(raw);
+      return (rec && typeof rec.childNickname === 'string' && rec.childNickname) ? rec.childNickname : null;
+    } catch (e) { return null; }
+  }
+
   // ── 測試版 / 正式版(全域,非分寵物)──
   // 測試版:解除關卡鎖定與每日限制,方便檢查內容
   function isTest() {
@@ -92,6 +107,12 @@
     if (typeof p.points !== 'number') p.points = 0;             // v2:可兌換積分
     if (typeof p.hwEarned !== 'number') p.hwEarned = 0;         // v2:手寫練習累計給分
     if (!Array.isArray(p.hwRound)) p.hwRound = [];             // v3:本輪已描完的字母
+    if (typeof p.giftsGiven !== 'number') p.giftsGiven = 0;    // v4:分享食物/玩具次數
+    if (!('childNickname' in p) || !p.childNickname) {
+      // v4:小朋友暱稱原本只存在 app/cloud.js 的 localStorage['pls.cloud.'+petId] 快取,
+      // 這裡盡力回填一次舊快取的值,讀不到就是 null(不拋例外、不影響其餘欄位)。
+      p.childNickname = readLegacyCloudNickname(petId);
+    }
     p.home = migrateHome(p.home);
 
     p._v = SCHEMA_VERSION;   // 升級完成,標記為目前版本
@@ -113,6 +134,8 @@
       d._v = SCHEMA_VERSION;   // 蓋上 schema 版本戳記,讓日後升級可判斷來源版本做 migrate
       localStorage.setItem(KEY(d.pet), JSON.stringify(d));
     } catch (e) {}
+    // 好友雲端同步 / 自動備份(選用):有掛 app/cloud.js 才會動作,離線/未設定時安靜跳過。
+    if (window.PLS_CLOUD && PLS_CLOUD.markDirty) PLS_CLOUD.markDirty(d.pet);
   }
 
   // 關卡狀態:'cleared' | 'open' | 'locked'

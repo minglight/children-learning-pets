@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>寵物房間元件設計 — 兔兔 / 倉倉</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&amp;family=Baloo+2:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#5E4A36; --sub:#9A8268; --line:#EFE4D4; --bg:#FFFFFF;
+    --rabbit:#C77F88; --hamster:#6E8BA4;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--bg); }
+  body{
+    font-family:"Huninn","Baloo 2",sans-serif; color:var(--ink);
+    -webkit-font-smoothing:antialiased; padding:46px 40px 80px;
+  }
+  .sheet{ max-width:1320px; margin:0 auto; }
+
+  header.top{ text-align:center; margin-bottom:14px; }
+  header.top h1{ font-size:34px; margin:0 0 8px; letter-spacing:.5px; }
+  header.top p{ font-size:16px; color:var(--sub); margin:0; line-height:1.6; }
+  .rule{ height:1px; background:var(--line); margin:26px 0 30px; }
+
+  .pets{ display:grid; grid-template-columns:1fr 1fr; gap:48px; }
+  @media (max-width:1080px){ .pets{ grid-template-columns:1fr; } }
+
+  .petcol h2{
+    display:inline-flex; align-items:center; gap:12px;
+    font-size:24px; margin:0 0 4px; padding:8px 20px 8px 12px; border-radius:999px;
+  }
+  .petcol .tag{ font-size:14px; color:#fff; padding:3px 12px; border-radius:999px; font-weight:700; }
+  .petcol .lede{ font-size:14px; color:var(--sub); margin:2px 0 22px; }
+  .col-rabbit h2{ background:#FBE8E4; color:#8A5560; }
+  .col-rabbit .tag{ background:var(--rabbit); }
+  .col-hamster h2{ background:#E6EFF5; color:#4E6B84; }
+  .col-hamster .tag{ background:var(--hamster); }
+
+  .cards{ display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  @media (max-width:520px){ .cards{ grid-template-columns:1fr; } }
+
+  .card{
+    border:1px solid var(--line); border-radius:22px; overflow:hidden; background:#fff;
+    box-shadow:0 10px 26px rgba(150,110,70,.07);
+  }
+  .card .frame{ background:#FFFDF9; padding:14px; border-bottom:1px solid var(--line); }
+  .card canvas{ display:block; width:100%; height:auto; border-radius:14px; }
+  .card .meta{ padding:13px 16px 16px; }
+  .card .num{ font-size:12px; color:var(--sub); letter-spacing:1px; }
+  .card .name{ font-size:18px; margin:1px 0 4px; }
+  .card .desc{ font-size:13px; color:var(--sub); line-height:1.55; margin:0 0 11px; min-height:36px; }
+
+  .swatches{ display:flex; flex-wrap:wrap; gap:7px; }
+  .sw{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--sub); }
+  .sw i{ width:18px; height:18px; border-radius:6px; border:1px solid rgba(0,0,0,.06); display:block; }
+  .sw b{ font-weight:400; font-family:"Baloo 2",monospace; letter-spacing:.3px; color:#7A6450; }
+
+  footer{ text-align:center; color:var(--sub); font-size:13px; margin-top:40px; line-height:1.7; }
+  footer code{ background:#F6EEE0; padding:2px 8px; border-radius:7px; color:#8A6242; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header class="top">
+    <h1>寵物房間元件設計</h1>
+    <p>沿用現有扁平向量 / 圓角 / 粉嫩畫風 — 為兔兔與倉倉各設計四個可辨識的房間元件。<br>純扁平填色、無寫實漸層,皆可用橢圓 + 矩形畫出。每格附配色 hex。</p>
+  </header>
+  <div class="rule"></div>
+
+  <div class="pets">
+    <section class="petcol col-rabbit">
+      <h2>兔兔的房間 <span class="tag">RABBIT</span></h2>
+      <p class="lede">暖珊瑚色調 · 胡蘿蔔主題</p>
+      <div class="cards" id="rabbitCards"></div>
+    </section>
+
+    <section class="petcol col-hamster">
+      <h2>倉倉的房間 <span class="tag">HAMSTER</span></h2>
+      <p class="lede">冷藍灰色調 · 向日葵 + 瓜子主題</p>
+      <div class="cards" id="hamsterCards"></div>
+    </section>
+  </div>
+
+  <footer>
+    維持「食物區=暖橘 / 遊戲區=綠」共用辨識色不變;此處只換各自的窗戶、壁紙、掛飾、屋頂木框。<br>
+    對應程式碼:<code>app/room.js</code> 的 <code>windowBox</code> · <code>wallpaper</code> · <code>picture</code> · <code>roofFrame</code>(交接檔另附)
+  </footer>
+</div>
+
+<script>
+const TAU = Math.PI * 2;
+const FONT = '"Huninn","Baloo 2",sans-serif';
+function el(ctx,x,y,rx,ry){ ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,TAU); }
+function rr(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
+
+/* ───────────────── 配色 ───────────────── */
+const KIT = {
+  rabbit: {
+    wall:'#FBE8E4',
+    win:{ frame:'#F7E4D3', sash:'#E6CBA6', sky:'#DCEFF6', sill:'#EAD7BE',
+          carrot:'#F2934A', carrotLeaf:'#8FBF6E', string:'#CBAE92' },
+    paper:{ base:'#FBE8E4', carrot:'#F2A35C', leaf:'#9CC97E' },
+    decor:{ frame:'#FBF6EC', mat:'#FBDCE2', carrot:'#F0934A', leaf:'#8FBF6E', bow:'#E89FB0' },
+    roof:{ roof:'#F2A98A', ridge:'#E58E6B', frameOut:'#E3A86C', frameIn:'#D69455', sign:'#FFF6E9', signInk:'#A85A3C' }
+  },
+  hamster: {
+    wall:'#E6EFF5',
+    win:{ frame:'#F4ECDD', ring:'#E0D2BC', sash:'#C9B79A', sky:'#D5E8F2', bolt:'#B9A98C',
+          petal:'#F6C64B', petalEdge:'#EBB534', center:'#8A6A3C' },
+    paper:{ base:'#E6EFF5', seed:'#9FB6CB', seedTip:'#7C9DB8' },
+    decor:{ frame:'#FBF6EC', mat:'#DCEBF4', petal:'#F6C64B', center:'#8A6A3C', bolt:'#B9A98C' },
+    roof:{ roof:'#9CC0CE', ridge:'#82A9B8', frameOut:'#C3B59A', frameIn:'#B0A085', sign:'#F3F8FA', signInk:'#4E6B84' }
+  }
+};
+
+/* ───────────────── 小元件畫法 ───────────────── */
+function miniCarrot(ctx,x,y,s,body,leaf){
+  ctx.fillStyle=body;
+  ctx.beginPath();
+  ctx.moveTo(x-6*s,y-9*s); ctx.lineTo(x+6*s,y-9*s);
+  ctx.quadraticCurveTo(x+3*s,y+2*s, x, y+11*s);
+  ctx.quadraticCurveTo(x-3*s,y+2*s, x-6*s,y-9*s);
+  ctx.fill();
+  ctx.fillStyle=leaf;
+  el(ctx,x,y-12*s,3.4*s,6*s); ctx.fill();
+  el(ctx,x-4.4*s,y-11*s,3*s,5*s); ctx.fill();
+  el(ctx,x+4.4*s,y-11*s,3*s,5*s); ctx.fill();
+}
+function miniSeed(ctx,x,y,s,rot,fill,tip){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+  ctx.fillStyle=fill;
+  ctx.beginPath();
+  ctx.moveTo(0,-9*s); ctx.quadraticCurveTo(6*s,0, 0,9*s); ctx.quadraticCurveTo(-6*s,0, 0,-9*s);
+  ctx.fill();
+  ctx.fillStyle=tip; el(ctx,0,5*s,2.2*s,2.6*s); ctx.fill();
+  ctx.restore();
+}
+function sunflower(ctx,cx,cy,r,petal,edge,center){
+  ctx.fillStyle=edge;
+  for(let i=0;i<12;i++){ const a=i/12*TAU; ctx.save(); ctx.translate(cx+Math.cos(a)*r*0.62, cy+Math.sin(a)*r*0.62); ctx.rotate(a); el(ctx,0,0,r*0.5,r*0.24); ctx.fill(); ctx.restore(); }
+  ctx.fillStyle=petal;
+  for(let i=0;i<12;i++){ const a=i/12*TAU; ctx.save(); ctx.translate(cx+Math.cos(a)*r*0.58, cy+Math.sin(a)*r*0.58); ctx.rotate(a); el(ctx,0,0,r*0.46,r*0.2); ctx.fill(); ctx.restore(); }
+  ctx.fillStyle=center; el(ctx,cx,cy,r*0.42,r*0.42); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.10)';
+  for(let i=0;i<7;i++){ const a=i/7*TAU; el(ctx,cx+Math.cos(a)*r*0.18,cy+Math.sin(a)*r*0.18,1.6,1.6); ctx.fill(); }
+}
+
+/* ───────────────── 1. 窗戶 ───────────────── */
+// 兔:拱形窗 + 紅蘿蔔吊飾
+function drawRabbitWindow(ctx,W,H,k){
+  const w=W*0.5, h=H*0.62, x=(W-w)/2, y=H*0.16, ax=x+w/2, top=y;
+  // 外框(拱形)
+  ctx.fillStyle=k.frame;
+  ctx.beginPath();
+  ctx.moveTo(x-9,y+h+9); ctx.lineTo(x-9,y+w/2);
+  ctx.arc(ax,y+w/2,w/2+9,Math.PI,0); ctx.lineTo(x+w+9,y+h+9); ctx.closePath(); ctx.fill();
+  // 天空
+  ctx.fillStyle=k.sky;
+  ctx.beginPath();
+  ctx.moveTo(x,y+h); ctx.lineTo(x,y+w/2);
+  ctx.arc(ax,y+w/2,w/2,Math.PI,0); ctx.lineTo(x+w,y+h); ctx.closePath(); ctx.fill();
+  // 雲
+  ctx.fillStyle='rgba(255,255,255,0.9)';
+  el(ctx,ax-w*0.18,y+h*0.5,17,10); ctx.fill(); el(ctx,ax+w*0.02,y+h*0.46,13,8); ctx.fill();
+  // 窗櫺
+  ctx.strokeStyle=k.sash; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(ax,y); ctx.lineTo(ax,y+h);
+  ctx.moveTo(x,y+h*0.58); ctx.lineTo(x+w,y+h*0.58); ctx.stroke();
+  // 窗台
+  ctx.fillStyle=k.sill; rr(ctx,x-18,y+h+6,w+36,14,7); ctx.fill();
+  // 紅蘿蔔吊飾
+  ctx.strokeStyle=k.string; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(x+w+2,y+w/2-22); ctx.lineTo(x+w+2,y+w/2+6); ctx.stroke();
+  miniCarrot(ctx,x+w+2,y+w/2+20,1.5,k.carrot,k.carrotLeaf);
+}
+// 倉:圓舷窗 + 向日葵
+function drawHamsterWindow(ctx,W,H,k){
+  const cx=W/2, cy=H*0.48, r=Math.min(W,H)*0.32;
+  ctx.fillStyle=k.frame; el(ctx,cx,cy,r+13,r+13); ctx.fill();
+  ctx.fillStyle=k.ring; el(ctx,cx,cy,r+13,r+13); ctx.fill();
+  ctx.fillStyle=k.frame; el(ctx,cx,cy,r+4,r+4); ctx.fill();
+  ctx.fillStyle=k.sky; el(ctx,cx,cy,r,r); ctx.fill();
+  // 雲
+  ctx.fillStyle='rgba(255,255,255,0.92)';
+  el(ctx,cx-r*0.28,cy+r*0.28,r*0.34,r*0.18); ctx.fill(); el(ctx,cx+r*0.02,cy+r*0.34,r*0.24,r*0.14); ctx.fill();
+  // 向日葵(取代太陽)
+  sunflower(ctx,cx+r*0.34,cy-r*0.3,r*0.5,k.petal,k.petalEdge,k.center);
+  // 十字窗櫺
+  ctx.save(); ctx.beginPath(); el(ctx,cx,cy,r,r); ctx.clip();
+  ctx.strokeStyle=k.sash; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(cx-r,cy); ctx.lineTo(cx+r,cy); ctx.moveTo(cx,cy-r); ctx.lineTo(cx,cy+r); ctx.stroke();
+  ctx.restore();
+  // 鉚釘
+  ctx.fillStyle=k.bolt;
+  for(let i=0;i<8;i++){ const a=i/8*TAU; el(ctx,cx+Math.cos(a)*(r+8),cy+Math.sin(a)*(r+8),3.4,3.4); ctx.fill(); }
+}
+
+/* ───────────────── 2. 壁紙 ───────────────── */
+function paperBg(ctx,W,H,base){ rr(ctx,8,8,W-16,H-16,16); ctx.save(); ctx.clip(); ctx.fillStyle=base; ctx.fillRect(0,0,W,H); }
+function drawRabbitPaper(ctx,W,H,k){
+  paperBg(ctx,W,H,k.base);
+  for(let yy=28; yy<H; yy+=52)
+    for(let xx=(Math.floor(yy/52)%2?28:60); xx<W; xx+=64) miniCarrot(ctx,xx,yy,0.95,k.carrot,k.leaf);
+  ctx.restore();
+}
+function drawHamsterPaper(ctx,W,H,k){
+  paperBg(ctx,W,H,k.base);
+  for(let yy=26; yy<H; yy+=46)
+    for(let xx=(Math.floor(yy/46)%2?26:56); xx<W; xx+=60){
+      miniSeed(ctx,xx,yy,1,-0.5,k.seed,k.seedTip);
+      miniSeed(ctx,xx+22,yy+10,0.9,0.6,k.seed,k.seedTip);
+    }
+  ctx.restore();
+}
+
+/* ───────────────── 3. 牆上掛飾 ───────────────── */
+// 兔:拱頂相框 + 胡蘿蔔 + 蝴蝶結
+function drawRabbitDecor(ctx,W,H,k){
+  const w=W*0.46, h=H*0.6, x=(W-w)/2, y=H*0.22, ax=x+w/2;
+  // 釘繩
+  ctx.strokeStyle='#D8C3A8'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(ax-w*0.3,y-2); ctx.lineTo(ax,y-26); ctx.lineTo(ax+w*0.3,y-2); ctx.stroke();
+  ctx.fillStyle='#C9A98A'; el(ctx,ax,y-28,4,4); ctx.fill();
+  // 拱頂外框
+  ctx.fillStyle=k.frame;
+  ctx.beginPath(); ctx.moveTo(x,y+h); ctx.lineTo(x,y+w/2);
+  ctx.arc(ax,y+w/2,w/2,Math.PI,0); ctx.lineTo(x+w,y+h); ctx.closePath(); ctx.fill();
+  // 內襯
+  const mx=x+12, mw=w-24, my=y+12, mh=h-24;
+  ctx.fillStyle=k.mat;
+  ctx.beginPath(); ctx.moveTo(mx,my+mh); ctx.lineTo(mx,my+mw/2);
+  ctx.arc(ax,my+mw/2,mw/2,Math.PI,0); ctx.lineTo(mx+mw,my+mh); ctx.closePath(); ctx.fill();
+  // 胡蘿蔔圖
+  miniCarrot(ctx,ax,y+h*0.56,2.1,k.carrot,k.leaf);
+  // 蝴蝶結
+  ctx.fillStyle=k.bow;
+  el(ctx,ax-12,y+4,9,7); ctx.fill(); el(ctx,ax+12,y+4,9,7); ctx.fill();
+  ctx.fillStyle='#D98AA0'; el(ctx,ax,y+4,5,5); ctx.fill();
+}
+// 倉:圓形相框 + 向日葵
+function drawHamsterDecor(ctx,W,H,k){
+  const cx=W/2, cy=H*0.52, r=Math.min(W,H)*0.3;
+  // 掛釘
+  ctx.fillStyle=k.bolt; el(ctx,cx,cy-r-16,4,4); ctx.fill();
+  ctx.strokeStyle='#C9B79A'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(cx-r*0.5,cy-r*0.74); ctx.lineTo(cx,cy-r-14); ctx.lineTo(cx+r*0.5,cy-r*0.74); ctx.stroke();
+  // 外框
+  ctx.fillStyle=k.frame; el(ctx,cx,cy,r+11,r+11); ctx.fill();
+  ctx.fillStyle=k.mat; el(ctx,cx,cy,r,r); ctx.fill();
+  // 向日葵圖
+  sunflower(ctx,cx,cy,r*1.15,k.petal,'#EBB534',k.center);
+}
+
+/* ───────────────── 4. 屋頂 / 木框 ───────────────── */
+function drawRoofSwatch(ctx,W,H,k,title){
+  const fx=W*0.16, fw=W*0.68, fy=H*0.4, fh=H*0.46;
+  // 屋頂
+  ctx.fillStyle=k.roof;
+  ctx.beginPath(); ctx.moveTo(fx-12,fy+8); ctx.lineTo(fx+fw/2,fy-46); ctx.lineTo(fx+fw+12,fy+8); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=k.ridge; ctx.fillRect(fx-12,fy-2,fw+24,11);
+  // 招牌
+  ctx.fillStyle=k.sign; rr(ctx,fx+fw/2-52,fy-40,104,30,15); ctx.fill();
+  ctx.fillStyle=k.signInk; ctx.font='17px '+FONT; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(title,fx+fw/2,fy-24);
+  // 厚木框(外 + 內)
+  ctx.fillStyle=k.frameOut; rr(ctx,fx,fy,fw,fh,18); ctx.fill();
+  ctx.fillStyle=k.frameIn; rr(ctx,fx+13,fy+13,fw-26,fh-26,11); ctx.fill();
+  // 內側留白(房間留空示意)
+  ctx.fillStyle='#FFFDF9'; rr(ctx,fx+26,fy+26,fw-52,fh-52,7); ctx.fill();
+}
+
+/* ───────────────── 卡片資料 ───────────────── */
+const swatchOf = (label,hex)=>({label,hex});
+function cardData(pet){
+  const k = KIT[pet];
+  if(pet==='rabbit') return [
+    { num:'01 · 窗戶', name:'拱形窗 + 紅蘿蔔吊飾', desc:'圓拱頂、暖奶油木框,側邊垂一根紅蘿蔔吊飾。',
+      draw:(c,W,H)=>drawRabbitWindow(c,W,H,k.win),
+      sw:[swatchOf('框',k.win.frame),swatchOf('天空',k.win.sky),swatchOf('蘿蔔',k.win.carrot),swatchOf('葉',k.win.carrotLeaf)] },
+    { num:'02 · 壁紙', name:'胡蘿蔔點點', desc:'以小胡蘿蔔取代圓點,交錯排列的重複圖樣。',
+      draw:(c,W,H)=>drawRabbitPaper(c,W,H,k.paper),
+      sw:[swatchOf('底',k.paper.base),swatchOf('蘿蔔',k.paper.carrot),swatchOf('葉',k.paper.leaf)] },
+    { num:'03 · 牆上掛飾', name:'拱頂相框 + 蝴蝶結', desc:'與窗呼應的拱頂相框,內裝胡蘿蔔,頂上繫粉色蝴蝶結。',
+      draw:(c,W,H)=>drawRabbitDecor(c,W,H,k.decor),
+      sw:[swatchOf('框',k.decor.frame),swatchOf('襯',k.decor.mat),swatchOf('蝴蝶結',k.decor.bow)] },
+    { num:'04 · 屋頂 / 木框', name:'暖珊瑚屋頂', desc:'屋頂與木框走暖珊瑚 / 蜜糖木色,溫暖親切。',
+      draw:(c,W,H)=>drawRoofSwatch(c,W,H,k.roof,'兔兔的房間'),
+      sw:[swatchOf('屋頂',k.roof.roof),swatchOf('屋脊',k.roof.ridge),swatchOf('框外',k.roof.frameOut),swatchOf('框內',k.roof.frameIn)] }
+  ];
+  return [
+    { num:'01 · 窗戶', name:'圓舷窗 + 向日葵', desc:'圓形舷窗、十字窗櫺、外圈鉚釘,角落一朵向日葵取代太陽。',
+      draw:(c,W,H)=>drawHamsterWindow(c,W,H,k.win),
+      sw:[swatchOf('框',k.win.frame),swatchOf('天空',k.win.sky),swatchOf('花瓣',k.win.petal),swatchOf('花心',k.win.center)] },
+    { num:'02 · 壁紙', name:'瓜子點點', desc:'尖橢圓的瓜子圖樣成對散落,交錯重複。',
+      draw:(c,W,H)=>drawHamsterPaper(c,W,H,k.paper),
+      sw:[swatchOf('底',k.paper.base),swatchOf('瓜子',k.paper.seed),swatchOf('尖端',k.paper.seedTip)] },
+    { num:'03 · 牆上掛飾', name:'圓形相框 + 向日葵', desc:'圓形相框、雙線掛釘,內裝一朵大向日葵。',
+      draw:(c,W,H)=>drawHamsterDecor(c,W,H,k.decor),
+      sw:[swatchOf('框',k.decor.frame),swatchOf('襯',k.decor.mat),swatchOf('花瓣',k.decor.petal)] },
+    { num:'04 · 屋頂 / 木框', name:'冷藍灰屋頂', desc:'屋頂走霧藍、木框轉灰木色,清爽冷調,與兔兔區隔。',
+      draw:(c,W,H)=>drawRoofSwatch(c,W,H,k.roof,'倉倉的房間'),
+      sw:[swatchOf('屋頂',k.roof.roof),swatchOf('屋脊',k.roof.ridge),swatchOf('框外',k.roof.frameOut),swatchOf('框內',k.roof.frameIn)] }
+  ];
+}
+
+/* ───────────────── 渲染 ───────────────── */
+const CW=290, CH=190;
+function buildCard(d){
+  const card=document.createElement('div'); card.className='card';
+  const frame=document.createElement('div'); frame.className='frame';
+  const cv=document.createElement('canvas');
+  const dpr=window.devicePixelRatio||1;
+  cv.width=CW*dpr; cv.height=CH*dpr; cv.style.aspectRatio=CW+'/'+CH;
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  d.draw(ctx,CW,CH);
+  frame.appendChild(cv); card.appendChild(frame);
+  const meta=document.createElement('div'); meta.className='meta';
+  const sw=d.sw.map(s=>`<span class="sw"><i style="background:${s.hex}"></i><b>${s.hex}</b></span>`).join('');
+  meta.innerHTML=`<div class="num">${d.num}</div><div class="name">${d.name}</div><div class="desc">${d.desc}</div><div class="swatches">${sw}</div>`;
+  card.appendChild(meta);
+  return card;
+}
+function render(){
+  cardData('rabbit').forEach(d=>document.getElementById('rabbitCards').appendChild(buildCard(d)));
+  cardData('hamster').forEach(d=>document.getElementById('hamsterCards').appendChild(buildCard(d)));
+}
+if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(render); setTimeout(()=>{ if(!document.querySelector('.card')) render(); },800); }
+else render();
+</script>
+</body>
+</html>

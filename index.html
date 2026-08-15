@@ -99,6 +99,35 @@
   .pin-key:active { transform: scale(0.94); background: #F2DFC2; }
   .pin-key.wide { font-size: 17px; }
   .pin-key.blank { background: transparent; cursor: default; }
+
+  /* ── 好友(DOM 覆蓋層)── */
+  #friends-overlay {
+    position: fixed; inset: 0; background: rgba(90, 70, 50, 0.45);
+    display: none; align-items: center; justify-content: center; z-index: 12;
+  }
+  #friends-overlay.show { display: flex; }
+  #friends-panel {
+    width: min(560px, 90vw); max-height: 86vh; overflow: auto;
+    background: #FFFCF6; border-radius: 28px; padding: 28px 30px;
+    box-shadow: 0 18px 50px rgba(90, 60, 30, 0.3); color: #5E4A36;
+  }
+  #friends-panel h2 { margin: 0 0 4px; font-size: 26px; font-weight: normal; color: #8A6242; }
+  #friends-panel .hint { font-size: 14px; color: #A8927A; margin: 0 0 18px; }
+  #friends-panel section { border-top: 1px solid #EFE4D4; padding: 14px 0; }
+  #friends-panel h3 { margin: 0 0 10px; font-size: 17px; font-weight: normal; color: #8A6242; }
+  #friends-close { position: sticky; top: 0; float: right; margin: -6px -8px 0 0; }
+  .code-display {
+    font-family: 'Andika', monospace; font-size: 26px; letter-spacing: 4px;
+    background: #F6EEE0; border-radius: 14px; padding: 12px 16px; text-align: center;
+    color: #8A6242; margin-bottom: 10px;
+  }
+  .friend-row {
+    display: flex; align-items: center; gap: 10px; justify-content: space-between;
+    background: #FBF6EC; border-radius: 16px; padding: 10px 14px; margin-bottom: 10px;
+  }
+  .friend-row .fname { font-size: 17px; color: #5E4A36; }
+  #friends-msg { font-size: 14px; color: #6FA86A; min-height: 20px; margin-top: 8px; }
+  #friends-offline { font-size: 15px; color: #B5705E; text-align: center; padding: 30px 10px; display: none; }
 </style>
 </head>
 <body>
@@ -121,6 +150,9 @@
       <h3>寵物名字</h3>
       <div class="prow"><label>兔兔</label><input type="text" id="name-rabbit" maxlength="6" placeholder="兔兔"></div>
       <div class="prow"><label>倉鼠</label><input type="text" id="name-hamster" maxlength="6" placeholder="倉倉"></div>
+      <p class="hint" style="margin:12px 0 8px">小朋友暱稱(好友辨識用,例如「小明」;之後不管寵物名字/種類怎麼換,好友都還是認得這個暱稱)</p>
+      <div class="prow"><label>兔兔的主人</label><input type="text" id="nick-rabbit" maxlength="6" placeholder="小主人暱稱"></div>
+      <div class="prow"><label>倉倉的主人</label><input type="text" id="nick-hamster" maxlength="6" placeholder="小主人暱稱"></div>
       <div class="pbtns"><button class="pbtn ghost" id="save-names">儲存名字</button></div>
     </section>
 
@@ -167,6 +199,68 @@
       </div>
       <div id="parent-msg"></div>
     </section>
+
+    <section>
+      <h3>雲端備份</h3>
+      <p class="hint" style="margin:0 0 12px">App 背景會自動把進度定時備份到雲端(需要網路)。裝置壞掉或資料被清掉時,可以用還原碼在新裝置救回進度。還原碼只在這裡看得到,不會出現在小朋友的好友面板。</p>
+      <div id="cloud-backup-info"></div>
+      <h3 style="margin-top:16px">用還原碼救回進度</h3>
+      <div class="prow">
+        <input type="text" id="restore-code-input" maxlength="10" placeholder="輸入 10 碼還原碼" style="width:200px;text-transform:uppercase">
+        <button class="pbtn ghost" id="restore-lookup-btn">查詢</button>
+      </div>
+      <div id="restore-confirm" style="display:none">
+        <p id="restore-confirm-text" style="margin:8px 0"></p>
+        <div class="prow">
+          <label>還原到本機哪一格</label>
+          <select id="restore-pet" style="font-family:inherit;font-size:15px;padding:8px 10px;border:2px solid #EFE4D4;border-radius:12px">
+            <option value="rabbit">兔兔格</option>
+            <option value="hamster">倉鼠格</option>
+          </select>
+        </div>
+        <div class="prow"><button class="pbtn ghost" id="restore-code-btn">確認還原</button></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="friends-overlay">
+  <div id="friends-panel">
+    <button class="pbtn ghost" id="friends-close">關閉 ✕</button>
+    <h2>好友</h2>
+    <p class="hint">跟同學交換好友代碼,每天可以去朋友家串一次門子(唯讀,只能看喔)。</p>
+
+    <div id="friends-offline">目前無法連線好友功能,請檢查網路。</div>
+
+    <div id="friends-body">
+      <section id="friends-need-nickname" style="display:none">
+        <p class="hint" style="margin:0">請先請爸爸媽媽到家長區,幫你取個暱稱才能用好友功能喔!</p>
+      </section>
+
+      <section id="friends-main" style="display:none">
+        <h3>我的好友代碼</h3>
+        <div id="my-identity" class="hint" style="margin:0 0 8px"></div>
+        <div class="code-display" id="my-friend-code">------</div>
+
+        <h3>加好友</h3>
+        <div class="prow">
+          <input type="text" id="add-code-input" maxlength="6" placeholder="輸入好友代碼" style="width:160px;text-transform:uppercase">
+          <button class="pbtn ghost" id="add-code-btn">查詢</button>
+        </div>
+        <div id="add-confirm" style="display:none;margin-top:8px">
+          <p class="hint" id="add-confirm-text" style="margin:0 0 8px"></p>
+          <div class="pbtns">
+            <button class="pbtn" id="add-confirm-yes">加為好友</button>
+            <button class="pbtn ghost" id="add-confirm-no">取消</button>
+          </div>
+        </div>
+
+        <h3>好友清單</h3>
+        <div id="friend-list"></div>
+
+        <div id="friends-msg"></div>
+      </section>
+    </div>
   </div>
 </div>
 
@@ -197,6 +291,12 @@
 <script src="app/gen.js"></script>
 <script src="app/bank.js"></script>
 <script src="app/store.js"></script>
+<!-- 好友雲端同步 / 自動備份(選用):Firebase compat SDK,固定版本以配合 sw.js 離線快取。
+     app/cloud.js 對「SDK 載入失敗 / CFG.firebase 未設定 / 離線」全部 fail-soft,不影響本機遊戲。 -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app/cloud.js"></script>
 <script src="app/art.js"></script>
 <script src="app/toys.js"></script>
 <script src="app/visuals.js"></script>
@@ -205,6 +305,7 @@
 <script src="app/points.js"></script>
 <script src="app/screens.js"></script>
 <script src="app/room.js"></script>
+<script src="app/visit.js"></script>
 <script src="app/shelf.js"></script>
 <script src="app/quiz.js"></script>
 <script src="app/letters.js"></script>
@@ -240,6 +341,29 @@
     document.getElementById('name-rabbit').value = ST.load('rabbit').name || '';
     document.getElementById('name-hamster').value = ST.load('hamster').name || '';
     document.getElementById('daily-limit-input').value = ST.getDailyLimit();
+    document.getElementById('nick-rabbit').value = ST.load('rabbit').childNickname || '';
+    document.getElementById('nick-hamster').value = ST.load('hamster').childNickname || '';
+  }
+
+  // ── 雲端備份資訊(還原碼 / 上次備份時間;純讀本機快取,不用等網路)──
+  function refreshCloudInfo() {
+    const box = document.getElementById('cloud-backup-info');
+    box.innerHTML = '';
+    if (!window.PLS_CLOUD) return;
+    ['rabbit', 'hamster'].forEach(function (pid) {
+      const info = window.PLS_CLOUD.getLocalInfo(pid);
+      const name = ST.load(pid).name || CFG.pets[pid].name;
+      const row = document.createElement('div');
+      row.className = 'stat-row';
+      row.appendChild(document.createTextNode(name + ' 還原碼:'));
+      const codeEl = document.createElement('b');
+      codeEl.textContent = info.restoreCode || '尚未產生(需連網)';
+      row.appendChild(codeEl);
+      const backupEl = document.createElement('span');
+      backupEl.textContent = info.lastBackupAt ? ('上次備份 ' + new Date(info.lastBackupAt).toLocaleString()) : '尚未備份';
+      row.appendChild(backupEl);
+      box.appendChild(row);
+    });
   }
 
   // ── 獎品商店:目錄編輯 ──
@@ -285,7 +409,7 @@
 
   window.PLS_PARENT = {
     open: function () {
-      refreshStats(); msg.textContent = '';
+      refreshStats(); refreshCloudInfo(); msg.textContent = '';
       document.getElementById('test-toggle').checked = ST.isTest();
       document.getElementById('rewards-hide-toggle').checked = ST.rewardsHidden();
       renderPrizes();
@@ -390,10 +514,56 @@
       const d = ST.load(pid);
       const v = document.getElementById('name-' + pid).value.trim();
       d.name = v || null;
+      const nick = document.getElementById('nick-' + pid).value.trim();
+      d.childNickname = nick || null;
       ST.save(d);
     });
     msg.textContent = '名字已儲存';
     refreshStats();
+  });
+
+  // 還原碼救回進度:先查代碼、帶出「哪個小朋友的哪種寵物」給家長確認,再選要蓋掉本機哪一格。
+  // 不再是「先猜物種、才輸入代碼」——避免瞎選跟資料內容對不上。
+  const RESTORE_REASON_MSG = {
+    not_found: '找不到這個還原碼,請再檢查一次',
+    offline: '目前無法連線,請檢查網路',
+    empty: '請輸入還原碼'
+  };
+  document.getElementById('restore-lookup-btn').addEventListener('click', function () {
+    if (!window.PLS_CLOUD) return;
+    const code = document.getElementById('restore-code-input').value.trim();
+    document.getElementById('restore-confirm').style.display = 'none';
+    if (!code) { msg.textContent = '請輸入還原碼'; return; }
+    msg.textContent = '查詢中…';
+    window.PLS_CLOUD.lookupRestoreCode(code).then(function (res) {
+      if (res.ok) {
+        const kindLabel = (CFG.pets[res.petKind] && CFG.pets[res.petKind].name) || res.petKind || '';
+        document.getElementById('restore-confirm-text').textContent =
+          '這組還原碼是「' + (res.childNickname || '(未設定暱稱)') + '的' + kindLabel + '」的進度,請選要蓋掉本機哪一格:';
+        document.getElementById('restore-confirm').style.display = 'block';
+        msg.textContent = '';
+      } else {
+        msg.textContent = RESTORE_REASON_MSG[res.reason] || '查詢失敗,請稍後再試';
+      }
+    });
+  });
+
+  document.getElementById('restore-code-btn').addEventListener('click', function () {
+    if (!window.PLS_CLOUD) return;
+    const pid = document.getElementById('restore-pet').value;
+    const code = document.getElementById('restore-code-input').value.trim();
+    if (!code) { msg.textContent = '請輸入還原碼'; return; }
+    msg.textContent = '還原中…';
+    window.PLS_CLOUD.restoreFromCode(pid, code).then(function (res) {
+      if (res.ok) {
+        msg.textContent = '還原成功!';
+        document.getElementById('restore-code-input').value = '';
+        document.getElementById('restore-confirm').style.display = 'none';
+        refreshStats(); refreshCloudInfo();
+      } else {
+        msg.textContent = RESTORE_REASON_MSG[res.reason] || '還原失敗,請稍後再試';
+      }
+    });
   });
 
   document.getElementById('export-btn').addEventListener('click', function () {
@@ -425,7 +595,135 @@
     r.readAsText(f);
   });
 
+  // ── 好友(雲端)──
+  // 好友資料是別人輸入的跨使用者內容,一律用 textContent 塞入,不用 innerHTML(XSS 防護)。
+  const friendsOverlay = document.getElementById('friends-overlay');
+  const friendsMsg = document.getElementById('friends-msg');
+  let friendsPetId = 'rabbit';
+
+  function renderFriendList(list) {
+    const box = document.getElementById('friend-list');
+    box.textContent = '';
+    if (!list || !list.length) {
+      const p = document.createElement('p');
+      p.className = 'hint'; p.textContent = '還沒有好友,輸入代碼加一個吧!';
+      box.appendChild(p);
+      return;
+    }
+    list.forEach(function (f) {
+      const row = document.createElement('div');
+      row.className = 'friend-row';
+      const kindLabel = (CFG.pets[f.petKind] && CFG.pets[f.petKind].name) || '';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'fname';
+      nameEl.textContent = (f.childNickname || '朋友') + '的' + kindLabel;
+      const btn = document.createElement('button');
+      btn.className = 'pbtn ghost';
+      btn.textContent = f.visitedToday ? '今天已拜訪' : '拜訪';
+      btn.disabled = !!f.visitedToday;
+      if (f.visitedToday) btn.style.opacity = '0.5';
+      btn.addEventListener('click', function () {
+        btn.disabled = true; btn.textContent = '前往中…';
+        window.PLS_CLOUD.visitFriend(friendsPetId, f.playerId).then(function (res) {
+          if (res.ok) {
+            window.PLS_FRIENDS.close();
+            window.PLS.go('visit', { pet: friendsPetId, friend: res.friend });
+          } else {
+            btn.disabled = false; btn.textContent = '拜訪';
+            friendsMsg.textContent = res.reason === 'already_visited' ? '今天已經拜訪過囉!' : '暫時無法拜訪,請稍後再試';
+          }
+        });
+      });
+      row.appendChild(nameEl); row.appendChild(btn);
+      box.appendChild(row);
+    });
+  }
+
+  function refreshFriendsPanel(petId) {
+    friendsPetId = petId;
+    document.getElementById('friends-offline').style.display = 'none';
+    document.getElementById('friends-body').style.display = '';
+    friendsMsg.textContent = '';
+    document.getElementById('add-confirm').style.display = 'none';
+    document.getElementById('add-code-input').value = '';
+
+    if (!window.PLS_CLOUD || !window.PLS_CLOUD.isConfigured()) {
+      document.getElementById('friends-body').style.display = 'none';
+      document.getElementById('friends-offline').style.display = 'block';
+      document.getElementById('friends-offline').textContent = '好友功能尚未設定,請聯絡家長。';
+      return;
+    }
+
+    const nickname = ST.load(petId).childNickname || '';
+    if (!nickname) {
+      document.getElementById('friends-need-nickname').style.display = 'block';
+      document.getElementById('friends-main').style.display = 'none';
+      return;
+    }
+    document.getElementById('friends-need-nickname').style.display = 'none';
+    document.getElementById('friends-main').style.display = 'block';
+
+    const kindLabel = (CFG.pets[petId] && CFG.pets[petId].name) || '';
+    document.getElementById('my-identity').textContent = '我是「' + nickname + '的' + kindLabel + '」';
+    document.getElementById('my-friend-code').textContent = '取得中…';
+    document.getElementById('friend-list').textContent = '載入中…';
+
+    window.PLS_CLOUD.ensureLinked(petId).then(function (rec) {
+      if (!rec) {
+        document.getElementById('friends-body').style.display = 'none';
+        document.getElementById('friends-offline').style.display = 'block';
+        document.getElementById('friends-offline').textContent = '目前無法連線好友功能,請檢查網路。';
+        return;
+      }
+      document.getElementById('my-friend-code').textContent = rec.friendCode;
+      return window.PLS_CLOUD.listFriends(petId).then(renderFriendList);
+    });
+  }
+
+  document.getElementById('add-code-btn').addEventListener('click', function () {
+    const code = document.getElementById('add-code-input').value.trim();
+    if (!code) return;
+    friendsMsg.textContent = '';
+    window.PLS_CLOUD.lookupFriendCode(code).then(function (res) {
+      if (!res.ok) {
+        friendsMsg.textContent = res.reason === 'not_found' ? '找不到這個代碼,再檢查一次喔' : '暫時無法查詢,請稍後再試';
+        return;
+      }
+      const kindLabel = (CFG.pets[res.petKind] && CFG.pets[res.petKind].name) || '';
+      document.getElementById('add-confirm-text').textContent =
+        '要加「' + (res.childNickname || '朋友') + '的' + kindLabel + '」為好友嗎?';
+      document.getElementById('add-confirm').style.display = 'block';
+    });
+  });
+  document.getElementById('add-confirm-yes').addEventListener('click', function () {
+    const code = document.getElementById('add-code-input').value.trim();
+    document.getElementById('add-confirm').style.display = 'none';
+    window.PLS_CLOUD.addFriendByCode(friendsPetId, code).then(function (res) {
+      if (res.ok) {
+        friendsMsg.textContent = '已加為好友!';
+        document.getElementById('add-code-input').value = '';
+        window.PLS_CLOUD.listFriends(friendsPetId).then(renderFriendList);
+      } else {
+        friendsMsg.textContent = res.reason === 'self' ? '不能加自己當好友喔' : '加好友失敗,請稍後再試';
+      }
+    });
+  });
+  document.getElementById('add-confirm-no').addEventListener('click', function () {
+    document.getElementById('add-confirm').style.display = 'none';
+  });
+
+  window.PLS_FRIENDS = {
+    open: function (petId) {
+      refreshFriendsPanel(petId || 'rabbit');
+      friendsOverlay.classList.add('show');
+    },
+    close: function () { friendsOverlay.classList.remove('show'); }
+  };
+  document.getElementById('friends-close').addEventListener('click', window.PLS_FRIENDS.close);
+  friendsOverlay.addEventListener('click', function (e) { if (e.target === friendsOverlay) window.PLS_FRIENDS.close(); });
+
   // ── 啟動 ──
+  if (window.PLS_CLOUD) window.PLS_CLOUD.init();   // 提早匿名登入,不等到第一次好友/備份操作才連線
   window.PLS.init(document.getElementById('game'));
   window.PLS.go('home');
 

@@ -4,7 +4,10 @@
 
 ## 專案性質
 - **純前端、單機 App**（HTML + Canvas + 原生 JS，PWA / 可離線）。
-- **沒有後端、沒有伺服器、沒有帳號**。所有使用者資料只存在裝置本機。
+- **核心進度沒有後端、沒有伺服器、沒有帳號**。所有學習進度只存在裝置本機，這條原則不變。
+- **例外**：有一組「好友雲端同步 / 自動備份」的選用附加功能會用到 Firebase（Firestore + 匿名登入），
+  見下方「好友雲端同步 / 自動備份」一節。這組功能離線或未設定時完全不啟用，不影響上面這條原則的精神——
+  本機 `localStorage` 永遠是唯一權威來源，雲端只是鏡射備份，不是取代。
 
 ## 資料儲存（最重要）
 - 進度與設定**只能存在瀏覽器 cache**（`localStorage`，鍵名 `pls.*`，見 `app/store.js`）。
@@ -48,6 +51,36 @@
 - **全域積分 HUD**：`window.PLS_POINTS`,在 `main.js` 主迴圈最上層每幀繪製(右上角,`quiz`/`eplay`/`epractice` 會往左讓位避開既有控制鈕),讀 `PLS.activePet`(由 `PLS.go` 維護;首頁為 null → 不顯示);分數變動時播 +N / −N 飄字。**點金幣 HUD 直接進獎品商店**(`main.js` 的 pointer 事件優先 `PLS_POINTS.hitTest` → `tap()`;房間沒有獨立的「獎品商店」卡)。隱藏功能(`rewardsHidden`)時 HUD 與手寫「寫好了」鈕(`english.js` epractice)都不出現,自然也就沒有進商店的入口。
 - 兌換在 `shop` 畫面(`points.js`),`store.redeem()` 扣本寵物點數;手寫過關小慶祝在 `hwpass` 畫面。
 - 動到 `pet.points` / `daily.hw` / `hwEarned` / `hwRound` / `prizes` / `rewardsHidden` → 已是 schema **v3**(v3 新增 `pet.hwRound`),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
+
+## 好友雲端同步 / 自動備份（例外於「沒有後端」原則）
+> 完整資料結構/權限規則見 `docs/cloud-friends-schema.md` 與 `firestore.rules`；程式在 `app/cloud.js`。
+
+- **定位**：這是附加在本機優先架構之上的**選用**擴充，不是取代。核心學習進度（關卡/積分/手寫/擺設）
+  的權威來源永遠是本機 `localStorage`，`SCHEMA_VERSION` / `migratePet()` / 匯出匯入邏輯完全不受影響。
+  雲端只多做三件事：讓小朋友被朋友認出來（暱稱 + 好友代碼）、背景定時把完整進度鏡射備份到雲端、
+  朋友之間唯讀互訪一天一次。
+- **後端**：Firebase Firestore + **匿名登入**（Anonymous Auth），停留在 **Spark 免費方案**（不綁信用卡、
+  不會被扣費，額度用完只是功能暫時不可用）。不用 Cloud Functions，所有存取控制都在 `firestore.rules`。
+- **只在客戶端載入 SDK，不是換託管**：`index.html` 用 `<script>` 標籤載入 Firebase compat SDK 當成
+  一個雲端資料庫在用，網站本身照舊放 GitHub Pages（或任何靜態託管），**不需要、也沒有用** Firebase Hosting。
+- **哪些留在本機（不進雲端）**：所有學習進度（`pet.*`schema）、家長 PIN 鎖、每日關卡上限、獎品目錄——
+  完全比照既有規則，不受這組功能影響。
+- **哪些額外同步到 Firebase**：小朋友暱稱(`childNickname`)、好友代碼、還原碼、房間擺設 + 積分的唯讀快照
+  (`status`)、完整進度的定時備份(`backups/{restoreCode}.snapshot`)。其中 `childNickname` 存在本機獨立的
+  `pls.cloud.<petId>`（不是 `pls.<petId>`），刻意不進 `SCHEMA_VERSION`、不進匯出檔——換裝置用匯入還原後
+  暱稱要重新輸入,新裝置的好友代碼也會是全新的一組,這是已知、可接受的限制。
+- **兩種代碼**：6 碼**好友代碼**（小孩用,給同學交換,顯示在好友面板）與 10 碼**還原碼**（家長專用,
+  只在家長區出現,救回完整進度用）刻意分開,避免分享好友代碼時連帶洩漏還原碼。
+- **離線降級**：`app/cloud.js` 對「SDK 載入失敗 / `CFG.firebase` 未設定 / 離線」全部 fail-soft——安靜地
+  不做事、回傳可辨識的失敗物件,絕不丟例外炸掉呼叫端,絕不影響數學/英文/手寫/積分/家長區等既有功能。
+- **管理員後台**：`admin.html` + `app/admin.js`,獨立頁面,**不放進 `sw.js` 的 `ASSETS`**、不從任何小孩
+  看得到的畫面連結過去。用 Firebase **Email/Password** 登入（跟小孩的匿名登入是不同帳號系統），
+  權限邊界寫死在 `firestore.rules` 的 `isAdmin()`（比對管理員 email）。Admin 只能看總人數統計 / 最近活躍
+  清單 / 用好友代碼查還原碼轉交家長,**看不到**任何關卡答題細節,也**看不到** `backups` 的實際備份內容。
+- **XSS 防護**：`childNickname`/`petName` 等是跨使用者輸入的內容,`#friends-overlay` 與 `admin.html`
+  渲染任何雲端拿回來的字串一律用 `textContent`,絕不用 `innerHTML`。
+- 這組功能改動 Firestore 集合結構時,要更新 `docs/cloud-friends-schema.md`（不是 `docs/export-import-schema.md`——
+  那份只管本機 schema/匯出檔,兩份文件的職責不同,不要混著改）。
 
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。

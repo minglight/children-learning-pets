@@ -18,6 +18,55 @@
     playMat: '#CFE6D6', playMatEdge: '#B6D7C0', playTag: '#4E8A5A', playTagBg: 'rgba(233,246,235,0.96)'
   };
 
+  // ── 各寵物房間裝飾配色(來自 Claude Design 概念稿;牆底色仍取 CFG theme.wall)──
+  // 兔兔=暖珊瑚 / 胡蘿蔔主題;倉倉=冷藍灰 / 向日葵+瓜子主題。
+  const ROOMKIT = {
+    rabbit: {
+      win:   { frame: '#F7E4D3', sash: '#E6CBA6', sky: '#DCEFF6', sill: '#EAD7BE', carrot: '#F2934A', carrotLeaf: '#8FBF6E', string: '#CBAE92' },
+      paper: { carrot: '#F2A35C', leaf: '#9CC97E' },
+      decor: { frame: '#FBF6EC', mat: '#FBDCE2', carrot: '#F0934A', leaf: '#8FBF6E', bow: '#E89FB0' },
+      roof:  { roof: '#F2A98A', ridge: '#E58E6B', frameOut: '#E3A86C', frameIn: '#D69455', sign: '#FFF6E9', signInk: '#A85A3C' }
+    },
+    hamster: {
+      win:   { frame: '#F4ECDD', ring: '#E0D2BC', sash: '#C9B79A', sky: '#D5E8F2', bolt: '#B9A98C', petal: '#F6C64B', petalEdge: '#EBB534', center: '#8A6A3C' },
+      paper: { seed: '#9FB6CB', seedTip: '#7C9DB8' },
+      decor: { frame: '#FBF6EC', mat: '#DCEBF4', petal: '#F6C64B', petalEdge: '#EBB534', center: '#8A6A3C', bolt: '#B9A98C' },
+      roof:  { roof: '#9CC0CE', ridge: '#82A9B8', frameOut: '#C3B59A', frameIn: '#B0A085', sign: '#F3F8FA', signInk: '#4E6B84' }
+    }
+  };
+
+  // 裝飾小元件(Claude Design 概念稿移植)
+  function miniCarrot(ctx, x, y, s, body, leaf) {
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(x - 6 * s, y - 9 * s); ctx.lineTo(x + 6 * s, y - 9 * s);
+    ctx.quadraticCurveTo(x + 3 * s, y + 2 * s, x, y + 11 * s);
+    ctx.quadraticCurveTo(x - 3 * s, y + 2 * s, x - 6 * s, y - 9 * s);
+    ctx.fill();
+    ctx.fillStyle = leaf;
+    el(ctx, x, y - 12 * s, 3.4 * s, 6 * s); ctx.fill();
+    el(ctx, x - 4.4 * s, y - 11 * s, 3 * s, 5 * s); ctx.fill();
+    el(ctx, x + 4.4 * s, y - 11 * s, 3 * s, 5 * s); ctx.fill();
+  }
+  function miniSeed(ctx, x, y, s, rot, fill, tip) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot);
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(0, -9 * s); ctx.quadraticCurveTo(6 * s, 0, 0, 9 * s); ctx.quadraticCurveTo(-6 * s, 0, 0, -9 * s);
+    ctx.fill();
+    ctx.fillStyle = tip; el(ctx, 0, 5 * s, 2.2 * s, 2.6 * s); ctx.fill();
+    ctx.restore();
+  }
+  function sunflower(ctx, cx, cy, r, petal, edge, center) {
+    ctx.fillStyle = edge;
+    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; ctx.save(); ctx.translate(cx + Math.cos(a) * r * 0.62, cy + Math.sin(a) * r * 0.62); ctx.rotate(a); el(ctx, 0, 0, r * 0.5, r * 0.24); ctx.fill(); ctx.restore(); }
+    ctx.fillStyle = petal;
+    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; ctx.save(); ctx.translate(cx + Math.cos(a) * r * 0.58, cy + Math.sin(a) * r * 0.58); ctx.rotate(a); el(ctx, 0, 0, r * 0.46, r * 0.2); ctx.fill(); ctx.restore(); }
+    ctx.fillStyle = center; el(ctx, cx, cy, r * 0.42, r * 0.42); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.10)';
+    for (let i = 0; i < 7; i++) { const a = i / 7 * TAU; el(ctx, cx + Math.cos(a) * r * 0.18, cy + Math.sin(a) * r * 0.18, 1.6, 1.6); ctx.fill(); }
+  }
+
   // ── 待機:寵物自己過生活(走→吃→走→玩,循環)──────────
   function smooth(a, b, x) { x = Math.max(0, Math.min(1, (x - a) / (b - a))); return x * x * (3 - 2 * x); }
   function petLife(t, fx, px) {
@@ -35,11 +84,24 @@
   }
 
   // ── 共用美術 ─────────────────────────────────────────
-  function wallpaper(ctx, x, y, w, h, dot) {
+  // 壁紙圖樣:兔=胡蘿蔔點 / 倉=瓜子點(取代原本的圓點)
+  function wallpaper(ctx, pid, kit, x, y, w, h) {
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-    ctx.fillStyle = dot;
-    for (let yy = y + 40; yy < y + h; yy += 78)
-      for (let xx = x + (Math.floor((yy - y) / 78) % 2 ? 40 : 80); xx < x + w; xx += 80) { el(ctx, xx, yy, 6, 6); ctx.fill(); }
+    ctx.globalAlpha = 0.9;
+    if (pid === 'rabbit') {
+      const k = kit.paper;
+      let row = 0;
+      for (let yy = y + 40; yy < y + h; yy += 70, row++)
+        for (let xx = x + (row % 2 ? 44 : 88); xx < x + w; xx += 88) miniCarrot(ctx, xx, yy, 0.7, k.carrot, k.leaf);
+    } else {
+      const k = kit.paper;
+      let row = 0;
+      for (let yy = y + 38; yy < y + h; yy += 64, row++)
+        for (let xx = x + (row % 2 ? 40 : 80); xx < x + w; xx += 80) {
+          miniSeed(ctx, xx, yy, 0.8, -0.5, k.seed, k.seedTip);
+          miniSeed(ctx, xx + 18, yy + 9, 0.72, 0.6, k.seed, k.seedTip);
+        }
+    }
     ctx.restore();
   }
   function warmLight(ctx, cx, cy, r, x, y, w, h) {
@@ -47,23 +109,65 @@
     rg.addColorStop(0, 'rgba(255,214,150,0.22)'); rg.addColorStop(1, 'rgba(255,214,150,0)');
     ctx.fillStyle = rg; ctx.fillRect(x, y, w, h);
   }
-  function windowBox(ctx, x, y, w, h) {
-    ctx.fillStyle = '#FBF6EC'; rr(ctx, x - 7, y - 7, w + 14, h + 14, 16); ctx.fill();
-    const sky = ctx.createLinearGradient(0, y, 0, y + h);
-    sky.addColorStop(0, '#CFEAF6'); sky.addColorStop(1, '#E9F6EC');
-    ctx.fillStyle = sky; rr(ctx, x, y, w, h, 10); ctx.fill();
-    ctx.fillStyle = '#FBE6B8'; el(ctx, x + w * 0.74, y + h * 0.30, 17, 17); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    el(ctx, x + w * 0.30, y + h * 0.62, 22, 13); ctx.fill();
-    el(ctx, x + w * 0.48, y + h * 0.60, 17, 11); ctx.fill();
-    ctx.strokeStyle = '#E6CBA6'; ctx.lineWidth = 5; rr(ctx, x, y, w, h, 10); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2, y + h);
-    ctx.moveTo(x, y + h / 2); ctx.lineTo(x + w, y + h / 2); ctx.stroke();
+  // 窗戶 — 兔:拱形窗 + 紅蘿蔔吊飾(玻璃區 x..x+w,拱頂半徑 w/2,總高 h)
+  function rabbitWindow(ctx, k, x, y, w, h) {
+    const ax = x + w / 2, spring = y + w / 2;
+    ctx.fillStyle = k.frame;
+    ctx.beginPath();
+    ctx.moveTo(x - 9, y + h + 9); ctx.lineTo(x - 9, spring);
+    ctx.arc(ax, spring, w / 2 + 9, Math.PI, 0); ctx.lineTo(x + w + 9, y + h + 9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = k.sky;
+    ctx.beginPath();
+    ctx.moveTo(x, y + h); ctx.lineTo(x, spring);
+    ctx.arc(ax, spring, w / 2, Math.PI, 0); ctx.lineTo(x + w, y + h); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    el(ctx, ax - w * 0.22, y + h * 0.52, 20, 12); ctx.fill(); el(ctx, ax + w * 0.04, y + h * 0.47, 15, 9); ctx.fill();
+    ctx.strokeStyle = k.sash; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(ax, y); ctx.lineTo(ax, y + h);
+    ctx.moveTo(x, y + h * 0.62); ctx.lineTo(x + w, y + h * 0.62); ctx.stroke();
+    ctx.fillStyle = k.sill; rr(ctx, x - 18, y + h + 4, w + 36, 15, 7); ctx.fill();
+    ctx.strokeStyle = k.string; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x + w + 12, spring - 4); ctx.lineTo(x + w + 12, spring + 24); ctx.stroke();
+    miniCarrot(ctx, x + w + 12, spring + 40, 1.7, k.carrot, k.carrotLeaf);
   }
-  function picture(ctx, x, y, w, h) {
-    ctx.fillStyle = '#FBF6EC'; rr(ctx, x, y, w, h, 12); ctx.fill();
-    ctx.fillStyle = '#F4C9D0'; rr(ctx, x + 10, y + 10, w - 20, h - 30, 6); ctx.fill();
-    ctx.fillStyle = '#9FCBB2'; el(ctx, x + w / 2, y + h - 16, w * 0.36, 12); ctx.fill();
+  // 窗戶 — 倉:圓舷窗 + 向日葵 + 十字窗櫺 + 鉚釘
+  function hamsterWindow(ctx, k, cx, cy, r) {
+    ctx.fillStyle = k.ring; el(ctx, cx, cy, r + 13, r + 13); ctx.fill();
+    ctx.fillStyle = k.frame; el(ctx, cx, cy, r + 4, r + 4); ctx.fill();
+    ctx.fillStyle = k.sky; el(ctx, cx, cy, r, r); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    el(ctx, cx - r * 0.28, cy + r * 0.28, r * 0.34, r * 0.18); ctx.fill(); el(ctx, cx + r * 0.02, cy + r * 0.34, r * 0.24, r * 0.14); ctx.fill();
+    sunflower(ctx, cx + r * 0.34, cy - r * 0.3, r * 0.5, k.petal, k.petalEdge, k.center);
+    ctx.save(); ctx.beginPath(); el(ctx, cx, cy, r, r); ctx.clip();
+    ctx.strokeStyle = k.sash; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = k.bolt;
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; el(ctx, cx + Math.cos(a) * (r + 8), cy + Math.sin(a) * (r + 8), 3.4, 3.4); ctx.fill(); }
+  }
+  // 掛飾 — 兔:拱頂相框 + 胡蘿蔔 + 蝴蝶結
+  function rabbitDecor(ctx, k, x, y, w, h) {
+    const ax = x + w / 2, spring = y + w / 2;
+    ctx.strokeStyle = '#D8C3A8'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(ax - w * 0.3, y - 2); ctx.lineTo(ax, y - 22); ctx.lineTo(ax + w * 0.3, y - 2); ctx.stroke();
+    ctx.fillStyle = '#C9A98A'; el(ctx, ax, y - 24, 4, 4); ctx.fill();
+    ctx.fillStyle = k.frame;
+    ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x, spring); ctx.arc(ax, spring, w / 2, Math.PI, 0); ctx.lineTo(x + w, y + h); ctx.closePath(); ctx.fill();
+    const mx = x + 12, mw = w - 24, my = y + 12, mh = h - 24, ms = my + mw / 2;
+    ctx.fillStyle = k.mat;
+    ctx.beginPath(); ctx.moveTo(mx, my + mh); ctx.lineTo(mx, ms); ctx.arc(ax, ms, mw / 2, Math.PI, 0); ctx.lineTo(mx + mw, my + mh); ctx.closePath(); ctx.fill();
+    miniCarrot(ctx, ax, y + h * 0.58, 2.0, k.carrot, k.leaf);
+    ctx.fillStyle = k.bow; el(ctx, ax - 12, y + 2, 9, 7); ctx.fill(); el(ctx, ax + 12, y + 2, 9, 7); ctx.fill();
+    ctx.fillStyle = '#D98AA0'; el(ctx, ax, y + 2, 5, 5); ctx.fill();
+  }
+  // 掛飾 — 倉:圓形相框 + 向日葵
+  function hamsterDecor(ctx, k, cx, cy, r) {
+    ctx.fillStyle = k.bolt; el(ctx, cx, cy - r - 16, 4, 4); ctx.fill();
+    ctx.strokeStyle = '#C9B79A'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx - r * 0.5, cy - r * 0.74); ctx.lineTo(cx, cy - r - 14); ctx.lineTo(cx + r * 0.5, cy - r * 0.74); ctx.stroke();
+    ctx.fillStyle = k.frame; el(ctx, cx, cy, r + 11, r + 11); ctx.fill();
+    ctx.fillStyle = k.mat; el(ctx, cx, cy, r, r); ctx.fill();
+    sunflower(ctx, cx, cy, r * 0.92, k.petal, k.petalEdge, k.center);
   }
   function floorboards(ctx, x0, x1, yTop, yBot, vx) {
     ctx.strokeStyle = MAT.floorLine; ctx.lineWidth = 2;
@@ -75,14 +179,21 @@
   function itemShadow(ctx, cx, cy, rx) { ctx.fillStyle = 'rgba(150,110,70,0.14)'; el(ctx, cx, cy, rx, rx * 0.26); ctx.fill(); }
 
   // 房間內部(後牆 + 地板 + 窗 + 掛畫),回傳 wallB
-  function roomInterior(ctx, ix, iy, iw, ih, radius, wall, dot) {
-    const wallB = iy + ih * 0.47;
+  function roomInterior(ctx, pid, kit, ix, iy, iw, ih, radius, wall) {
+    const wallB = iy + ih * 0.47, wallH = wallB - iy;
     ctx.save(); ctx.beginPath(); rr(ctx, ix, iy, iw, ih, radius); ctx.clip();
     ctx.fillStyle = wall; ctx.fillRect(ix, iy, iw, ih);
-    wallpaper(ctx, ix, iy, iw, wallB - iy, dot);
+    wallpaper(ctx, pid, kit, ix, iy, iw, wallH);
     warmLight(ctx, ix + iw / 2, iy + 20, 560, ix, iy, iw, ih);
-    windowBox(ctx, ix + iw * 0.56, iy + 34, 210, 134);
-    picture(ctx, ix + 54, iy + 50, 116, 96);
+    // 窗戶(右)+ 掛飾(左),造型隨寵物
+    if (pid === 'rabbit') {
+      rabbitWindow(ctx, kit.win, ix + iw * 0.74 - 70, iy + 28, 140, 180);
+      rabbitDecor(ctx, kit.decor, ix + iw * 0.16 - 55, iy + 52, 110, 150);
+    } else {
+      const cwin = { x: ix + iw * 0.74, y: iy + wallH * 0.46, r: wallH * 0.34 };
+      hamsterWindow(ctx, kit.win, cwin.x, cwin.y, cwin.r);
+      hamsterDecor(ctx, kit.decor, ix + iw * 0.16, iy + wallH * 0.46, wallH * 0.23);
+    }
     const vx = ix + iw / 2;
     ctx.fillStyle = MAT.floor;
     ctx.beginPath();
@@ -96,21 +207,22 @@
     return wallB;
   }
   // 屋頂 + 厚木框,回傳內部 box
-  function roofFrame(ctx, fx, fy, fw, fh, title) {
-    ctx.fillStyle = '#F2BD96';
+  function roofFrame(ctx, pid, kit, fx, fy, fw, fh, title) {
+    const k = kit.roof;
+    ctx.fillStyle = k.roof;
     ctx.beginPath(); ctx.moveTo(fx - 8, fy + 10); ctx.lineTo(fx + fw / 2, fy - 86); ctx.lineTo(fx + fw + 8, fy + 10); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#E9A878'; ctx.fillRect(fx - 8, fy - 2, fw + 16, 14);
+    ctx.fillStyle = k.ridge; ctx.fillRect(fx - 8, fy - 2, fw + 16, 14);
     ctx.save();
     ctx.shadowColor = 'rgba(150,100,60,0.18)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
-    ctx.fillStyle = '#FFF6E9'; rr(ctx, fx + fw / 2 - 132, fy - 70, 264, 50, 25); ctx.fill();
+    ctx.fillStyle = k.sign; rr(ctx, fx + fw / 2 - 132, fy - 70, 264, 50, 25); ctx.fill();
     ctx.restore();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '36px ' + FONT; ctx.fillStyle = '#A85A3C'; ctx.fillText(title, fx + fw / 2, fy - 44);
+    ctx.font = '36px ' + FONT; ctx.fillStyle = k.signInk; ctx.fillText(title, fx + fw / 2, fy - 44);
     ctx.save();
     ctx.shadowColor = 'rgba(120,80,50,0.22)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12;
-    ctx.fillStyle = '#D9A86E'; rr(ctx, fx, fy, fw, fh, 32); ctx.fill();
+    ctx.fillStyle = k.frameOut; rr(ctx, fx, fy, fw, fh, 32); ctx.fill();
     ctx.restore();
-    ctx.fillStyle = '#C99355'; rr(ctx, fx, fy, fw, fh, 32); ctx.fill();
+    ctx.fillStyle = k.frameIn; rr(ctx, fx, fy, fw, fh, 32); ctx.fill();
     const m = 22;
     return { ix: fx + m, iy: fy + m, iw: fw - m * 2, ih: fh - m * 2 };
   }
@@ -154,6 +266,10 @@
       ctx.fillStyle = '#D8847B'; rr(ctx, x - 15, y - 10, 30, 8, 3); ctx.fill();
       ctx.fillStyle = '#F0C24E'; ctx.fillRect(x - 2.5, y - 10, 5, 25);
       ctx.fillStyle = '#F0C24E'; el(ctx, x - 6, y - 13, 6, 4); ctx.fill(); el(ctx, x + 6, y - 13, 6, 4); ctx.fill();
+    },
+    friend: function (ctx, x, y) {
+      ctx.fillStyle = '#C79BD0'; el(ctx, x - 8, y + 1, 11, 11); ctx.fill();
+      ctx.fillStyle = '#8FB4CE'; el(ctx, x + 8, y - 1, 11, 11); ctx.fill();
     }
   };
   function navCard(ctx, x, y, w, h, bg, line, title, sub, icon) {
@@ -168,6 +284,27 @@
     ctx.font = '20px ' + FONT; ctx.fillStyle = 'rgba(120,95,70,0.82)'; ctx.fillText(sub, x + 100, y + h / 2 + 17);
   }
 
+  // 房間場景(屋頂框 + 房間內部 + 食物/遊戲站 + 待機寵物)。
+  // 資料由呼叫端傳入(不內部 ST.load),讓 visit.js 可以用朋友的 status 快照重用同一份畫面。
+  function drawScene(ctx, t, pid, name, home) {
+    const th = CFG.pets[pid].theme;
+    const fx = PW + 26, fy = 158, fw = W - (PW + 26) - 30, fh = H - 158 - 34;
+    const kit = ROOMKIT[pid] || ROOMKIT.rabbit;
+    const box = roofFrame(ctx, pid, kit, fx, fy, fw, fh, name + '的房間');
+    const wallB = roomInterior(ctx, pid, kit, box.ix, box.iy, box.iw, box.ih, 14, th.wall);
+    ctx.save();
+    ctx.beginPath(); rr(ctx, box.ix, box.iy, box.iw, box.ih, 14); ctx.clip();
+    const foodX = box.ix + box.iw * 0.29, playX = box.ix + box.iw * 0.71;
+    const matY = wallB + (box.iy + box.ih - wallB) * 0.40, frontY = box.iy + box.ih - 36;
+    station(ctx, foodX, matY, 'food', (home && home.foods) || []);
+    station(ctx, playX, matY, 'toy', (home && home.toys) || []);
+    A.pill(ctx, foodX, wallB + 28, '食物區', MAT.foodTag, MAT.foodTagBg, 22);
+    A.pill(ctx, playX, wallB + 28, '遊戲區', MAT.playTag, MAT.playTagBg, 22);
+    const life = petLife(t, foodX, playX);
+    petAt(ctx, pid, t, life.x, frontY + life.hop, 0.46, life.mode);
+    ctx.restore();
+  }
+
   // ════════════════════════════════════════════════════
   // 寵物房間(改版)
   // ════════════════════════════════════════════════════
@@ -177,6 +314,24 @@
       const self = this;
       this.petId = params.pet || 'rabbit';
       const pid = this.petId;
+      // 拜訪分享通知:小朋友回到房間(自然的「上線」時機)時,檢查有沒有朋友來訪過、分享了東西給自己。
+      // 純本機游標判斷已讀,不寫回 Firestore(見 docs/cloud-friends-schema.md「拜訪分享」一節)。
+      this.visitNotices = [];
+      if (window.PLS_CLOUD) {
+        window.PLS_CLOUD.checkVisitLog(pid).then(function (list) {
+          if (self.petId !== pid || !list.length) return;
+          self.visitNotices = list.slice().reverse();   // 舊的先顯示,依序點掉
+          PLS.addButton({
+            x: PW + 40, y: 30, w: W - PW - 80, h: 104,
+            hidden: function () { return !self.visitNotices.length; },
+            draw: function (ctx) { self.drawNotice(ctx); },
+            onTap: function () {
+              const n = self.visitNotices.shift();
+              if (n && window.PLS_CLOUD) window.PLS_CLOUD.advanceVisitLogCursor(pid, n.at);
+            }
+          });
+        });
+      }
       // 回首頁
       PLS.addButton({
         x: 24, y: 26, w: 58, h: 58,
@@ -196,13 +351,18 @@
       ];
       NAV.push({ go: 'emenu', bg: '#E5F0EF', line: '#3F8A84', icon: ICON.abc,   title: '字母手寫練習', sub: function () { return '選字母 · 描字母 · 看筆順'; } });
       NAV.push({ go: 'shelf',     bg: '#F6EAF0', line: '#B06A86', icon: ICON.decor, title: '換擺設',       sub: function () { return '布置小窩'; } });
+      NAV.push({
+        bg: '#EAF1F6', line: '#3B6E8F', icon: ICON.friend, title: '好友',
+        sub: function () { return '串門子看看朋友家'; },
+        action: function () { if (window.PLS_FRIENDS) window.PLS_FRIENDS.open(pid); }
+      });
       const NTOP = 168, NSTEP = 98, NH = 86;
       NAV.forEach(function (it, i) {
         const y = NTOP + i * NSTEP;
         PLS.addButton({
           x: 30, y: y, w: PW - 60, h: NH,
           draw: function (ctx) { navCard(ctx, 30, y, PW - 60, NH, it.bg, it.line, it.title, it.sub(), it.icon); },
-          onTap: function () { PLS.go(it.go, { pet: pid }); }
+          onTap: function () { if (it.action) it.action(); else PLS.go(it.go, { pet: pid }); }
         });
       });
       // 測試版:預覽獎勵
@@ -230,26 +390,28 @@
         onTap: function () { if (window.PLS_PARENT) window.PLS_PARENT.open(); }
       });
     },
+    drawNotice: function (ctx) {
+      const n = this.visitNotices[0];
+      if (!n) return;
+      const kindLabel = (CFG.pets[n.fromPetKind] && CFG.pets[n.fromPetKind].name) || '';
+      const giftLabel = (n.gift && n.gift.label) || '';
+      const bx = PW + 40, by = 30, bw = W - PW - 80, bh = 104;
+      ctx.save();
+      ctx.shadowColor = 'rgba(150,100,60,0.20)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+      ctx.fillStyle = '#FFF7E0'; rr(ctx, bx, by, bw, bh, 24); ctx.fill();
+      ctx.restore();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = '24px ' + FONT; ctx.fillStyle = '#C2791E';
+      ctx.fillText('🎁 ' + (n.fromNickname || '朋友') + '的' + kindLabel + ' 拜訪過你', bx + 28, by + 38);
+      ctx.font = '20px ' + FONT; ctx.fillStyle = '#8A6242';
+      ctx.fillText('分享了「' + giftLabel + '」!(點一下關閉)', bx + 28, by + 74);
+    },
     draw: function (ctx, t) {
       const pid = this.petId, th = CFG.pets[pid].theme;
       const d = ST.load(pid), name = d.name || CFG.pets[pid].name;
       ctx.fillStyle = '#EFE3D2'; ctx.fillRect(0, 0, W, H);
 
-      // 右側:屋頂 + 厚木框房間
-      const fx = PW + 26, fy = 158, fw = W - (PW + 26) - 30, fh = H - 158 - 34;
-      const box = roofFrame(ctx, fx, fy, fw, fh, name + '的房間');
-      const wallB = roomInterior(ctx, box.ix, box.iy, box.iw, box.ih, 14, th.wall, th.dot);
-      ctx.save();
-      ctx.beginPath(); rr(ctx, box.ix, box.iy, box.iw, box.ih, 14); ctx.clip();
-      const foodX = box.ix + box.iw * 0.29, playX = box.ix + box.iw * 0.71;
-      const matY = wallB + (box.iy + box.ih - wallB) * 0.40, frontY = box.iy + box.ih - 36;
-      station(ctx, foodX, matY, 'food', d.home.foods || []);
-      station(ctx, playX, matY, 'toy', d.home.toys || []);
-      A.pill(ctx, foodX, wallB + 28, '食物區', MAT.foodTag, MAT.foodTagBg, 22);
-      A.pill(ctx, playX, wallB + 28, '遊戲區', MAT.playTag, MAT.playTagBg, 22);
-      const life = petLife(t, foodX, playX);
-      petAt(ctx, pid, t, life.x, frontY + life.hop, 0.46, life.mode);
-      ctx.restore();
+      drawScene(ctx, t, pid, name, d.home);
 
       // 左側設定欄底板 + 標頭(按鈕由 enter 疊在上面)
       ctx.save();
@@ -269,5 +431,5 @@
   };
 
   PLS.register('room', room);
-  window.PLS_ROOM2 = true;
+  window.PLS_ROOM2 = { drawScene: drawScene };
 })();

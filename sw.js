@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v18';
+const VERSION = 'pls-v21';
 const ASSETS = [
   '.',
   'index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   'app/gen.js',
   'app/bank.js',
   'app/store.js',
+  'app/cloud.js',
   'app/art.js',
   'app/pets.js',
   'app/toys.js',
@@ -18,6 +19,7 @@ const ASSETS = [
   'app/points.js',
   'app/screens.js',
   'app/room.js',
+  'app/visit.js',
   'app/shelf.js',
   'app/quiz.js',
   'app/letters.js',
@@ -27,6 +29,7 @@ const ASSETS = [
   'questions/unit8.xml',
   'questions/unit9.xml'
 ];
+// admin.html / app/admin.js 刻意不放進來:後台本來就需要即時連網,不需要離線支援。
 
 self.addEventListener('install', function (e) {
   e.waitUntil(
@@ -47,8 +50,10 @@ self.addEventListener('fetch', function (e) {
     caches.match(e.request, { ignoreSearch: true }).then(function (hit) {
       if (hit) return hit;
       return fetch(e.request).then(function (res) {
-        // 跑過一次就把字體等外部資源也存起來,確保離線可用
-        if (res.ok && (e.request.url.indexOf('fonts.g') >= 0 || e.request.url.indexOf(self.location.origin) === 0)) {
+        // 跑過一次就把字體 / Firebase SDK 等外部資源也存起來,確保離線可用
+        // (Firestore 即時資料協定不受這個快取影響,拜訪/加好友本來就需要即時連線,
+        //  這裡只確保「SDK 程式碼本身」離線也載得起來;失敗會被 app/cloud.js 的 fail-soft 擋住)
+        if (res.ok && (e.request.url.indexOf('fonts.g') >= 0 || e.request.url.indexOf('gstatic.com/firebasejs') >= 0 || e.request.url.indexOf(self.location.origin) === 0)) {
           const clone = res.clone();
           caches.open(VERSION).then(function (c) { c.put(e.request, clone); });
         }

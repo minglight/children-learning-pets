@@ -6,6 +6,18 @@ window.PLS_CONFIG = {
   passRate: 0.9,        // 首次答對率 >= 90% 才能吃大餐
   deluxeAt: 10,         // 同一關正式解滿幾次就改送「豪華版」獎勵(每關一天只能解一次)
 
+  // Firebase 專案設定(好友雲端同步 / 自動備份用)。
+  // 這些是 Firebase 主控台「網頁應用程式」給的公開設定值,client 端曝露是 Firebase 的正常用法,
+  // 真正的存取控制在 firestore.rules,不是靠隱藏這組設定。留空時 app/cloud.js 會直接不啟用雲端功能(fail-soft)。
+  firebase: {
+    apiKey: 'AIzaSyDks91uInPevDI2VkFXHq9SZS13Yp4VYYg',
+    authDomain: 'children-pet.firebaseapp.com',
+    projectId: 'children-pet',
+    storageBucket: 'children-pet.firebasestorage.app',
+    messagingSenderId: '242093609222',
+    appId: '1:242093609222:web:913e9cd6f59aead08bce87'
+  },
+
   pets: {
     rabbit: {
       id: 'rabbit', name: '兔兔',
