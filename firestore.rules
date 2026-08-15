@@ -1,0 +1,142 @@
+// firestore.rules — 好友雲端同步 / 自動備份的存取控制(唯一的安全邊界;沒有 Cloud Functions)。
+// 詳細資料模型見 docs/cloud-friends-schema.md;程式端寫入邏輯見 app/cloud.js。
+//
+// v11(電子雞化整合):身份錨點是「小朋友(slot)」不是「物種(species)」——物種會隨換寵物/畢業改變,
+//   所以 players.species 從「建立後不可變更」改成「可變更」(仍驗證型別/長度,不再鎖死 rabbit/hamster
+//   兩個值,因為現在有 8 種可養物種、未來還可能再加)。
+//
+// ⚠ 重要實作限制:同一個 batch/transaction 裡的 get()/exists() 只會看到「送出前」的資料庫快照,
+//   看不到同一個 batch 裡其他文件的寫入。所以 app/cloud.js 的 ensureLinked() 會先單獨建立 players
+//   文件、等它 commit 完成,才用另一個 batch 建立 private/meta、friendCodes、backups —— 這樣下面用
+//   isOwner() 對 players 做 get() 查詢時,讀到的一定是「已經存在」的 players 文件。
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 唯一管理員(維運者)email;之後要加第二個管理員就改成清單比對 request.auth.token.email in [...]。
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'minglight0811@gmail.com';
+    }
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(playerId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/players/$(playerId)).data.ownerUid == request.auth.uid;
+    }
+    function shortStr(v) { return v is string && v.size() <= 6; }
+    function isSpecies(v) { return v is string && v.size() >= 1 && v.size() <= 20; }
+    function isFriendCode(v) { return v is string && v.matches('^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$'); }
+    function isRestoreCode(v) { return v is string && v.matches('^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{10}$'); }
+
+    match /players/{playerId} {
+      // 任何已登入(含匿名)使用者可以查單一 player(查好友/查代碼指到的人要用);
+      // 一般使用者禁止 list(防止掃描別人資料),只有 admin 的總覽頁可以 list。
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && isSpecies(request.resource.data.species)
+        && shortStr(request.resource.data.childNickname)
+        && shortStr(request.resource.data.petName)
+        && isFriendCode(request.resource.data.friendCode)
+        && request.resource.data.status is map
+        && request.resource.data.keys().hasOnly(
+             ['ownerUid', 'species', 'childNickname', 'petName', 'friendCode', 'status', 'createdAt']);
+      // 只能改 childNickname / petName / species / status;ownerUid、friendCode 建立後不可變更。
+      // species 允許變更(換寵物/畢業會改變外觀,身份錨點是 playerId/slot,不是 species)。
+      allow update: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.friendCode == resource.data.friendCode
+        && isSpecies(request.resource.data.species)
+        && shortStr(request.resource.data.childNickname)
+        && shortStr(request.resource.data.petName)
+        && request.resource.data.status is map
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['species', 'childNickname', 'petName', 'status']);
+      allow delete: if false;
+
+      // 還原碼放在這裡,不放在上面公開的 players 文件裡,避免「拜訪」流程順帶洩漏還原碼。
+      match /private/meta {
+        allow get: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+        allow create: if isSignedIn()
+          && isOwner(playerId)
+          && isRestoreCode(request.resource.data.restoreCode)
+          && request.resource.data.keys().hasOnly(['restoreCode', 'lastSeenAt']);
+        // 還原碼建立後不可變更,每次自動備份只更新 lastSeenAt。
+        allow update: if isSignedIn()
+          && isOwner(playerId)
+          && request.resource.data.restoreCode == resource.data.restoreCode
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt']);
+        allow delete: if false;
+      }
+
+      // 單向好友清單:只有自己能讀寫「自己的」好友清單。
+      match /friends/{friendId} {
+        allow get, list: if isSignedIn() && isOwner(playerId);
+        allow create: if isSignedIn() && isOwner(playerId)
+          && request.resource.data.keys().hasOnly(['addedAt']);
+        allow update, delete: if false;
+      }
+
+      // 每日一次的拜訪紀錄:只允許 create、禁止 update —— doc 已存在時 create 規則天然不適用,
+      // 等於「今天已經拜訪過就寫不進去」的原子日限制,不需要額外的伺服器邏輯。
+      match /visits/{visitId} {
+        allow get: if isSignedIn() && isOwner(playerId);
+        allow create: if isSignedIn() && isOwner(playerId)
+          && request.resource.data.keys().hasOnly(['at']);
+        allow update, delete: if false;
+      }
+
+      // 拜訪時分享食物/玩具給主人的訪客留言簿:只進不出。任何登入使用者(拜訪者)都能建立
+      // (不用額外驗證好友關係,因為能不能建立這筆本來就代表能不能拜訪已經通過上面 visits 的每日一次鎖);
+      // 只有主人自己能讀,不開放 update/delete —— 「已讀」完全在拜訪者/主人各自的本機用時間戳游標判斷,
+      // 不需要寫回 Firestore,也絕對不會碰到 players 文件本身的 status/經驗值欄位(結構性保證:分享寫入
+      // 只落在這個附加集合,規則上完全沒有給任何人 update players.status 的權限)。
+      match /visitLog/{entryId} {
+        allow get, list: if isSignedIn() && isOwner(playerId);
+        allow create: if isSignedIn()
+          && shortStr(request.resource.data.fromNickname)
+          && isSpecies(request.resource.data.fromSpecies)
+          && shortStr(request.resource.data.fromPetName)
+          && request.resource.data.gift is map
+          && request.resource.data.gift.type in ['food', 'toy']
+          && request.resource.data.gift.key is string && request.resource.data.gift.key.size() <= 40
+          && request.resource.data.gift.label is string && request.resource.data.gift.label.size() <= 20
+          && request.resource.data.gift.keys().hasOnly(['type', 'key', 'label'])
+          && request.resource.data.keys().hasOnly(['fromNickname', 'fromSpecies', 'fromPetName', 'gift', 'at']);
+        allow update, delete: if false;
+      }
+    }
+
+    // doc ID 就是好友代碼本身,天然保證唯一;任何已登入使用者可查(加好友用),
+    // 只有代碼指向的 player 的擁有者能建立,建立後不可變更/刪除。
+    match /friendCodes/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn()
+        && code.matches('^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$')
+        && isOwner(request.resource.data.playerId)
+        && request.resource.data.keys().hasOnly(['playerId']);
+      allow update, delete: if false;
+    }
+
+    // doc ID 就是還原碼本身。還原碼是「持有代碼即憑證」的祕密,get 不做身份比對(任何已登入裝置皆可讀)——
+    // 10 碼且無法 list/枚舉是唯一的存取門檻,所以只放在家長區、不在好友面板出現。
+    // 刻意不給 admin 讀取權限:admin 只能透過 private/meta 查到還原碼轉交家長,不能直接看備份內容。
+    match /backups/{restoreCode} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn()
+        && restoreCode.matches('^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{10}$')
+        && isOwner(request.resource.data.playerId)
+        && request.resource.data.snapshot is map
+        && request.resource.data.keys().hasOnly(['playerId', 'snapshot', 'updatedAt']);
+      allow update: if isSignedIn()
+        && isOwner(resource.data.playerId)
+        && request.resource.data.playerId == resource.data.playerId
+        && request.resource.data.snapshot is map
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['snapshot', 'updatedAt']);
+      allow delete: if false;
+    }
+  }
+}

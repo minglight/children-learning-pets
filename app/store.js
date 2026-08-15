@@ -27,7 +27,9 @@
   //     英文玩具改「全物種共用一套」(config 的 toyU/toyArtU)。
   // v10:配件可收集 — 每小孩新增 decoDex({species:[5 bool]}),養大寶抽到哪款就解鎖那款;
   //     珍藏館可把已畢業大寶(及正在養的大寶)換成「已收集」的配件。每物種各 5 款(兔兔/倉倉也補到 5)。
-  const SCHEMA_VERSION = 10;
+  // v11:好友雲端同步 — 每小孩新增 childNickname(好友辨識用暱稱,獨立於寵物名字/種類,slot 不變則暱稱不變、
+  //     不受換寵物/畢業影響)、giftsGiven(拜訪好友分享食物/玩具的次數小統計,不影響經驗值/點數)。
+  const SCHEMA_VERSION = 11;
   const GRADUATE_DAYS = 3;   // 大寶停留幾天後可畢業入珍藏(測試版不限)
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
@@ -52,6 +54,8 @@
       species: species || null,   // v9:目前在養的物種(null = 尚未選,進 pickpet 挑一隻)
       pet: species || slot,       // 相容舊欄位:盡量放物種(舊讀者/舊匯出檔用)
       name: null,                 // null = 用預設名
+      childNickname: null,        // v11:小朋友暱稱(好友辨識用身份錨點,獨立於寵物名字/種類,slot 不變就不變)
+      giftsGiven: 0,               // v11:拜訪好友時分享食物/玩具的次數(小統計,不影響經驗值/點數)
       collection: [],             // v9:已畢業大寶 [{species, deco, date}](本小孩專屬,只增不減)
       levels: {},                 // levelId -> {attempts, bestRate, cleared, plays}
       points: 0,                  // 可兌換獎品的積分(本小孩獨立,畢業不歸零)
@@ -128,6 +132,9 @@
     if (!Array.isArray(p.collection)) p.collection = [];   // v9:已畢業大寶清單
     if (!p.pet) p.pet = p.species || slot;
     if (!('name' in p)) p.name = null;
+    // ── v11:好友雲端同步 ──
+    if (!('childNickname' in p) || !p.childNickname) p.childNickname = null;
+    if (typeof p.giftsGiven !== 'number') p.giftsGiven = 0;
     if (!p.levels || typeof p.levels !== 'object') p.levels = {};
     // 舊資料補 clears 欄位(由 cleared 推回)
     Object.keys(p.levels).forEach(function (k) {
@@ -217,6 +224,9 @@
       d.pet = d.species || d.slot;   // 保持相容欄位同步
       localStorage.setItem(KEY(d.slot || 'kidL'), JSON.stringify(d));
     } catch (e) {}
+    // v11:好友雲端同步(選用附加功能)— 每次存檔都標記「待上傳」,由 cloud.js 背景節流合併備份。
+    // cloud.js 未載入/未設定/離線時 markDirty 不存在或安靜失敗,完全不影響本機存檔。
+    if (window.PLS_CLOUD && PLS_CLOUD.markDirty) PLS_CLOUD.markDirty(d.slot || 'kidL');
   }
 
   // 關卡狀態:'cleared' | 'open' | 'locked'

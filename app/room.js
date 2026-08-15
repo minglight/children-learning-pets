@@ -198,6 +198,10 @@
       ctx.fillStyle = '#D8847B'; rr(ctx, x - 15, y - 10, 30, 8, 3); ctx.fill();
       ctx.fillStyle = '#F0C24E'; ctx.fillRect(x - 2.5, y - 10, 5, 25);
       ctx.fillStyle = '#F0C24E'; el(ctx, x - 6, y - 13, 6, 4); ctx.fill(); el(ctx, x + 6, y - 13, 6, 4); ctx.fill();
+    },
+    friend: function (ctx, x, y) {
+      ctx.fillStyle = '#C79BD0'; el(ctx, x - 8, y + 1, 11, 11); ctx.fill();
+      ctx.fillStyle = '#8FB4CE'; el(ctx, x + 8, y - 1, 11, 11); ctx.fill();
     }
   };
   function navCard(ctx, x, y, w, h, bg, line, title, sub, icon) {
@@ -248,6 +252,24 @@
           stage: ogi.stage
         };
       }
+      // v11:拜訪分享通知(選用附加功能)— 小孩回到房間(自然的「上線」時機)時,檢查有沒有朋友
+      // 來訪過、分享了東西給自己。純本機游標判斷已讀,不寫回 Firestore(見 docs/cloud-friends-schema.md)。
+      this.visitNotices = [];
+      if (window.PLS_CLOUD) {
+        window.PLS_CLOUD.checkVisitLog(pid).then(function (list) {
+          if (self.petId !== pid || !list.length) return;
+          self.visitNotices = list.slice().reverse();   // 舊的先顯示,依序點掉
+          PLS.addButton({
+            x: PW + 40, y: 30, w: W - PW - 80, h: 104,
+            hidden: function () { return !self.visitNotices.length; },
+            draw: function (ctx) { self.drawNotice(ctx); },
+            onTap: function () {
+              const n = self.visitNotices.shift();
+              if (n && window.PLS_CLOUD) window.PLS_CLOUD.advanceVisitLogCursor(pid, n.at);
+            }
+          });
+        });
+      }
       // 回首頁
       PLS.addButton({
         x: 24, y: 26, w: 58, h: 58,
@@ -266,13 +288,21 @@
           sub: function () { const r = ST.remainToday(ST.load(pid), 'english'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以拿 ' + r + ' 個玩具' : '今天玩具拿夠了,可以練習'; } }
       ];
       NAV.push({ go: 'emenu', bg: '#E5F0EF', line: '#3F8A84', icon: ICON.abc,   title: '字母手寫練習', sub: function () { return '選字母 · 描字母 · 看筆順'; } });
+      // v11:好友雲端同步(選用附加功能)— cloud.js 沒載入/未設定時 PLS_FRIENDS 不存在,這張卡不會被加進去。
+      if (window.PLS_FRIENDS) {
+        NAV.push({
+          bg: '#EAF1F6', line: '#3B6E8F', icon: ICON.friend, title: '好友',
+          sub: function () { return '串門子看看朋友家'; },
+          action: function () { window.PLS_FRIENDS.open(pid); }
+        });
+      }
       const NTOP = 168, NSTEP = 98, NH = 86;
       NAV.forEach(function (it, i) {
         const y = NTOP + i * NSTEP;
         PLS.addButton({
           x: 30, y: y, w: PW - 60, h: NH,
           draw: function (ctx) { navCard(ctx, 30, y, PW - 60, NH, it.bg, it.line, it.title, it.sub(), it.icon); },
-          onTap: function () { PLS.go(it.go, { pet: pid }); }
+          onTap: function () { if (it.action) it.action(); else PLS.go(it.go, { pet: pid }); }
         });
       });
       // v9:大寶滿 3 天 → 畢業入珍藏(金色脈動卡)
@@ -385,6 +415,24 @@
     },
     say: function (text) { this.bubble = { text: text, until: PLS.t + 2.4 }; },
     sayG: function (text) { this.gBubble = { text: text, until: PLS.t + 2.4 }; },
+
+    // v11:拜訪分享通知橫幅(疊在房間框上方,點一下關閉、換下一則)
+    drawNotice: function (ctx) {
+      const n = this.visitNotices[0];
+      if (!n) return;
+      const kindLabel = (CFG.pets[n.fromSpecies] && CFG.pets[n.fromSpecies].name) || '';
+      const giftLabel = (n.gift && n.gift.label) || '';
+      const bx = PW + 40, by = 30, bw = W - PW - 80, bh = 104;
+      ctx.save();
+      ctx.shadowColor = 'rgba(150,100,60,0.20)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+      ctx.fillStyle = '#FFF7E0'; rr(ctx, bx, by, bw, bh, 24); ctx.fill();
+      ctx.restore();
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.font = '24px ' + FONT; ctx.fillStyle = '#C2791E';
+      ctx.fillText('🎁 ' + (n.fromNickname || '朋友') + '的' + kindLabel + ' 拜訪過你', bx + 28, by + 38);
+      ctx.font = '20px ' + FONT; ctx.fillStyle = '#8A6242';
+      ctx.fillText('分享了「' + giftLabel + '」!(點一下關閉)', bx + 28, by + 74);
+    },
 
     // ── 餵食 / 陪玩:點托盤的那一刻就先扣資料(store),動畫只是演出來 ──
     startFeed: function (key, gold) {
@@ -916,5 +964,11 @@
   };
 
   PLS.register('room', room);
-  window.PLS_ROOM2 = true;
+  // v11:把 2.5D 房間的共用繪製元件匯出,讓 app/visit.js(拜訪好友)能重用同一套視覺語言
+  // (屋頂厚木框、地板、食物/遊戲墊、寵物定位與走位),不用另外重畫一份房間殼。
+  window.PLS_ROOM2 = {
+    MAT: MAT, el: el, rr: rr, roofFrame: roofFrame, roomInterior: roomInterior, station: station,
+    petAt: petAt, xRange: xRange, yAt: yAt, scAt: scAt, dirOf: dirOf,
+    wanderStep: wanderStep, walkStep: walkStep, clamp: clamp, smooth: smooth
+  };
 })();

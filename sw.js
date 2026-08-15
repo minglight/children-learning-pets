@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v28';
+const VERSION = 'pls-v29';
 const ASSETS = [
   '.',
   'index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   'app/gen.js',
   'app/bank.js',
   'app/store.js',
+  'app/cloud.js',
   'app/art.js',
   'app/pets.js',
   'app/toys.js',
@@ -19,6 +20,7 @@ const ASSETS = [
   'app/dex.js',
   'app/screens.js',
   'app/room.js',
+  'app/visit.js',
   'app/lifecycle.js',
   'app/quiz.js',
   'app/letters.js',
@@ -27,6 +29,7 @@ const ASSETS = [
   'questions/unit7.xml',
   'questions/unit8.xml',
   'questions/unit9.xml'
+  // admin.html / app/admin.js 刻意不放進來:後台本來就需要即時連網,不需要離線支援。
 ];
 
 self.addEventListener('install', function (e) {

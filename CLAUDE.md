@@ -9,7 +9,8 @@
 
 ## 專案性質
 - **純前端、單機 App**（HTML + Canvas + 原生 JS，PWA / 可離線）。
-- **沒有後端、沒有伺服器、沒有帳號**。所有使用者資料只存在裝置本機。
+- **核心玩法沒有後端、沒有伺服器、沒有帳號**。所有使用者資料的**權威來源永遠是裝置本機**（`localStorage`）。
+- **例外(v11,選用附加功能)**：好友雲端同步 / 自動備份 / 維運後台(`app/cloud.js`、`firestore.rules`、`admin.html`)是額外疊加的一層,詳見下方「好友雲端同步」章節。這層**完全 fail-soft**——沒設定 `CFG.firebase` 或離線時安靜不做事,絕不影響數學/英文/手寫/積分/電子雞養成等既有功能,也不改變上面「權威來源是本機」這條原則。
 
 ## 資料儲存（最重要）
 - 進度與設定**只能存在瀏覽器 cache**（`localStorage`，鍵名 `pls.*`，見 `app/store.js`）。
@@ -84,7 +85,16 @@
 - **雙寵物互訪(無 schema 變更)**:每次進房 **1/3 機率**(測試版必來),另一隻寵物過 6~14 秒從房間邊緣走進來作客(`room.js` 的 `this._visit` 狀態機:wait→in→stay→join→leave,`updateVisit()`)。作客期間在地板漫遊(與主寵物共用 `wanderStep()`)、**餵食時走到食物墊右側一起咀嚼**(主寵物站 -64、訪客站 +64)、陪玩時在旁邊蹦跳加油、可以點牠摸摸;約 45 秒後道別走出房間。**純演出,不讀寫任何存檔**(訪客外觀 stage 進房時讀一次)。語錄在 `config.talkCare.visit*`(`{name}` 會代換成訪客名);訪客有自己的泡泡(`sayG()`/`gBubble`),兩隻寵物繪製依 z 深度排序(遠的先畫)。
 - **收集圖鑑(v5)**:`pet.dex`(吃過/玩過自動點亮,`feed()`/`playToy()` 寫入),畫面在 `app/dex.js`(房間點掛畫進入)。**新增畫面檔要同時加進 `index.html` 的 script 與 `sw.js` 的 ASSETS。**
 - **答題遊戲感**:quiz/eplay 有連對 combo 徽章(streak≥2)、同一題錯 2 次給提示並重唸、最後一題答對加大慶祝。
-- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` / `species` / `slot` / `collection` / `decoDex` → 已是 schema **v10**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物;v8 加 `care.xpToday` + `DAILY_XP_CAP` 每日成長上限;**v9 改以小孩為單位**:鍵改 `pls.kidL`/`pls.kidR`、新增 `species`/`slot`/`collection`/`growth.grownAt`/`growth.deco`,舊 rabbit/hamster 鍵與匯出檔自動搬遷;**v10 配件可收集**:新增 `decoDex` 配件圖鑑、兔兔/倉倉補到 5 款、珍藏館可換裝),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。
+- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` / `species` / `slot` / `collection` / `decoDex` → 已是 schema **v10**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物;v8 加 `care.xpToday` + `DAILY_XP_CAP` 每日成長上限;**v9 改以小孩為單位**:鍵改 `pls.kidL`/`pls.kidR`、新增 `species`/`slot`/`collection`/`growth.grownAt`/`growth.deco`,舊 rabbit/hamster 鍵與匯出檔自動搬遷;**v10 配件可收集**:新增 `decoDex` 配件圖鑑、兔兔/倉倉補到 5 款、珍藏館可換裝),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。目前整體 schema 是 **v11**(疊加下面「好友雲端同步」章節的 `childNickname`/`giftsGiven`),電子雞化本身的欄位在 v10 就已經穩定、v11 沒有再變動。
+
+## 好友雲端同步 / 自動備份(選用附加功能,v11,`app/cloud.js`)
+- **身份錨點是「小孩存檔 slot」（`kidL`/`kidR`），不是物種**:物種(`species`)是小孩底下會換的屬性(換寵物/畢業都會變),雲端好友代碼/還原碼/暱稱一律跟著 slot 走,不跟著物種走。所有 `app/cloud.js` 的方法第一個參數都是 `slot`。
+- **小朋友暱稱**:`pet.childNickname`(schema v11,好友辨識用,獨立於寵物名字/種類;換寵物/畢業都不變)是本機 schema 的正式欄位,會隨「匯出進度」/「匯入進度」/還原碼一起搬家。`pet.giftsGiven` 是拜訪分享次數的小統計,不影響經驗值/點數。
+- **Firestore 集合**(`players`/`friendCodes`/`friends`/`visits`/`visitLog`/`backups`)的完整結構、權限規則、節流節奏見 **`docs/cloud-friends-schema.md`**(權威規格)與 `firestore.rules`。**Firestore 端不是進度的權威來源**,只是鏡射備份 + 唯讀拜訪快照,本機 `localStorage` 才是。
+- **拜訪好友是互動式的**(`app/room.js` 房間左欄「好友」卡 → `window.PLS_FRIENDS.open(slot)` → `app/visit.js`):帶著自己的寵物走進朋友房間(重用 `app/room.js` 匯出的 `window.PLS_ROOM2` 共用繪製元件,不另外重畫一套房間美術),可以從自己背包(`inv.foods`/`inv.gold`/`inv.toys`)挑一項分享給朋友,**一次拜訪限分享一次**。分享寫入只會落在朋友的 `visitLog` 子集合,結構上(Firestore 規則層級)就不可能碰到朋友的 `status`/`points`/成長進度。
+- **主人端通知**:小孩下次打開房間(`room.js enter()`)會呼叫 `PLS_CLOUD.checkVisitLog(slot)`,把新的分享紀錄疊成可點掉的橫幅「🎁 OO的OO 拜訪過你,分享了『XX』」。已讀游標純本機判斷,不寫回 Firestore。
+- **維運後台**(`admin.html`+`app/admin.js`,Email/Password 登入,跟小孩的匿名登入是不同帳號系統):**只有 `firestore.rules` 裡 `isAdmin()` 寫死的單一 email 能登入看到資料**,不是「每個家長都有 admin 權限」;一般家長全程匿名登入,不會意外拿到後台存取權。`admin.html`/`app/admin.js` 刻意不進 `sw.js` 的 `ASSETS`(不支援離線,後台本來就要即時連網)。
+- **改動這組功能的檢查清單**:動到 Firestore 欄位/集合 → 同步更新 `docs/cloud-friends-schema.md` 與 `firestore.rules`;動到本機 `childNickname`/`giftsGiven` 欄位結構 → 照最上面「向前/向後相容」章節走 `store.js` migration + `docs/export-import-schema.md`。
 
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。

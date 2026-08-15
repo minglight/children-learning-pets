@@ -6,6 +6,16 @@ window.PLS_CONFIG = {
   passRate: 0.9,        // 首次答對率 >= 90% 才能吃大餐
   deluxeAt: 10,         // 同一關正式解滿幾次就改送「豪華版」獎勵(每關一天只能解一次)
 
+  // v11:好友雲端同步(選用附加功能,見 app/cloud.js)— 純前端 SDK 金鑰,安全邊界在 firestore.rules,不是這裡。
+  firebase: {
+    apiKey: 'AIzaSyDks91uInPevDI2VkFXHq9SZS13Yp4VYYg',
+    authDomain: 'children-pet.firebaseapp.com',
+    projectId: 'children-pet',
+    storageBucket: 'children-pet.firebasestorage.app',
+    messagingSenderId: '242093609222',
+    appId: '1:242093609222:web:913e9cd6f59aead08bce87'
+  },
+
   pets: {
     rabbit: {
       id: 'rabbit', name: '兔兔',

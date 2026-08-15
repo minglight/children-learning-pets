@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 10`（v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
+## 目前版本:`version = 11`（v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -17,7 +17,7 @@
 ```jsonc
 {
   "app": "pls",                       // 固定字串;不是 "pls" 一律拒絕匯入
-  "version": 10,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
+  "version": 11,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
   "exportedAt": "2026-06-18T08:00:00.000Z", // ISO 時間,僅供參考
   "kidL": { /* 左邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 rabbit)
   "kidR": { /* 右邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 hamster)
@@ -54,6 +54,8 @@
   },
   "pet": "elephant",          // 相容舊欄位:save() 會同步成 = species(舊讀者用)
   "name": null,               // 自訂暱稱;null = 用預設名
+  "childNickname": null,      // v11:小朋友暱稱(好友辨識用身份錨點,獨立於寵物名字/種類;slot 不變就不變,不受換寵物/畢業影響)
+  "giftsGiven": 0,            // v11:拜訪好友時分享食物/玩具的次數(小統計,不影響經驗值/點數)
   "points": 12,               // v2:可兌換獎品的積分(本小孩獨立,畢業不歸零)
   "hwEarned": 8,              // v2:字母手寫練習累計已給的積分(上限 100)
   "hwRound": ["A", "b"],      // v3:本輪已描完的字母(大小寫各自獨立);描滿 52 個(A–Z+a–z)才 +1 分後清空
@@ -197,3 +199,11 @@
 - **兔兔 / 倉倉補齊配件**:原本這兩隻只有 1 款大寶配件、且不吃 `growth.deco`;v10 各補到 **5 款**(`rabbitDeco` / `hamsterDeco` in `pets.js`,idx0 維持原本外觀相容舊大寶),8 種物種一致皆 5 款。
 - **新畫面**:`dressup`(換裝,從珍藏館點寵物進入)— 在 `app/lifecycle.js`;珍藏館縮圖改為可點按鈕。
 - **migratePet 對舊檔**:補 `decoDex = {}`;並把「目前大寶戴的配件」與「已畢業 collection 各項的配件」自動標記為已收集(idempotent,不會因升級而遺失已擁有的配件)。v9(含更舊)備份檔匯入自動補齊,進度不受影響。
+
+### v11（2026-08,好友雲端同步 / 自動備份 — 選用附加功能)
+- **小孩**新增欄位:
+  - `childNickname`(string 或 null)— 好友辨識用暱稱(例如「小明」),身份錨點是**小孩(slot)**,不是寵物名字或物種:換寵物、畢業重選都不會變,好友還是認得同一個暱稱。未設定時為 `null`,好友功能會提示先請家長到家長區設定。
+  - `giftsGiven`(number,預設 0)— 拜訪好友時分享食物/玩具的累計次數,純小統計,**不影響**經驗值/點數/背包。
+- **本機以外的雲端資料**(選用,`app/cloud.js` + `firestore.rules`):Firestore 的 `players/{playerId}` 存一份唯讀快照(`species`/`childNickname`/`petName`/`friendCode`/`status`),供好友拜訪時顯示;**不是**本機 schema 的一部分,不進 export/import 檔,裝置本身沒網路/沒設定 `CFG.firebase` 完全不影響本機遊戲(fail-soft)。詳細集合結構見 `docs/cloud-friends-schema.md`。
+- **不影響匯出/匯入邊界**:雲端功能全部透過 `slot`(`kidL`/`kidR`)存取本機資料,不新增任何本機儲存鍵、不改變既有欄位語意。
+- `migratePet()` 對舊檔補 `childNickname = null`、`giftsGiven = 0`;v10(含更舊)備份檔匯入自動補齊,進度不受影響。
