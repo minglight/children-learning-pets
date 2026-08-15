@@ -252,6 +252,22 @@
           stage: ogi.stage
         };
       }
+      // 好友隨機來家裡玩(選用附加功能,無 schema 變更)— 加了雲端好友後,偶爾會有朋友的寵物隨機來家裡玩。
+      // 不需要 realtime:只是用上次同步到的朋友快照(status)隨機決定要不要來作客,離線/沒有好友就不會發生。
+      // 跟上面的雙寵物互訪共用同一套演出(this._visit / updateVisit),只有這次進房沒輪到手足時才輪得到朋友。
+      if (!this._visit && window.PLS_CLOUD && window.PLS_CLOUD.isConfigured()) {
+        window.PLS_CLOUD.listFriends(pid).then(function (list) {
+          if (self.petId !== pid || self._visit) return;
+          const pool = (list || []).filter(function (f) { return f.status && f.species && CFG.pets[f.species]; });
+          if (!pool.length || Math.random() >= (ST.isTest() ? 1 : 1 / 3)) return;
+          const f = pool[Math.floor(Math.random() * pool.length)];
+          self._visit = {
+            id: f.species, name: f.childNickname || '朋友', deco: f.status.growDeco || 0, phase: 'wait',
+            at: PLS.t + (ST.isTest() ? 3 : 6 + Math.random() * 8),
+            stage: f.status.stage || 'baby'
+          };
+        });
+      }
       // v11:拜訪分享通知(選用附加功能)— 小孩回到房間(自然的「上線」時機)時,檢查有沒有朋友
       // 來訪過、分享了東西給自己。純本機游標判斷已讀,不寫回 Firestore(見 docs/cloud-friends-schema.md)。
       this.visitNotices = [];

@@ -5,6 +5,9 @@
 //   所以 players.species 從「建立後不可變更」改成「可變更」(仍驗證型別/長度,不再鎖死 rabbit/hamster
 //   兩個值,因為現在有 8 種可養物種、未來還可能再加)。
 //
+// v4(雙向好友):friends 的 create 規則從「只能建自己的清單」放寬成「或建代表自己的那一筆到任何人的
+//   清單裡」,讓加好友一次寫兩筆(自己→對方、對方→自己),對方不用再輸入一次代碼。見 friends match 註解。
+//
 // ⚠ 重要實作限制:同一個 batch/transaction 裡的 get()/exists() 只會看到「送出前」的資料庫快照,
 //   看不到同一個 batch 裡其他文件的寫入。所以 app/cloud.js 的 ensureLinked() 會先單獨建立 players
 //   文件、等它 commit 完成,才用另一個 batch 建立 private/meta、friendCodes、backups —— 這樣下面用
@@ -70,10 +73,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // 單向好友清單:只有自己能讀寫「自己的」好友清單。
+      // 雙向好友清單(v4):加好友時會同時寫「自己→對方」與「對方→自己」兩筆,對方不用再輸入一次
+      // 代碼。只有自己能讀自己的清單;建立時允許兩種情況——(a) 自己在自己的清單裡建一筆(一般加好友),
+      // (b) 自己在任何人的清單裡,建「代表自己」的那一筆(讓對方能自動看到我)——這樣任何人都無法
+      // 幫別人偽造好友關係,最多只能把自己加進別人的清單裡(對方本來就會因為分享代碼而預期被加好友)。
       match /friends/{friendId} {
         allow get, list: if isSignedIn() && isOwner(playerId);
-        allow create: if isSignedIn() && isOwner(playerId)
+        allow create: if isSignedIn() && (isOwner(playerId) || isOwner(friendId))
           && request.resource.data.keys().hasOnly(['addedAt']);
         allow update, delete: if false;
       }

@@ -273,15 +273,20 @@
     }).catch(function () { return { ok: false, reason: 'error' }; });
   }
 
+  // 雙向加好友:一次寫入自己→對方、對方→自己兩筆 friends 文件,對方不用再輸入一次代碼
+  // 就能在自己的好友清單看到我(firestore.rules 的 friends create 規則允許「建立自己的清單」或
+  // 「在任何人的清單裡建立代表自己的那一筆」,所以這個 batch 兩筆寫入都合法)。
   function addFriendByCode(slot, code) {
     return lookupFriendCode(code).then(function (res) {
       if (!res.ok) return res;
       return ensureLinked(slot).then(function (rec) {
         if (!rec) return { ok: false, reason: 'offline' };
         if (res.playerId === rec.playerId) return { ok: false, reason: 'self' };
-        return db.collection('players').doc(rec.playerId).collection('friends').doc(res.playerId).set({
-          addedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(function () { return res; });
+        var addedAt = firebase.firestore.FieldValue.serverTimestamp();
+        var batch = db.batch();
+        batch.set(db.collection('players').doc(rec.playerId).collection('friends').doc(res.playerId), { addedAt: addedAt });
+        batch.set(db.collection('players').doc(res.playerId).collection('friends').doc(rec.playerId), { addedAt: addedAt });
+        return batch.commit().then(function () { return res; });
       });
     }).catch(function () { return { ok: false, reason: 'error' }; });
   }

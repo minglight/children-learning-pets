@@ -116,10 +116,11 @@
   #friends-panel section { border-top: 1px solid #EFE4D4; padding: 14px 0; }
   #friends-panel h3 { margin: 0 0 10px; font-size: 17px; font-weight: normal; color: #8A6242; }
   #friends-close { position: sticky; top: 0; float: right; margin: -6px -8px 0 0; }
+  .code-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .code-display {
     font-family: 'Andika', monospace; font-size: 26px; letter-spacing: 4px;
     background: #F6EEE0; border-radius: 14px; padding: 12px 16px; text-align: center;
-    color: #8A6242; margin-bottom: 10px;
+    color: #8A6242; flex: 1;
   }
   .friend-row {
     display: flex; align-items: center; gap: 10px; justify-content: space-between;
@@ -245,7 +246,10 @@
       <section id="friends-main" style="display:none">
         <h3>我的好友代碼</h3>
         <div id="my-identity" class="hint" style="margin:0 0 8px"></div>
-        <div class="code-display" id="my-friend-code">------</div>
+        <div class="code-row">
+          <div class="code-display" id="my-friend-code">------</div>
+          <button class="pbtn ghost" id="copy-code-btn">📋 複製</button>
+        </div>
 
         <h3>加好友</h3>
         <div class="prow">
@@ -635,10 +639,9 @@
     list.forEach(function (f) {
       const row = document.createElement('div');
       row.className = 'friend-row';
-      const speciesLabel = (CFG.pets[f.species] && CFG.pets[f.species].name) || '';
       const nameEl = document.createElement('span');
       nameEl.className = 'fname';
-      nameEl.textContent = (f.childNickname || '朋友') + '的' + speciesLabel;
+      nameEl.textContent = f.childNickname || '朋友';
       const btn = document.createElement('button');
       btn.className = 'pbtn ghost';
       btn.textContent = f.visitedToday ? '今天已拜訪' : '拜訪';
@@ -712,9 +715,8 @@
         friendsMsg.textContent = res.reason === 'not_found' ? '找不到這個代碼,再檢查一次喔' : '暫時無法查詢,請稍後再試';
         return;
       }
-      const speciesLabel = (CFG.pets[res.species] && CFG.pets[res.species].name) || '';
       document.getElementById('add-confirm-text').textContent =
-        '要加「' + (res.childNickname || '朋友') + '的' + speciesLabel + '」為好友嗎?';
+        '要加「' + (res.childNickname || '朋友') + '」為好友嗎?';
       document.getElementById('add-confirm').style.display = 'block';
     });
   });
@@ -723,7 +725,7 @@
     document.getElementById('add-confirm').style.display = 'none';
     window.PLS_CLOUD.addFriendByCode(friendsSlot, code).then(function (res) {
       if (res.ok) {
-        friendsMsg.textContent = '已加為好友!';
+        friendsMsg.textContent = '已加為好友!(對方也會自動看到你,不用再輸入一次)';
         document.getElementById('add-code-input').value = '';
         window.PLS_CLOUD.listFriends(friendsSlot).then(renderFriendList);
       } else {
@@ -733,6 +735,22 @@
   });
   document.getElementById('add-confirm-no').addEventListener('click', function () {
     document.getElementById('add-confirm').style.display = 'none';
+  });
+  document.getElementById('copy-code-btn').addEventListener('click', function () {
+    const code = document.getElementById('my-friend-code').textContent;
+    if (!code || code === '------' || code === '取得中…') return;
+    const done = function (ok) { friendsMsg.textContent = ok ? '已複製好友代碼!' : '複製失敗,請手動選取'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      done(ok);
+    }
   });
 
   window.PLS_FRIENDS = {
