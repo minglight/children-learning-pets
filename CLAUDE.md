@@ -27,7 +27,7 @@
 - **核心概念:一個小孩(slot)＝一個存檔;物種(species)只是這個存檔目前養的外觀。** 過去 `petId` 一詞同時代表「存檔鍵＋物種外觀＋玩具組」三種身分,v9 已拆開:
   - 各畫面裡 `this.petId` = **slot**（`'kidL'`／`'kidR'`,拿去 `ST.load(slot)`／存檔）。
   - `this.species` = **外觀**（`ST.load(slot).species`,拿去 `P.draw(species, ...)`、查物種名）。**畫寵物一律用 species,不要再用 slot/petId 當物種。**
-- **8 種可養物種**（`config.js PLS_CONFIG.pets`）：rabbit 兔兔、hamster 倉倉、tabby 斑斑、meerkat 蒙蒙、capybara 豚豚、husky 哈哈、elephant 象象、xmascat 橘橘。
+- **10 種可養物種**（`config.js PLS_CONFIG.pets`）：rabbit 兔兔、hamster 倉倉、tabby 斑斑、meerkat 蒙蒙、capybara 豚豚、husky 哈哈、elephant 象象、xmascat 橘橘、chick 小雞、owl 貓頭鷹（後兩隻 v12 新增，幼幼從蛋孵化）。
 - **生命週期**（三個畫面都在 `app/lifecycle.js`）：
   1. `pickpet`（選寵物）：空的小孩卡點「＋ 選寵物」進來,4×2 顯示 8 種幼幼 → 點一隻 → `ST.chooseSpecies(slot, species)` → 進房間從幼幼養起。`chooseSpecies` **只重置 species/growth/care/wish**,**保留** points/dex/inv/各關 clears/collection（金幣圖鑑背包全留給小孩）。
   2. 養大到大寶（`growth.xp ≥ 100`），記 `growth.grownAt`（升上大寶那天）。
@@ -78,14 +78,25 @@
 - **餵食 / 陪玩在房間**(`app/room.js`):點房間前緣的「食物籃 / 玩具箱」開背包托盤 → 點一個道具 → 寵物走過去吃(三口吃完)/ 玩(玩具彈跳),**消耗 1 個**。資料在點下去那一刻就由 `store.feed()` / `store.playToy()` 扣掉,動畫只是演出。點寵物本體 = 摸摸牠(純互動)。
 - **房間是 2.5D**(v6):寵物在整片地板漫遊(`room.js updateWander`,狀態存 `this._wander`),z=0 靠牆 ~ z=1 前緣,`scAt(z)` 近大遠小,**點地板可叫牠走過去**。**視角**:`pets.js draw()` 的 `o.dir`('front'|'side'|'back') — 走遠看到背面(屁股尾巴/耳背/無臉),橫走看到 3/4 側面(五官前移、兔耳後倒、露尾巴;預設朝右,`petAt` 只在 side 時用 `face=-1` 翻面朝左),停下/吃玩回正面;方向由 `room.js dirOf()`(移動向量縱橫比)決定。其他畫面不傳 `dir` = 正面,不受影響。食物墊/遊戲墊(`station()`)只是餵食/陪玩定點(`matZ=0.34`);畫在寵物頭上的東西(照顧圖示/許願泡泡/對話泡泡)都要用 `_petX`/`_petY`/`_petS` 隨深度縮放定位。
 - **成長**:`pet.growth.xp`(v6:餵食 +4、陪玩 +6、每天第一次各多 +2,計數在 `pet.care`,跨日歸零)。**v8 加每日成長上限 `GROW.DAILY_XP_CAP = 15`**(記在 `care.xpToday`,跨日歸零;100xp÷15≈最快一週長大,測試模式不限)。階段門檻在 `store.js` 的 `GROW`:<30 幼幼(0.85×+呆毛)、<100 小寶、≥100 大寶(1.12×+每物種 5 款配件其一)。**大寶配件 `growth.deco`(0–4)升上大寶時決定並固定**。外觀由 `pets.js` 的 `draw(species, ctx, t, {stage, dir, growDeco})` 處理,**所有畫寵物的地方都要帶 species(不是 slot)+ stage + growDeco**(stage 用 `store.growthInfo(d).stage`、growDeco 用 `d.growth.deco`)。升階時房間會播全螢幕慶祝(`room.js drawGrow`)。
-- **佈置(換擺設)已移除**(v6):`app/shelf.js` 已刪除;`pet.home` 欄位保留空格結構純為相容舊備份檔,v6 migration 會把舊檔擺出的食物/玩具轉進背包(deluxe 算 2 份)。**不要再讓任何畫面讀寫 `home` 的格子**。
+- **佈置(換擺設)已移除**(v6):`app/shelf.js` 已刪除(但 `shelf` 畫面本身仍定義並註冊在 `app/screens.js`,尚未清乾淨);`pet.home` 欄位保留 `{foods:[3], toys:[3]}` 空格結構(各格 `{key, deluxe, date}`),`migrateHome()`／`setHomeItem()` 都還健在,v6 migration 會把舊檔擺出的食物/玩具轉進背包(deluxe 算 2 份)。**現階段不要讓任何畫面讀寫 `home` 的格子**——這組結構是「展示櫃」功能的預留地(見 `docs/design-brief.md` 相關計畫),要動之前先確認範圍。
 - **老玩家補償**:`migratePet()` 對無 `growth` 的舊資料,用「各關 clears 總和 × 2、封頂 99」換算初始 xp。
 - **許願(v5)**:`pet.wish` 每天由 `store.getWish()` 抽一個「拿得到的」食物(池 = 前三關 + 已解過關卡的 feast 食物);房間寵物旁有許願泡泡(點了提示去哪一關賺),餵中 → 成長加倍 + `wishGranted` 慶祝。
 - **吃完隨機小反應(v5)**:room.js `startFeed()` 抽 burp / spin(轉圈) / hops / hearts,1/8 出「幸運星」→ `store.bonusXp(d,1)`;語錄在 `config.talkCare`。
 - **雙寵物互訪(無 schema 變更)**:每次進房 **1/3 機率**(測試版必來),另一隻寵物過 6~14 秒從房間邊緣走進來作客(`room.js` 的 `this._visit` 狀態機:wait→in→stay→join→leave,`updateVisit()`)。作客期間在地板漫遊(與主寵物共用 `wanderStep()`)、**餵食時走到食物墊右側一起咀嚼**(主寵物站 -64、訪客站 +64)、陪玩時在旁邊蹦跳加油、可以點牠摸摸;約 45 秒後道別走出房間。**純演出,不讀寫任何存檔**(訪客外觀 stage 進房時讀一次)。語錄在 `config.talkCare.visit*`(`{name}` 會代換成訪客名);訪客有自己的泡泡(`sayG()`/`gBubble`),兩隻寵物繪製依 z 深度排序(遠的先畫)。
 - **收集圖鑑(v5)**:`pet.dex`(吃過/玩過自動點亮,`feed()`/`playToy()` 寫入),畫面在 `app/dex.js`(房間點掛畫進入)。**新增畫面檔要同時加進 `index.html` 的 script 與 `sw.js` 的 ASSETS。**
 - **答題遊戲感**:quiz/eplay 有連對 combo 徽章(streak≥2)、同一題錯 2 次給提示並重唸、最後一題答對加大慶祝。
-- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` / `species` / `slot` / `collection` / `decoDex` → 已是 schema **v10**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物;v8 加 `care.xpToday` + `DAILY_XP_CAP` 每日成長上限;**v9 改以小孩為單位**:鍵改 `pls.kidL`/`pls.kidR`、新增 `species`/`slot`/`collection`/`growth.grownAt`/`growth.deco`,舊 rabbit/hamster 鍵與匯出檔自動搬遷;**v10 配件可收集**:新增 `decoDex` 配件圖鑑、兔兔/倉倉補到 5 款、珍藏館可換裝),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。目前整體 schema 是 **v11**(疊加下面「好友雲端同步」章節的 `childNickname`/`giftsGiven`),電子雞化本身的欄位在 v10 就已經穩定、v11 沒有再變動。
+- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` / `species` / `slot` / `collection` / `decoDex` → 已是 schema **v10**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物;v8 加 `care.xpToday` + `DAILY_XP_CAP` 每日成長上限;**v9 改以小孩為單位**:鍵改 `pls.kidL`/`pls.kidR`、新增 `species`/`slot`/`collection`/`growth.grownAt`/`growth.deco`,舊 rabbit/hamster 鍵與匯出檔自動搬遷;**v10 配件可收集**:新增 `decoDex` 配件圖鑑、兔兔/倉倉補到 5 款、珍藏館可換裝),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。目前整體 schema 是 **v12**(v11 疊加「好友雲端同步」章節的 `childNickname`/`giftsGiven`;**v12 新增小雞/貓頭鷹 2 物種 + 過關獎勵依難易度分級 + 破關獎盃 + 好友圖鑑/珍藏館瀏覽**),電子雞化本身的欄位在 v10 就已經穩定。
+
+## 過關獎勵的次數上限與豪華版(v12)
+- **過關次數上限依難易度分層**:`clearCapBasic`(入門關,預設 3)／`clearCapAdvanced`(進階關,預設 10),存在 `pls.clearCapBasic`／`pls.clearCapAdvanced`(全域,家長區可改,需密碼);「進階關卡從第幾關開始算」兩個小孩可各自設定。超過上限後仍可繼續玩,只是不再給點數/食物。
+- **豪華版獎勵**:`CFG.deluxeAt = 10` — 同一關正式解滿 10 次後改送豪華版(`FOODS_DELUXE` / `drawToyDeluxe`)。
+- ⚠️ **已知問題**:`deluxeAt`(10) 與 `clearCapBasic`(3) 互相打架 → **入門關卡的豪華獎勵事實上永遠觸發不到**,進階關卡也剛好卡在 10 的邊界。14 個豪華食物 + 10 個豪華玩具的美術幾乎沒有曝光機會。要動獎勵給予邏輯時請一併考慮這件事。
+- **破關獎盃**:房間右上角 `trophyBadge()`(`app/room.js`)顯示數學/英文各自「目前破到第幾關」,自己房間與好友拜訪畫面共用同一個繪製。
+
+## 視覺 / 美術升級
+- 要外包設計（新寵物、新房間場景、新獎品道具、UI 改版）一律走 **`docs/design-brief.md`** 的 prompt 模板,不要臨時發明說法。裡面有各類資產的座標系、必要變體、回傳格式與驗收清單。
+- **`Path2D` 可以直接吃 SVG path 字串畫進 canvas**,`app/letters.js:169` 已經在用(`ctx.stroke(new Path2D(st.d))`)。所以可交付的視覺範圍不限於實色+圓角,任何向量圖形都行。
+- **點陣 sprite 實質上不可行**:寵物有 3 視角 × 3 成長階段 × 10 物種,外加 10 個 `xxxDeco()` × 5 款 = 50 組寫死的配件座標,且 sprite 無法套用 `motion()` 的擠壓拉伸。要換媒材只能走 SVG path + 維持既有的程序化變形。
 
 ## 好友雲端同步 / 自動備份(選用附加功能,v11,`app/cloud.js`)
 - **身份錨點是「小孩存檔 slot」（`kidL`/`kidR`），不是物種**:物種(`species`)是小孩底下會換的屬性(換寵物/畢業都會變),雲端好友代碼/還原碼/暱稱一律跟著 slot 走,不跟著物種走。所有 `app/cloud.js` 的方法第一個參數都是 `slot`。
