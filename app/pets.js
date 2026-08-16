@@ -593,10 +593,155 @@
     ctx.restore();
   }
 
+  // ── 蛋孵化共用:小雞/貓頭鷹的「幼幼」都是蛋殼裡探頭 ──
+  function eggShell(ctx) {
+    ctx.fillStyle = '#FBF3E2'; el(ctx, 0, 86, 66, 58); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-66, 40);
+    let zx = -66; while (zx < 66) { ctx.lineTo(zx + 11, 26); ctx.lineTo(zx + 22, 40); zx += 22; }
+    ctx.lineTo(66, 120); ctx.lineTo(-66, 120); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(210,180,140,0.5)'; ctx.lineWidth = 2; el(ctx, 0, 86, 66, 58); ctx.stroke();
+  }
+
+  // ── 小雞(蛋孵化)──
+  function chickTuft(ctx, topY) {
+    ctx.strokeStyle = '#F5C23F'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    [-12, 0, 12].forEach(function (a) { ctx.beginPath(); ctx.moveTo(a * 0.4, topY + 8); ctx.quadraticCurveTo(a, topY - 16, a * 1.5, topY - 22); ctx.stroke(); });
+  }
+  function chickEyes(ctx, t, eyeY, seed) {
+    const open = blink(t, seed);
+    [-1, 1].forEach(function (s) { const ex = s * 20; ctx.fillStyle = '#2E2119'; el(ctx, ex, eyeY, 6, 6.4 * open); ctx.fill(); ctx.fillStyle = '#fff'; el(ctx, ex - 1.8, eyeY - 2.4, 2, 2 * open); ctx.fill(); });
+  }
+  function drawChick(ctx, t, o) {
+    o = o || {};
+    const mode = o.mode || 'idle';
+    ctx.save();
+    if (o.stage === 'baby') {
+      shadow(ctx, 74); motion(ctx, t, o, 1.1);
+      eggShell(ctx);
+      let gg = ctx.createLinearGradient(0, -40, 0, 40); gg.addColorStop(0, '#FFE07A'); gg.addColorStop(1, '#F6C846');
+      ctx.fillStyle = gg; el(ctx, 0, -6, 52, 50); ctx.fill();
+      chickTuft(ctx, -52);
+      chickEyes(ctx, t, -10, 1.1);
+      ctx.fillStyle = '#F0912E'; ctx.beginPath(); ctx.moveTo(-10, 3); ctx.lineTo(10, 3); ctx.lineTo(0, 12); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#E0791E'; ctx.beginPath(); ctx.moveTo(-7, 7); ctx.lineTo(7, 7); ctx.lineTo(0, 12); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(247,150,120,0.42)'; el(ctx, -28, -2, 10, 6); ctx.fill(); el(ctx, 28, -2, 10, 6); ctx.fill();
+      ctx.fillStyle = '#F6C846'; el(ctx, -54, 44, 18, 12, -0.4); ctx.fill(); el(ctx, 54, 44, 18, 12, 0.4); ctx.fill();
+      ctx.restore(); return;
+    }
+    const big = o.stage === 'grown';
+    shadow(ctx, big ? 86 : 78); motion(ctx, t, o, 1.1);
+    ctx.fillStyle = '#F2B92E'; ctx.beginPath(); ctx.moveTo(70, 64); ctx.quadraticCurveTo(112, 40, 96, 2); ctx.quadraticCurveTo(78, 30, 58, 44); ctx.closePath(); ctx.fill();
+    let g = ctx.createLinearGradient(0, -120, 0, 150); g.addColorStop(0, '#FFE486'); g.addColorStop(1, '#F5C23F');
+    ctx.fillStyle = g; el(ctx, 0, 66, 80, 80); ctx.fill(); el(ctx, 0, -30, 58, 54); ctx.fill();
+    ctx.fillStyle = 'rgba(255,244,200,0.55)'; el(ctx, 0, 74, 50, 54); ctx.fill();
+    ctx.fillStyle = '#F2B92E';
+    if (mode === 'happy') { el(ctx, -78, 30, 20, 30, -0.7); ctx.fill(); el(ctx, 78, 30, 20, 30, 0.7); ctx.fill(); }
+    else { el(ctx, -74, 52, 20, 34, 0.2); ctx.fill(); el(ctx, 74, 52, 20, 34, -0.2); ctx.fill(); }
+    chickTuft(ctx, -58);
+    chickEyes(ctx, t, -34, 1.1);
+    const beakY = -34;
+    if (mode === 'chew') {
+      const ch = 0.5 + 0.5 * Math.sin(t * 14);
+      ctx.fillStyle = '#F0912E'; el(ctx, 0, beakY + 16, 8, 4 + 6 * ch); ctx.fill();
+    } else {
+      ctx.fillStyle = '#F0912E'; ctx.beginPath(); ctx.moveTo(-10, beakY + 13); ctx.lineTo(10, beakY + 13); ctx.lineTo(0, beakY + 22); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#E0791E'; ctx.beginPath(); ctx.moveTo(-7, beakY + 17); ctx.lineTo(7, beakY + 17); ctx.lineTo(0, beakY + 22); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(247,150,120,0.42)'; el(ctx, -28, beakY + 8, 10, 6); ctx.fill(); el(ctx, 28, beakY + 8, 10, 6); ctx.fill();
+    ctx.strokeStyle = '#F0912E'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    [-26, 26].forEach(function (x) { ctx.beginPath(); ctx.moveTo(x, 120); ctx.lineTo(x, 138); ctx.moveTo(x, 138); ctx.lineTo(x - 9, 146); ctx.moveTo(x, 138); ctx.lineTo(x, 148); ctx.moveTo(x, 138); ctx.lineTo(x + 9, 146); ctx.stroke(); });
+    if (big) chickDeco(ctx, o.growDeco | 0);
+    ctx.restore();
+  }
+  function chickDeco(ctx, idx) {
+    ctx.save();
+    if (idx === 0) {
+      ctx.fillStyle = '#E7C877'; el(ctx, 0, -58, 42, 12); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-24, -58); ctx.quadraticCurveTo(0, -88, 24, -58); ctx.fill();
+      ctx.strokeStyle = '#5FA84A'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-24, -60); ctx.quadraticCurveTo(0, -66, 24, -60); ctx.stroke();
+    } else if (idx === 1) bow(ctx, 0, -4, 0.8, '#E08AAB', '#B85E82');
+    else if (idx === 2) scarf(ctx, -4, '#5FA84A', '#3E7A32');
+    else if (idx === 3) {
+      ctx.fillStyle = '#F4A0B8';
+      for (var k = 0; k < 5; k++) { var a = k / 5 * Math.PI * 2; el(ctx, Math.cos(a) * 8, -66 + Math.sin(a) * 8, 6, 6); ctx.fill(); }
+      ctx.fillStyle = '#F6D06A'; el(ctx, 0, -66, 5, 5); ctx.fill();
+    } else collarBell(ctx, 4, '#E08AAB', '#F4C64E');
+    ctx.restore();
+  }
+
+  // ── 貓頭鷹(蛋孵化)──
+  function owlSpeckle(ctx) {
+    ctx.fillStyle = 'rgba(70,74,84,0.85)';
+    [[-40, 80], [-14, 104], [24, 92], [50, 110], [-52, 120], [10, 128], [40, 64], [-24, 60], [62, 88], [-60, 54]].forEach(function (p) {
+      ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(0.5); el(ctx, 0, 0, 3.4, 6); ctx.fill(); ctx.restore();
+    });
+  }
+  function owlFace(ctx, t, o, eyeY, eyeDX, seed) {
+    const mode = o.mode || 'idle';
+    const open = blink(t, seed);
+    [-1, 1].forEach(function (s) {
+      const ex = s * eyeDX;
+      ctx.fillStyle = '#F2A81E'; el(ctx, ex, eyeY, 17, 17 * Math.max(0.5, open)); ctx.fill();
+      ctx.fillStyle = '#241A12'; el(ctx, ex, eyeY + 1, 10, 10 * Math.max(0.5, open)); ctx.fill();
+      ctx.fillStyle = '#fff'; el(ctx, ex - 4, eyeY - 4, 4, 4 * Math.max(0.5, open)); ctx.fill();
+    });
+    ctx.fillStyle = '#9AA0AA'; ctx.beginPath(); ctx.moveTo(0, eyeY - 2); ctx.lineTo(-6, eyeY + 16); ctx.lineTo(6, eyeY + 16); ctx.closePath(); ctx.fill();
+    if (mode === 'chew') { const ch = 0.5 + 0.5 * Math.sin(t * 14); ctx.fillStyle = '#5A5E66'; el(ctx, 0, eyeY + 20, 6, 3 + 5 * ch); ctx.fill(); }
+    else { ctx.fillStyle = '#5A5E66'; ctx.beginPath(); ctx.moveTo(-5, eyeY + 16); ctx.lineTo(5, eyeY + 16); ctx.lineTo(0, eyeY + 27); ctx.closePath(); ctx.fill(); }
+  }
+  function drawOwl(ctx, t, o) {
+    o = o || {};
+    ctx.save();
+    if (o.stage === 'baby') {
+      shadow(ctx, 74); motion(ctx, t, o, 0.9);
+      eggShell(ctx);
+      let gg = ctx.createRadialGradient(0, -16, 6, 0, -16, 58); gg.addColorStop(0, '#fff'); gg.addColorStop(1, '#E9ECF1');
+      ctx.fillStyle = gg; el(ctx, 0, -16, 54, 52); ctx.fill();
+      owlFace(ctx, t, o, -18, 20, 0.9);
+      ctx.fillStyle = '#EEF0F4'; el(ctx, -54, 44, 18, 12, -0.4); ctx.fill(); el(ctx, 54, 44, 18, 12, 0.4); ctx.fill();
+      ctx.restore(); return;
+    }
+    const big = o.stage === 'grown';
+    shadow(ctx, big ? 92 : 84); motion(ctx, t, o, 0.5);
+    let g = ctx.createLinearGradient(0, -130, 0, 150); g.addColorStop(0, '#FFFFFF'); g.addColorStop(1, '#E7EAF0');
+    ctx.fillStyle = g; el(ctx, 0, 60, 82, 84); ctx.fill(); el(ctx, 0, -46, 78, 72); ctx.fill();
+    ctx.save(); ctx.beginPath(); el(ctx, 0, 60, 82, 84); ctx.clip(); owlSpeckle(ctx); ctx.restore();
+    const mode = o.mode || 'idle';
+    ctx.fillStyle = '#F1F3F7';
+    if (mode === 'happy') { el(ctx, -78, 40, 24, 56, -0.5); ctx.fill(); el(ctx, 78, 40, 24, 56, 0.5); ctx.fill(); }
+    else { el(ctx, -72, 66, 22, 52, 0.12); ctx.fill(); el(ctx, 72, 66, 22, 52, -0.12); ctx.fill(); }
+    ctx.fillStyle = 'rgba(70,74,84,0.7)';
+    [[-74, 50], [-70, 78], [-66, 104], [74, 50], [70, 78], [66, 104]].forEach(function (p) { el(ctx, p[0], p[1], 3, 6, 0.4); ctx.fill(); });
+    ctx.fillStyle = '#FBFCFE'; el(ctx, 0, -44, 58, 54); ctx.fill();
+    owlFace(ctx, t, o, -48, 26, 0.5);
+    ctx.fillStyle = '#F4F6FA'; el(ctx, -30, 128, 20, 16); ctx.fill(); el(ctx, 30, 128, 20, 16); ctx.fill();
+    ctx.strokeStyle = '#C9B48E'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    [-30, 30].forEach(function (x) { [-9, 0, 9].forEach(function (o2) { ctx.beginPath(); ctx.moveTo(x, 138); ctx.lineTo(x + o2, 148); ctx.stroke(); }); });
+    if (big) owlDeco(ctx, o.growDeco | 0);
+    ctx.restore();
+  }
+  function owlDeco(ctx, idx) {
+    ctx.save();
+    if (idx === 0) {
+      ctx.fillStyle = '#33506E'; ctx.fillRect(-30, -104, 60, 9);
+      ctx.beginPath(); ctx.moveTo(-38, -104); ctx.lineTo(0, -116); ctx.lineTo(38, -104); ctx.lineTo(0, -92); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#F4C64E'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(0, -110); ctx.lineTo(30, -104); ctx.lineTo(30, -88); ctx.stroke();
+      ctx.fillStyle = '#F4C64E'; el(ctx, 30, -86, 5, 5); ctx.fill();
+    } else if (idx === 1) bow(ctx, 0, -18, 0.85, '#3F9E8C', '#2E6E60');
+    else if (idx === 2) scarf(ctx, -20, '#C24E5A', '#8E2530');
+    else if (idx === 3) {
+      ctx.fillStyle = '#F4A0B8';
+      for (var k = 0; k < 5; k++) { var a = k / 5 * Math.PI * 2; el(ctx, Math.cos(a) * 8, -96 + Math.sin(a) * 8, 6, 6); ctx.fill(); }
+      ctx.fillStyle = '#F6D06A'; el(ctx, 0, -96, 5, 5); ctx.fill();
+    } else collarBell(ctx, -20, '#3F9E8C', '#F4C64E');
+    ctx.restore();
+  }
+
   // o.stage:'baby' 縮小 0.85、'grown' 放大 1.12(以腳底 y≈146 為基準對齊,站的位置不變)
   const DRAWERS = {
     rabbit: drawRabbit, hamster: drawHamster, tabby: drawTabby, meerkat: drawMeerkat,
-    capybara: drawCapybara, husky: drawHusky, elephant: drawElephant, xmascat: drawXmascat
+    capybara: drawCapybara, husky: drawHusky, elephant: drawElephant, xmascat: drawXmascat,
+    chick: drawChick, owl: drawOwl
   };
   function draw(petId, ctx, t, o) {
     o = o || {};
@@ -609,6 +754,6 @@
   window.PLS_PETS = {
     draw: draw, drawRabbit: drawRabbit, drawHamster: drawHamster, drawTabby: drawTabby,
     drawMeerkat: drawMeerkat, drawCapybara: drawCapybara, drawHusky: drawHusky,
-    drawElephant: drawElephant, drawXmascat: drawXmascat
+    drawElephant: drawElephant, drawXmascat: drawXmascat, drawChick: drawChick, drawOwl: drawOwl
   };
 })();

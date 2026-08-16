@@ -5,6 +5,10 @@ window.PLS_CONFIG = {
   questionsPerLevel: 10,
   passRate: 0.9,        // 首次答對率 >= 90% 才能吃大餐
   deluxeAt: 10,         // 同一關正式解滿幾次就改送「豪華版」獎勵(每關一天只能解一次)
+  // v12:難度分級獎勵 — 同一關過關次數超過門檻就不再給點數/食物(仍可繼續玩,只是沒獎勵)。
+  // 「入門」= advancedFrom 之前的關卡,「進階」= advancedFrom(含)之後;兩個門檻家長區可調(全域共用)。
+  clearCapBasic: 3,      // 入門關卡:過幾次後不再給獎勵(預設；可在家長區調整)
+  clearCapAdvanced: 10,  // 進階關卡:過幾次後不再給獎勵(預設；可在家長區調整)
 
   // v11:好友雲端同步(選用附加功能,見 app/cloud.js)— 純前端 SDK 金鑰,安全邊界在 firestore.rules,不是這裡。
   firebase: {
@@ -42,15 +46,25 @@ window.PLS_CONFIG = {
       id: 'husky', name: '哈哈',
       theme: { wall: '#E2E9F2', dot: 'rgba(120,150,190,0.20)', accent: '#3E9E8E', deep: '#33506E' }
     },
-    // 大象 — 向日葵草原(薄荷綠牆 + 向日葵/雛菊佈景)
+    // 大象 — 向日葵花園場景(房間背景另繪,見 screens.js SCENE_ROOM.elephant)
     elephant: {
       id: 'elephant', name: '象象',
       theme: { wall: '#CFE9E1', dot: 'rgba(110,175,155,0.20)', accent: '#3F9E8C', deep: '#2E6E60' }
     },
-    // 橘白貓 — 聖誕場景(紅牆 + 冬青花圈/金星星,大寶配件含酒紅領結)
+    // 橘白貓 — 聖誕冬青金星場景(房間背景另繪,見 screens.js SCENE_ROOM.xmascat)
     xmascat: {
       id: 'xmascat', name: '橘橘',
       theme: { wall: '#C24E5A', dot: 'rgba(244,198,78,0.22)', accent: '#2E7D46', deep: '#7A2530' }
+    },
+    // 小雞 — 稻草農場場景(蛋孵化幼幼;房間背景見 screens.js SCENE_ROOM.chick)
+    chick: {
+      id: 'chick', name: '小雞',
+      theme: { wall: '#F6E9CC', dot: 'rgba(211,166,63,0.18)', accent: '#C99A4E', deep: '#8A6242' }
+    },
+    // 貓頭鷹 — 黃昏森林場景(蛋孵化幼幼;房間背景見 screens.js SCENE_ROOM.owl)
+    owl: {
+      id: 'owl', name: '貓頭鷹',
+      theme: { wall: '#E3E1EF', dot: 'rgba(91,107,166,0.18)', accent: '#5B6BA6', deep: '#3E3A66' }
     }
   },
 
@@ -80,14 +94,15 @@ window.PLS_CONFIG = {
       bite: 'scoop', feast: { name: '冰淇淋聖代塔', basicName: '一球冰淇淋', deluxeName: '聖代冰淇淋豪華塔', items: ['sundae', 'scoop', 'scoop', 'sundae', 'scoop'] } },
     { id: 'm7', name: '形狀拼拼樂', sub: '圖形拼補', gen: 'shapeCompose', icon: 'puzzle',
       bite: 'strawberry', feast: { name: '草莓蛋糕塔', basicName: '一塊草莓蛋糕', deluxeName: '草莓蛋糕豪華塔', items: ['cake', 'strawberry', 'cake', 'strawberry', 'cake'] } },
-    // ── 課本單元 6–9(題庫來自 questions/*.xml,可由家長編輯;不上鎖)──
-    { id: 'u6', name: '課6 買東西', sub: '認識錢', bank: 'unit6', icon: 'coin', alwaysOpen: true,
+    // ── 課本單元 6–9(題庫來自 questions/*.xml,可由家長編輯)──
+    // v12:取消 alwaysOpen(原為期末考暫時開放),恢復序列鎖,跟其他關卡一起照順序解鎖。
+    { id: 'u6', name: '課6 買東西', sub: '認識錢', bank: 'unit6', icon: 'coin',
       bite: 'boba', feast: { name: '夜市點心大餐', basicName: '一份夜市點心', deluxeName: '夜市豪華全套', items: ['boba', 'eggcake', 'boba', 'eggcake', 'boba'] } },
-    { id: 'u7', name: '課7 看月曆', sub: '日期星期', bank: 'unit7', icon: 'calendar', alwaysOpen: true,
+    { id: 'u7', name: '課7 看月曆', sub: '日期星期', bank: 'unit7', icon: 'calendar',
       bite: 'orange', feast: { name: '繽紛水果盤', basicName: '一盤繽紛水果', deluxeName: '繽紛水果豐收大盤', items: ['orange', 'apple', 'banana', 'strawberry', 'orange'] } },
-    { id: 'u8', name: '課8 兩位數加減', sub: '直式計算', bank: 'unit8', icon: 'plus', alwaysOpen: true,
+    { id: 'u8', name: '課8 兩位數加減', sub: '直式計算', bank: 'unit8', icon: 'plus',
       bite: 'sushi', feast: { name: '日本壽司全餐', basicName: '一盤壽司', deluxeName: '壽司豪華全餐', items: ['sushi', 'sushi', 'sushi', 'sushi', 'sushi'] } },
-    { id: 'u9', name: '課9 分類整理', sub: '數一數比一比', bank: 'unit9', icon: 'sort', alwaysOpen: true,
+    { id: 'u9', name: '課9 分類整理', sub: '數一數比一比', bank: 'unit9', icon: 'sort',
       bite: 'pizza', feast: { name: '披薩薯條派對', basicName: '一塊披薩薯條', deluxeName: '披薩薯條豪華全套', items: ['pizza', 'fries', 'pizza', 'fries', 'pizza'] } },
     // 小二進階(完整內容,照進度逐關解鎖)
     { id: 'm8', name: '加法', sub: '兩位數+兩位數', gen: 'addBig', icon: 'plus',

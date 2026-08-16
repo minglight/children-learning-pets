@@ -14,6 +14,10 @@
   const FLUSH_INTERVAL_MS = 90000;      // 定時自動備份週期
   const PUSH_THROTTLE_MS = 15000;       // pushStatus 節流(例如打開好友面板前呼叫)
   const LOCAL_PREFIX = 'pls.cloud.';
+  // debug.html(QA 測試工具)會把 CFG.firebase 換成獨立的測試專案(見 CLAUDE.md「QA 測試工具」章節),
+  // 跟正式 App 同一個瀏覽器/同一份 localStorage;本機連結快取(playerId/好友代碼)依 projectId 分開存,
+  // 避免測試環境誤用正式的 playerId(反之亦然)。
+  const PROJECT_ID = (CFG && CFG.firebase && CFG.firebase.projectId) || 'default';
 
   const configured = !!(CFG && CFG.firebase && CFG.firebase.apiKey);
 
@@ -24,11 +28,18 @@
   var lastPush = {};    // slot -> timestamp(節流用)
 
   // ── 本機雲端連結資訊(獨立於 pet schema,不進 SCHEMA_VERSION/匯出檔)──
-  function localKey(slot) { return LOCAL_PREFIX + slot; }
+  // v11 上線時鍵名沒有分專案;之後加上 projectId 命名空間,正式環境(children-pet)第一次讀取時
+  // 把舊鍵(無命名空間)的資料原地搬進新鍵,舊鍵保留當備份 — 不影響既有好友代碼/還原碼。
+  function localKey(slot) { return LOCAL_PREFIX + PROJECT_ID + '.' + slot; }
   function loadLocal(slot) {
     try {
       var raw = localStorage.getItem(localKey(slot));
-      return raw ? JSON.parse(raw) : {};
+      if (raw) return JSON.parse(raw);
+      if (PROJECT_ID === 'children-pet') {
+        var legacy = localStorage.getItem(LOCAL_PREFIX + slot);
+        if (legacy) { var rec = JSON.parse(legacy); saveLocal(slot, rec); return rec; }
+      }
+      return {};
     } catch (e) { return {}; }
   }
   function saveLocal(slot, rec) {
@@ -66,15 +77,35 @@
     return readyPromise;
   }
 
-  // 拜訪時對方看得到的唯讀快照:物種/暱稱/成長階段/配件款式/點數。不含背包/圖鑑/關卡等學習細節。
+  // 拜訪時對方看得到的唯讀快照:物種/暱稱/成長階段/配件款式/點數/獎盃數字/收集圖鑑/珍藏館/配件圖鑑。
+  // 不含背包目前庫存數量/關卡明細/答對率等學習細節——trophy(v12)、dex/decoDex/collection(v13)是刻意放行
+  // 的例外,都是「收集了什麼」而不是「現在還剩多少/答得好不好」,說明見 docs/cloud-friends-schema.md v6。
+  // firestore.rules 不用改:status 只驗證 is map,沒有對內部欄位 .hasOnly() 限制,新增欄位天然合法。
   function statusSnapshot(petData) {
     var gi = ST.growthInfo(petData);
+    var dex = (petData.dex && typeof petData.dex === 'object') ? petData.dex : {};
+    var collection = Array.isArray(petData.collection) ? petData.collection.slice(-40) : [];
     return {
       species: petData.species || '',
       name: petData.name ? String(petData.name).slice(0, 6) : '',
       stage: gi.stage,
       growDeco: typeof gi.deco === 'number' ? gi.deco : 0,
       points: petData.points || 0,
+      trophy: ST.trophyNumber(petData),           // v12:數學破到第幾關(獎盃數字),自己房間與拜訪畫面顯示一致
+      trophyEn: ST.trophyNumberEnglish(petData),  // v13:英文破到第幾關,同一顆獎盃元件疊在數學獎盃上方
+      dex: {                              // v13:收集圖鑑(吃過的食物/玩過的玩具 key,不含背包目前庫存數量)
+        foods: Array.isArray(dex.foods) ? dex.foods.slice(0, 60) : [],
+        toys: Array.isArray(dex.toys) ? dex.toys.slice(0, 60) : []
+      },
+      decoDex: petData.decoDex && typeof petData.decoDex === 'object' ? petData.decoDex : {},   // v13:配件圖鑑
+      collection: collection.map(function (e) {                                                  // v13:珍藏館(畢業寶貝牆)
+        return {
+          species: e && e.species ? String(e.species).slice(0, 20) : '',
+          deco: e && typeof e.deco === 'number' ? e.deco : 0,
+          name: e && e.name ? String(e.name).slice(0, 12) : '',
+          date: e && e.date ? String(e.date).slice(0, 12) : ''
+        };
+      }),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
   }
@@ -158,11 +189,18 @@
     };
   }
 
-  // ── 自動備份:store.save() 每次寫入都會呼叫 markDirty,定時器合併成一次上傳 ──
+  // ── 自動備份:store.save() 每次寫入都會呼叫 markDirty ──
+  // 資料一有變動就盡快同步(節流 PUSH_THROTTLE_MS,避免連續操作洗爆寫入量,不是真的每次 save 都打一次
+  // Firestore);節流中或這次失敗都沒關係,dirty 旗標留著,90 秒的背景 flushAll 還是會補上,雙保險。
   function markDirty(slot) {
     dirty[slot] = true;
     init();
     startFlushTimer();
+    var now = Date.now();
+    if (lastPush[slot] && now - lastPush[slot] < PUSH_THROTTLE_MS) return;
+    lastPush[slot] = now;
+    delete dirty[slot];
+    flushPet(slot).catch(function () { dirty[slot] = true; });
   }
 
   function startFlushTimer() {

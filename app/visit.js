@@ -29,7 +29,9 @@
       const toys = ST.invList(this.myPet, 'toys').map(function (it) { return { key: it.key, type: 'toy', gold: false }; });
       this.shareItems = foods.concat(gold, toys).slice(0, 8);
 
-      this.mode = 'idle';        // 'idle' | 'confirm' | 'shared'
+      // mode 預設 idle,但如果是從「看圖鑑」晃一圈回來(params.shared),要記得這次拜訪已經分享過,
+      // 不然子畫面把 visit 的 enter() 重跑一次,「一次拜訪限分享一次」的軟限制就被繞過去了。
+      this.mode = (params && params.shared) ? 'shared' : 'idle';        // 'idle' | 'confirm' | 'shared'
       this.sel = null;
       this.note = ''; this.noteT = -10;
       this._friendWander = null;
@@ -51,6 +53,22 @@
           PLS.go('room', { pet: self.petId });
           if (window.PLS_FRIENDS) window.PLS_FRIENDS.open(self.petId);
         }
+      });
+
+      // 看朋友的收集圖鑑/珍藏館/配件圖鑑(唯讀,v13)——重用 app/dex.js 的朋友模式
+      PLS.addButton({
+        x: W - 240 - 30, y: 30, w: 240, h: 66,
+        hidden: function () { return self.mode === 'confirm'; },
+        draw: function (ctx) {
+          ctx.save();
+          ctx.shadowColor = 'rgba(150,100,60,0.16)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 5;
+          ctx.fillStyle = '#FFFFFF'; R2.rr(ctx, W - 270, 30, 240, 66, 22); ctx.fill();
+          ctx.restore();
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.font = '24px ' + FONT; ctx.fillStyle = '#8A6B4C';
+          ctx.fillText('🏅 看圖鑑', W - 150, 64);
+        },
+        onTap: function () { PLS.go('dex', { pet: self.petId, friendView: self.friend, shared: self.mode === 'shared' }); }
       });
 
       // 分享物品(最多 8 個,排一列在畫面下方)
@@ -118,6 +136,8 @@
       const L = this.layout();
       const box = R2.roofFrame(ctx, L.fx, L.fy, L.fw, L.fh, nickname + '的房間');
       this._box = box;
+      R2.trophyBadge(ctx, L.fx + L.fw - 78, L.fy - 44, status.trophy || 0, '🧮');        // v12:數學獎盃,跟自己房間同一顆
+      R2.trophyBadge(ctx, L.fx + L.fw - 78, L.fy - 90, status.trophyEn || 0, '🔤');      // v13:英文獎盃
       const wallB = R2.roomInterior(ctx, box.ix, box.iy, box.iw, box.ih, 14, th.wall, th.dot);
       ctx.save();
       ctx.beginPath(); R2.rr(ctx, box.ix, box.iy, box.iw, box.ih, 14); ctx.clip();

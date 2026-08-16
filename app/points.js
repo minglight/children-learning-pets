@@ -83,6 +83,8 @@
       const nm = PLS.currentName;
       if (nm === 'quiz' || nm === 'eplay') rightEdge = W - 128;     // 喇叭鈕在 W-114
       else if (nm === 'epractice' || nm === 'emenu') rightEdge = W - 264; // 大小寫鈕在 W-250
+      else if (nm === 'visit') rightEdge = W - 284; // 「🏅 看圖鑑」鈕在 W-270
+      else if (nm === 'room') rightEdge = W - 214;  // v12/13:數學/英文獎盃徽章疊在右上角,避免蓋到彼此
       const x = rightEdge - w;
       this.rect = { x: x, y: cy - h / 2, w: w, h: h };
       this.visible = true;

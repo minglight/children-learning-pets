@@ -3,7 +3,14 @@
 // { kind:'number'|'shape'|'compose'|'visual',
 //   display: {...依 kind 而異},
 //   say: 'TTS 唸題文字(繁中)',
-//   answer: 正解值, options: [選項...](含正解,已洗牌) }
+//   answer: 正解值, options: [選項...](含正解,已洗牌),
+//   dedupKey: (選填) {...只放影響題目本質的欄位} }
+//
+// ⚠ 判重複規則(quiz.js 的 next() 用來擋同一輪 10 題內出現同一題):
+//   簽名 = kind + (dedupKey || display) + answer。如果 display 裡放了「純裝飾、不影響題目本質」
+//   的欄位(例如 visualAdd 的水果圖案 fruit),不要讓它混進判重複的依據——同樣的數字只是換個水果,
+//   對小朋友來說仍是「同一題」。這種情況要額外回傳 dedupKey,只放數字/答案/目標等真正決定題目的欄位。
+//   新增出題函式時,只要 display 有裝飾用欄位,記得比照 gen.visualAdd 補 dedupKey。
 (function () {
   function ri(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
   function pick(arr) { return arr[ri(0, arr.length - 1)]; }
@@ -115,6 +122,7 @@
     return {
       kind: 'visual',
       display: { a: a, b: b, fruit: fruit },
+      dedupKey: { a: a, b: b },   // fruit 只是裝飾,換水果不算「不同題」,判重複時排除
       say: numZh(a) + '個加' + numZh(b) + '個,一共有幾個?',
       answer: ans, options: numOptions(ans, 2)
     };

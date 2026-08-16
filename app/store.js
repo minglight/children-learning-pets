@@ -29,7 +29,11 @@
   //     珍藏館可把已畢業大寶(及正在養的大寶)換成「已收集」的配件。每物種各 5 款(兔兔/倉倉也補到 5)。
   // v11:好友雲端同步 — 每小孩新增 childNickname(好友辨識用暱稱,獨立於寵物名字/種類,slot 不變則暱稱不變、
   //     不受換寵物/畢業影響)、giftsGiven(拜訪好友分享食物/玩具的次數小統計,不影響經驗值/點數)。
-  const SCHEMA_VERSION = 11;
+  // v12:難度分級獎勵 — 每小孩新增 advancedFrom(這個小孩「進階關卡」從第幾關開始算,預設 'm8';
+  //     家長區可依小孩程度個別調整)。過關次數上限改依入門/進階分層(clearCapBasic/clearCapAdvanced,
+  //     全域、家長區可調),同一門檻現在**同時**擋點數與食物(舊版只擋點數)。u6–u9 取消 alwaysOpen,
+  //     恢復序列鎖,「目前破到第幾關」(trophyNumber)才有意義——同步曝光給好友拜訪當「獎盃」。
+  const SCHEMA_VERSION = 12;
   const GRADUATE_DAYS = 3;   // 大寶停留幾天後可畢業入珍藏(測試版不限)
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
@@ -56,6 +60,7 @@
       name: null,                 // null = 用預設名
       childNickname: null,        // v11:小朋友暱稱(好友辨識用身份錨點,獨立於寵物名字/種類,slot 不變就不變)
       giftsGiven: 0,               // v11:拜訪好友時分享食物/玩具的次數(小統計,不影響經驗值/點數)
+      advancedFrom: 'm8',         // v12:這個小孩「進階關卡」從第幾關(id)開始算,家長區可個別調整
       collection: [],             // v9:已畢業大寶 [{species, deco, date}](本小孩專屬,只增不減)
       levels: {},                 // levelId -> {attempts, bestRate, cleared, plays}
       points: 0,                  // 可兌換獎品的積分(本小孩獨立,畢業不歸零)
@@ -135,6 +140,8 @@
     // ── v11:好友雲端同步 ──
     if (!('childNickname' in p) || !p.childNickname) p.childNickname = null;
     if (typeof p.giftsGiven !== 'number') p.giftsGiven = 0;
+    // ── v12:難度分級獎勵 ──
+    if (typeof p.advancedFrom !== 'string') p.advancedFrom = 'm8';
     if (!p.levels || typeof p.levels !== 'object') p.levels = {};
     // 舊資料補 clears 欄位(由 cleared 推回)
     Object.keys(p.levels).forEach(function (k) {
@@ -290,6 +297,59 @@
   }
   function deluxeAt() { return window.PLS_CONFIG.deluxeAt || 10; }
 
+  // ── v12:難度分級獎勵(家長區可調,全域共用;不分小孩)──
+  function getClearCapBasic() {
+    try {
+      const v = parseInt(localStorage.getItem('pls.clearCapBasic'), 10);
+      return isNaN(v) || v < 1 ? (window.PLS_CONFIG.clearCapBasic || 3) : v;
+    } catch (e) { return window.PLS_CONFIG.clearCapBasic || 3; }
+  }
+  function setClearCapBasic(n) {
+    try { localStorage.setItem('pls.clearCapBasic', String(n)); } catch (e) {}
+  }
+  function getClearCapAdvanced() {
+    try {
+      const v = parseInt(localStorage.getItem('pls.clearCapAdvanced'), 10);
+      return isNaN(v) || v < 1 ? (window.PLS_CONFIG.clearCapAdvanced || 10) : v;
+    } catch (e) { return window.PLS_CONFIG.clearCapAdvanced || 10; }
+  }
+  function setClearCapAdvanced(n) {
+    try { localStorage.setItem('pls.clearCapAdvanced', String(n)); } catch (e) {}
+  }
+  // 這個小孩「進階關卡」從第幾關(id)開始算(家長區可個別調整,預設沿用 config 裡的小二起點 'm8')
+  function getAdvancedFrom(slot) { return load(slot).advancedFrom || 'm8'; }
+  function setAdvancedFrom(slot, levelId) {
+    const d = load(slot);
+    d.advancedFrom = levelId || 'm8';
+    save(d);
+  }
+  // 某關對這個小孩來說是「入門」還是「進階」(依 config.js math 陣列的序列位置比對 advancedFrom)
+  function levelTier(d, levelId) {
+    const math = (window.PLS_CONFIG && window.PLS_CONFIG.math) || [];
+    const advIdx = math.findIndex(function (lv) { return lv.id === (d.advancedFrom || 'm8'); });
+    const lvIdx = math.findIndex(function (lv) { return lv.id === levelId; });
+    if (lvIdx < 0) return 'basic';
+    return (advIdx >= 0 && lvIdx >= advIdx) ? 'advanced' : 'basic';
+  }
+  // 這一關、這個小孩,過幾次後不再給獎勵(點數/食物)
+  function clearCapFor(d, levelId) {
+    return levelTier(d, levelId) === 'advanced' ? getClearCapAdvanced() : getClearCapBasic();
+  }
+
+  // 「破到第幾關」獎盃數字:list 陣列是序列解鎖(上一關過關才開下一關),
+  // 從頭數到「第一個沒過關」為止的關卡數,代表目前的學習進度深度。math/english 共用同一套算法
+  // (english 沒有 alwaysOpen 插隊關卡,序列位置本來就單純;math 是 v12 拿掉 alwaysOpen 後才成立)。
+  function trophyNumberFor(d, list) {
+    let n = 0;
+    for (let i = 0; i < list.length; i++) {
+      const r = d.levels[list[i].id];
+      if (r && r.cleared) n = i + 1; else break;
+    }
+    return n;
+  }
+  function trophyNumber(d) { return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.math) || []); }
+  function trophyNumberEnglish(d) { return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.english) || []); }
+
   // 記錄一次完整關卡結果
   function recordRun(d, subject, levelId, firstTryCorrect, total, practice) {
     const rate = firstTryCorrect / total;
@@ -305,10 +365,17 @@
         rec.cleared = true;
         rec.clears = (rec.clears || 0) + 1;
         if (!isTest()) rec.lastClearDate = today();   // 測試版不鎖每日
-        feast = true;
-        deluxe = rec.clears >= deluxeAt();             // 滿 10 次起,送豪華版
-        // 過關積分:同一關第 1~10 次過關各 +1 分,第 11 次起不再加分
-        if (rec.clears <= 10) { d.points = (d.points || 0) + 1; point = 1; }
+        // v12:過關次數超過門檻(入門/進階分層,家長區可調)就不再給點數/食物;仍可繼續玩、仍算過關。
+        // 但「滿 10 次送豪華版」這個里程碑不受這個門檻擋——不然入門關卡預設門檻只有 3 次,凡是
+        // 早該在門檻調整前就快集滿 10 次的小孩(例如已經 9 次),之後就再也碰不到豪華版了,等於
+        // 調整難度分級反而把原本快到手的獎勵沒收掉。所以第 10 次通關這一下永遠照給,其餘次數才吃門檻。
+        const cap = (subject === 'math') ? clearCapFor(d, levelId) : 10;
+        const hitDeluxeMilestone = rec.clears === deluxeAt();
+        if (rec.clears <= cap || hitDeluxeMilestone) {
+          feast = true;
+          deluxe = hitDeluxeMilestone;
+          d.points = (d.points || 0) + 1; point = 1;
+        }
       }
     }
     d.levels[levelId] = rec;
@@ -676,6 +743,11 @@
     canSwitchHome: canSwitchHome, setHomeItem: setHomeItem,
     clearCount: clearCount, clearedToday: clearedToday, deluxeAt: deluxeAt,
     getDailyLimit: getDailyLimit, setDailyLimit: setDailyLimit,
+    // v12:難度分級獎勵
+    getClearCapBasic: getClearCapBasic, setClearCapBasic: setClearCapBasic,
+    getClearCapAdvanced: getClearCapAdvanced, setClearCapAdvanced: setClearCapAdvanced,
+    getAdvancedFrom: getAdvancedFrom, setAdvancedFrom: setAdvancedFrom,
+    levelTier: levelTier, clearCapFor: clearCapFor, trophyNumber: trophyNumber, trophyNumberEnglish: trophyNumberEnglish,
     getPoints: getPoints, awardHandwriting: awardHandwriting, hwDailyLeft: hwDailyLeft,
     hwRoundProgress: hwRoundProgress, submitHwLetter: submitHwLetter,
     getPrizes: getPrizes, setPrizes: setPrizes, redeem: redeem,

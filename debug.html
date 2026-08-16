@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>寵物小學堂 · QA 測試工具</title>
+<style>
+  body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; background: #F4EFE6; color: #4A3B2C; margin: 0; padding: 24px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; }
+  h3 { font-size: 14px; margin: 16px 0 8px; color: #8A6242; }
+  .hint { color: #8A7A64; font-size: 13px; margin: 0 0 20px; }
+  .warn { color: #C25858; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .card { background: #FFF; border-radius: 16px; padding: 18px 22px; margin-bottom: 18px; box-shadow: 0 2px 10px rgba(90,60,30,0.08); }
+  .card.narrow { max-width: 720px; }
+  label { display: inline-block; font-size: 13px; margin: 6px 10px 6px 0; }
+  .field-label { display: block; font-size: 13px; margin: 10px 0 4px; }
+  input[type="text"], input[type="number"], select {
+    font-size: 14px; padding: 7px 9px; border: 1px solid #DDD0BC; border-radius: 8px; box-sizing: border-box; background: #FFFDF8;
+  }
+  input[type="text"] { width: 180px; }
+  input[type="number"] { width: 90px; }
+  button { font-size: 13.5px; padding: 7px 14px; border: none; border-radius: 8px; background: #F2B96B; color: #FFF; cursor: pointer; margin: 4px 6px 4px 0; }
+  button.ghost { background: #F2E8D8; color: #8A6242; }
+  button.danger { background: #E39494; }
+  button.cloud { background: #7FA8C9; }
+  fieldset { border: 1px solid #EFE4D4; border-radius: 10px; margin: 0 0 12px; padding: 10px 14px; }
+  legend { font-size: 12.5px; color: #8A7A64; padding: 0 6px; }
+  .msg { font-size: 13px; min-height: 18px; margin-top: 6px; }
+  .msg.ok { color: #5E9A6A; }
+  .msg.err { color: #C25858; }
+  .summary-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13.5px; }
+  .summary-grid b { color: #B97A52; font-weight: normal; }
+  .chip-list { font-size: 12.5px; color: #6A5A46; word-break: break-all; }
+  #raw-json { width: 100%; max-width: 900px; height: 260px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; box-sizing: border-box; }
+  .toplink { float: right; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>寵物小學堂 · QA 測試工具<a class="toplink" href="index.html" target="_blank">在新分頁開啟 App ↗</a></h1>
+<p class="hint">給 QA / 開發用:直接讀寫本機 localStorage 存檔(<span class="warn">跟正式 App 同一份,不要在小孩實際裝置上開這頁</span>)。雲端相關按鈕連的是<b>獨立的 children-pet-dev 測試專案</b>,不會動到正式 <code>children-pet</code> 的資料(見 CLAUDE.md「QA 測試工具」章節)。這個頁面刻意不進 <code>sw.js</code> 快取,不需要離線支援。</p>
+
+<div id="login-gate" class="card narrow">
+  <h2>QA 登入</h2>
+  <p class="hint" style="margin:0 0 8px">這個工具會直接改動本機小孩存檔,需要登入才能使用。帳號建立在獨立的 <code>children-pet-dev</code> 測試專案(Authentication → Email/Password),不是正式帳號系統。</p>
+  <span class="field-label">Email</span>
+  <input type="email" id="gate-email" style="width:240px">
+  <span class="field-label">密碼</span>
+  <input type="password" id="gate-pw" style="width:240px">
+  <div><button id="gate-login-btn" type="button">登入</button></div>
+  <div class="msg err" id="gate-err"></div>
+</div>
+
+<div id="gate-bar" class="card narrow" style="display:none; justify-content:space-between; align-items:center; padding:12px 22px;">
+  <span>QA 登入身份:<b id="gate-who"></b></span>
+  <button class="ghost" id="gate-logout-btn" type="button">登出</button>
+</div>
+
+<div id="qa-body" style="display:none">
+<div class="card narrow">
+  <h2>1. 選擇要操作的小孩存檔</h2>
+  <label><input type="radio" name="slot" value="kidL" checked> 左邊小孩(kidL)</label>
+  <label><input type="radio" name="slot" value="kidR"> 右邊小孩(kidR)</label>
+  <div class="summary-grid" id="summary"></div>
+  <button class="ghost" id="toggle-json-btn" type="button">顯示 / 隱藏原始 JSON</button>
+  <textarea id="raw-json" readonly style="display:none"></textarea>
+</div>
+
+<div class="row">
+  <div class="card" style="min-width:320px">
+    <h2>2. 物種 / 成長</h2>
+    <span class="field-label">物種</span>
+    <select id="species-select"></select>
+    <button id="set-species-btn" type="button">設定物種(會重置成長/照顧/許願,保留背包積分)</button>
+    <h3>成長階段快速設定</h3>
+    <button class="ghost" id="stage-baby-btn" type="button">幼幼(xp=0)</button>
+    <button class="ghost" id="stage-kid-btn" type="button">小寶(xp=30)</button>
+    <button class="ghost" id="stage-grown-btn" type="button">大寶(xp=100,自動抽配件)</button>
+    <div>
+      <span class="field-label">自訂 XP</span>
+      <input type="number" id="xp-input" min="0" value="0">
+      <button id="set-xp-btn" type="button">設定 XP</button>
+    </div>
+    <div class="msg" id="growth-msg"></div>
+  </div>
+
+  <div class="card" style="min-width:260px">
+    <h2>3. 積分</h2>
+    <span class="field-label">積分數值</span>
+    <input type="number" id="points-input" min="0" value="0">
+    <button id="set-points-btn" type="button">設定</button>
+    <button class="ghost" id="points-plus10-btn" type="button">+10</button>
+    <div class="msg" id="points-msg"></div>
+  </div>
+</div>
+
+<div class="card narrow">
+  <h2>4. 背包(食物 / 金色食物 / 玩具)</h2>
+  <fieldset>
+    <legend>快速灌滿</legend>
+    <button id="fill-foods-btn" type="button">常見食物各 3 個</button>
+    <button id="fill-gold-btn" type="button">金色食物各 2 個</button>
+    <button id="fill-toys-btn" type="button">常見玩具各 3 個</button>
+  </fieldset>
+  <fieldset>
+    <legend>自訂單一項目數量(設成 0 = 移除)</legend>
+    <label>種類
+      <select id="inv-kind-select">
+        <option value="foods">一般食物</option>
+        <option value="gold">金色食物</option>
+        <option value="toys">玩具</option>
+      </select>
+    </label>
+    <label>key <input type="text" id="inv-key-input" placeholder="例如 apple"></label>
+    <label>數量 <input type="number" id="inv-qty-input" min="0" value="1"></label>
+    <button id="set-inv-btn" type="button">設定</button>
+  </fieldset>
+  <div class="msg" id="inv-msg"></div>
+  <div class="chip-list" id="inv-display"></div>
+</div>
+
+<div class="row">
+  <div class="card" style="min-width:320px">
+    <h2>5. 圖鑑 / 配件圖鑑</h2>
+    <button id="unlock-dex-btn" type="button">解鎖全部食物 + 玩具圖鑑</button>
+    <h3>配件圖鑑(decoDex)</h3>
+    <select id="deco-species-select"></select>
+    <select id="deco-idx-select">
+      <option value="0">第 1 款</option><option value="1">第 2 款</option><option value="2">第 3 款</option>
+      <option value="3">第 4 款</option><option value="4">第 5 款</option>
+    </select>
+    <button id="deco-unlock-btn" type="button">解鎖</button>
+    <button class="ghost" id="deco-lock-btn" type="button">收回(取消解鎖)</button>
+    <div>
+      <span class="field-label">目前配戴(必須是大寶 + 已解鎖)</span>
+      <button id="set-cur-deco-btn" type="button">套用上面選的款式當目前配件</button>
+    </div>
+    <div class="msg" id="deco-msg"></div>
+  </div>
+
+  <div class="card" style="min-width:280px">
+    <h2>6. 畢業珍藏(collection)</h2>
+    <p class="hint" style="margin:0 0 8px">用上面「物種」欄位選的物種,灌一筆假畢業紀錄進珍藏館。</p>
+    <button id="grad-add-btn" type="button">新增一筆假畢業紀錄</button>
+    <button class="danger" id="grad-clear-btn" type="button">清空珍藏清單</button>
+    <div class="msg" id="grad-msg"></div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card" style="min-width:320px">
+    <h2>7. 暱稱 / 關卡 / 測試模式</h2>
+    <span class="field-label">小朋友暱稱(好友辨識用)</span>
+    <input type="text" id="nickname-input" maxlength="6">
+    <button id="set-nickname-btn" type="button">設定</button>
+    <div>
+      <label><input type="checkbox" id="testmode-checkbox"> 測試模式(全域,解除每日限制與關卡鎖)</label>
+    </div>
+    <button id="levels-set-cleared-btn" type="button">全部數學/英文關卡設為已通關</button>
+    <button class="danger" id="levels-clear-btn" type="button">清空這個小孩的關卡進度</button>
+    <div class="msg" id="misc-msg"></div>
+  </div>
+
+  <div class="card" style="min-width:280px">
+    <h2>8. 全域設定(不分小孩)</h2>
+    <div><span class="field-label">每日關卡上限</span><input type="number" id="daily-limit-input" min="1"><button id="set-daily-limit-btn" type="button">設定</button></div>
+    <div><span class="field-label">入門關卡過幾次不再給獎勵</span><input type="number" id="cap-basic-input" min="1"><button id="set-cap-basic-btn" type="button">設定</button></div>
+    <div><span class="field-label">進階關卡過幾次不再給獎勵</span><input type="number" id="cap-advanced-input" min="1"><button id="set-cap-advanced-btn" type="button">設定</button></div>
+    <div class="msg" id="global-msg"></div>
+  </div>
+</div>
+
+<div class="card narrow">
+  <h2>9. 跳到 App 內特定畫面</h2>
+  <p class="hint" style="margin:0 0 8px">寫一個一次性標記到 localStorage,導向 <code>index.html</code> 後自動跳轉(讀一次就清掉,不影響一般使用)。</p>
+  <select id="jump-select">
+    <option value="room">房間(room)</option>
+    <option value="museum">珍藏館(museum)</option>
+    <option value="pickpet">選寵物(pickpet)</option>
+    <option value="shop">獎品商店(shop)</option>
+  </select>
+  <button id="jump-btn" type="button">跳轉</button>
+</div>
+
+<div class="card narrow">
+  <h2>10. 雲端好友(v11,寫入 children-pet-dev 測試專案)</h2>
+  <p class="hint" style="margin:0 0 8px">這裡連的是<b>獨立的測試 Firebase 專案</b>,不是正式的 <code>children-pet</code>,不會動到小孩真正在用的雲端資料。第一次用要先去測試專案的 Firestore「規則」分頁貼上這個 repo 的 <code>firestore.rules</code>,並開啟「匿名登入」,不然下面按鈕都會失敗。</p>
+  <div class="msg" id="cloud-status">尚未檢查</div>
+  <button class="cloud" id="cloud-check-btn" type="button">檢查 / 建立這個小孩的雲端連結</button>
+
+  <h3>假的雲端好友(拜訪畫面用)</h3>
+  <label><input type="radio" name="fake-src" value="sibling" checked> 用另一個小孩的真實身份(推薦,分享會產生真實通知)</label><br>
+  <label><input type="radio" name="fake-src" value="custom"> 完全自訂(純本機預覽,分享會建立孤兒雲端紀錄)</label>
+  <div id="fake-custom-fields" style="display:none">
+    <span class="field-label">假好友暱稱</span><input type="text" id="fake-nickname-input" value="測試好友">
+    <span class="field-label">假好友物種</span><select id="fake-species-select"></select>
+  </div>
+  <div><button class="cloud" id="fake-visit-btn" type="button">開始拜訪(進入 App 的 visit 畫面)</button></div>
+  <div class="msg" id="fake-visit-msg"></div>
+
+  <h3>模擬好友來訪並分享禮物<span class="warn">(寫入 children-pet-dev 的 visitLog)</span></h3>
+  <p class="hint" style="margin:0 0 8px">直接寫進「目前選的小孩」自己的 visitLog,下次進房間會看到「🎁 OO 拜訪過你」的通知橫幅。</p>
+  <span class="field-label">來訪者暱稱</span><input type="text" id="inject-nickname-input" value="神秘好友">
+  <span class="field-label">來訪者物種</span><select id="inject-species-select"></select>
+  <div>
+    <label><input type="radio" name="inject-gift-type" value="food" checked> 食物</label>
+    <label><input type="radio" name="inject-gift-type" value="toy"> 玩具</label>
+    <input type="text" id="inject-key-input" value="apple" placeholder="item key">
+    <input type="text" id="inject-label-input" value="蘋果" placeholder="顯示名稱" maxlength="20">
+  </div>
+  <div><button class="cloud" id="inject-visit-btn" type="button">送出假來訪通知(寫入測試專案)</button></div>
+  <div class="msg" id="inject-msg"></div>
+</div>
+</div>
+
+<script src="app/config.js"></script>
+<script>
+  // ── QA 測試專案(獨立於正式 Firebase 專案 children-pet,見 CLAUDE.md「QA 測試工具」章節)──
+  // debug.html 永遠指向這個測試專案,沒有 runtime 切換開關 — 開哪個 html 檔案就用哪組設定,
+  // 不會不小心寫進正式 Firestore。要開就開 index.html(正式)。
+  window.PLS_CONFIG.firebase = {
+    apiKey: 'AIzaSyAJnQR1YsPb8gdMLpKtGBzvPMYb1s6gQMQ',
+    authDomain: 'children-pet-dev.firebaseapp.com',
+    projectId: 'children-pet-dev',
+    storageBucket: 'children-pet-dev.firebasestorage.app',
+    messagingSenderId: '410622587664',
+    appId: '1:410622587664:web:62e1765cafef4e8ecfeb95'
+  };
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app/store.js"></script>
+<script src="app/cloud.js"></script>
+<script>
+function initTool() {
+  const CFG = window.PLS_CONFIG, ST = window.PLS_STORE, CLOUD = window.PLS_CLOUD;
+  let slot = 'kidL';
+
+  function $(id) { return document.getElementById(id); }
+  function msg(id, text, ok) { var el = $(id); el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+
+  // ── 物種下拉選單(共用) ──
+  function fillSpeciesSelect(sel) {
+    sel.textContent = '';
+    Object.keys(CFG.pets).forEach(function (id) {
+      var o = document.createElement('option');
+      o.value = id; o.textContent = CFG.pets[id].name + '(' + id + ')';
+      sel.appendChild(o);
+    });
+  }
+  [$('species-select'), $('deco-species-select'), $('fake-species-select'), $('inject-species-select')].forEach(fillSpeciesSelect);
+
+  // ── 食物 / 玩具 key 清單(從 config 的關卡資料反推,QA 灌背包用) ──
+  function allFoodKeys() {
+    var set = {};
+    (CFG.math || []).forEach(function (lv) { if (lv.feast && lv.feast.items) lv.feast.items.forEach(function (k) { set[k] = 1; }); });
+    return Object.keys(set).sort();
+  }
+  function allToyKeys() {
+    var set = {};
+    (CFG.english || []).forEach(function (lv) { if (lv.toyArtU) set[lv.toyArtU] = 1; });
+    return Object.keys(set).sort();
+  }
+
+  // ── decoDex 標記(對照 store.js 內部 markDeco 的邏輯,ST 沒有直接曝露這個) ──
+  function markDecoLocal(dex, sp, idx) {
+    if (!Array.isArray(dex[sp])) { dex[sp] = []; for (var i = 0; i < ST.DECO_N; i++) dex[sp][i] = false; }
+    dex[sp][idx] = true;
+  }
+
+  function currentSlot() { return document.querySelector('input[name="slot"]:checked').value; }
+
+  function refresh() {
+    slot = currentSlot();
+    var d = ST.load(slot);
+    var gi = ST.growthInfo(d);
+    var foodsN = ST.invTotal(d, 'foods'), goldN = ST.invTotal(d, 'gold'), toysN = ST.invTotal(d, 'toys');
+    var levelsCleared = Object.keys(d.levels || {}).filter(function (k) { return d.levels[k].cleared; }).length;
+
+    $('summary').innerHTML = '';
+    var rows = [
+      ['小孩', ST.SLOT_NAMES[slot] + '(' + slot + ')'],
+      ['物種', d.species ? (CFG.pets[d.species] ? CFG.pets[d.species].name : d.species) : '(尚未選寵物)'],
+      ['成長階段', gi.stageZh + '(xp=' + gi.xp + ')'],
+      ['積分', String(d.points || 0)],
+      ['背包', '食物 ' + foodsN + ' / 金色 ' + goldN + ' / 玩具 ' + toysN],
+      ['暱稱', d.childNickname || '(未設定)'],
+      ['已畢業珍藏', (d.collection || []).length + ' 隻'],
+      ['已過關關卡數', String(levelsCleared)],
+      ['測試模式', ST.isTest() ? '開啟' : '關閉']
+    ];
+    rows.forEach(function (r) {
+      var b = document.createElement('b'); b.textContent = r[0];
+      var v = document.createElement('span'); v.textContent = r[1];
+      $('summary').appendChild(b); $('summary').appendChild(v);
+    });
+
+    if ($('species-select').value !== d.species) $('species-select').value = d.species || Object.keys(CFG.pets)[0];
+    $('xp-input').value = gi.xp;
+    $('points-input').value = d.points || 0;
+    $('nickname-input').value = d.childNickname || '';
+    $('testmode-checkbox').checked = ST.isTest();
+    $('daily-limit-input').value = ST.getDailyLimit();
+    $('cap-basic-input').value = ST.getClearCapBasic();
+    $('cap-advanced-input').value = ST.getClearCapAdvanced();
+
+    var invLines = [];
+    ['foods', 'gold', 'toys'].forEach(function (kind) {
+      var list = ST.invList(d, kind);
+      invLines.push((kind === 'foods' ? '食物' : kind === 'gold' ? '金色食物' : '玩具') + ': ' +
+        (list.length ? list.map(function (it) { return it.key + '×' + it.n; }).join(', ') : '(空)'));
+    });
+    $('inv-display').textContent = invLines.join(' ｜ ');
+
+    $('raw-json').value = JSON.stringify(d, null, 2);
+    $('cloud-status').textContent = CLOUD.isConfigured() ? '雲端已設定(children-pet),尚未檢查這個小孩是否已連結' : '雲端未設定(CFG.firebase 缺 apiKey)';
+  }
+
+  document.querySelectorAll('input[name="slot"]').forEach(function (r) { r.addEventListener('change', refresh); });
+
+  $('toggle-json-btn').addEventListener('click', function () {
+    var el = $('raw-json'); el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // ── 2. 物種 / 成長 ──
+  $('set-species-btn').addEventListener('click', function () {
+    ST.chooseSpecies(slot, $('species-select').value);
+    msg('growth-msg', '已設定物種,成長/照顧/許願已重置。', true);
+    refresh();
+  });
+
+  function applyXp(xp) {
+    var d = ST.load(slot);
+    d.growth.xp = Math.max(0, xp | 0);
+    var stage = ST.stageOf(d.growth.xp);
+    if (stage === 'grown') {
+      if (d.growth.deco == null) {
+        d.growth.deco = Math.floor(Math.random() * ST.DECO_N);
+        if (!d.decoDex) d.decoDex = {};
+        markDecoLocal(d.decoDex, d.species, d.growth.deco);
+      }
+      if (!d.growth.grownAt) d.growth.grownAt = ST.today();
+    }
+    ST.save(d);
+  }
+  $('stage-baby-btn').addEventListener('click', function () { applyXp(0); msg('growth-msg', '已設為幼幼。', true); refresh(); });
+  $('stage-kid-btn').addEventListener('click', function () { applyXp(30); msg('growth-msg', '已設為小寶。', true); refresh(); });
+  $('stage-grown-btn').addEventListener('click', function () { applyXp(100); msg('growth-msg', '已設為大寶,配件已抽好。', true); refresh(); });
+  $('set-xp-btn').addEventListener('click', function () {
+    applyXp(parseInt($('xp-input').value, 10) || 0);
+    msg('growth-msg', '已設定 XP。', true);
+    refresh();
+  });
+
+  // ── 3. 積分 ──
+  $('set-points-btn').addEventListener('click', function () {
+    var d = ST.load(slot); d.points = Math.max(0, parseInt($('points-input').value, 10) || 0); ST.save(d);
+    msg('points-msg', '已設定積分。', true); refresh();
+  });
+  $('points-plus10-btn').addEventListener('click', function () {
+    var d = ST.load(slot); d.points = (d.points || 0) + 10; ST.save(d);
+    msg('points-msg', '+10 完成。', true); refresh();
+  });
+
+  // ── 4. 背包 ──
+  $('fill-foods-btn').addEventListener('click', function () {
+    var d = ST.load(slot);
+    allFoodKeys().forEach(function (k) { d.inv.foods[k] = 3; });
+    ST.save(d); msg('inv-msg', '常見食物已各灌 3 個。', true); refresh();
+  });
+  $('fill-gold-btn').addEventListener('click', function () {
+    var d = ST.load(slot);
+    allFoodKeys().forEach(function (k) { d.inv.gold[k] = 2; });
+    ST.save(d); msg('inv-msg', '金色食物已各灌 2 個。', true); refresh();
+  });
+  $('fill-toys-btn').addEventListener('click', function () {
+    var d = ST.load(slot);
+    allToyKeys().forEach(function (k) { d.inv.toys[k] = 3; });
+    ST.save(d); msg('inv-msg', '常見玩具已各灌 3 個。', true); refresh();
+  });
+  $('set-inv-btn').addEventListener('click', function () {
+    var kind = $('inv-kind-select').value, key = $('inv-key-input').value.trim(), n = Math.max(0, parseInt($('inv-qty-input').value, 10) || 0);
+    if (!key) { msg('inv-msg', '請輸入 item key。', false); return; }
+    var d = ST.load(slot);
+    if (n > 0) d.inv[kind][key] = n; else delete d.inv[kind][key];
+    ST.save(d); msg('inv-msg', '已設定 ' + kind + '.' + key + ' = ' + n + '。', true); refresh();
+  });
+
+  // ── 5. 圖鑑 / 配件圖鑑 ──
+  $('unlock-dex-btn').addEventListener('click', function () {
+    var d = ST.load(slot);
+    d.dex.foods = allFoodKeys(); d.dex.toys = allToyKeys();
+    ST.save(d); msg('deco-msg', '食物/玩具圖鑑已全部解鎖。', true); refresh();
+  });
+  $('deco-unlock-btn').addEventListener('click', function () {
+    var d = ST.load(slot), sp = $('deco-species-select').value, idx = parseInt($('deco-idx-select').value, 10);
+    if (!d.decoDex) d.decoDex = {};
+    markDecoLocal(d.decoDex, sp, idx);
+    ST.save(d); msg('deco-msg', '已解鎖 ' + sp + ' 第 ' + (idx + 1) + ' 款配件。', true); refresh();
+  });
+  $('deco-lock-btn').addEventListener('click', function () {
+    var d = ST.load(slot), sp = $('deco-species-select').value, idx = parseInt($('deco-idx-select').value, 10);
+    if (d.decoDex && Array.isArray(d.decoDex[sp])) d.decoDex[sp][idx] = false;
+    ST.save(d); msg('deco-msg', '已收回 ' + sp + ' 第 ' + (idx + 1) + ' 款配件。', true); refresh();
+  });
+  $('set-cur-deco-btn').addEventListener('click', function () {
+    var idx = parseInt($('deco-idx-select').value, 10);
+    var ok = ST.setCurrentDeco(slot, idx);
+    msg('deco-msg', ok ? '已套用為目前配件。' : '失敗:必須是大寶,且該款已解鎖(先按上面「解鎖」)。', ok);
+    refresh();
+  });
+
+  // ── 6. 畢業珍藏 ──
+  $('grad-add-btn').addEventListener('click', function () {
+    var d = ST.load(slot), sp = $('species-select').value, decoIdx = Math.floor(Math.random() * ST.DECO_N);
+    if (!Array.isArray(d.collection)) d.collection = [];
+    d.collection.push({ species: sp, deco: decoIdx, name: (CFG.pets[sp] && CFG.pets[sp].name) || sp, date: ST.today() });
+    if (!d.decoDex) d.decoDex = {};
+    markDecoLocal(d.decoDex, sp, decoIdx);
+    ST.save(d); msg('grad-msg', '已新增一筆 ' + (CFG.pets[sp] && CFG.pets[sp].name) + ' 的假畢業紀錄。', true); refresh();
+  });
+  $('grad-clear-btn').addEventListener('click', function () {
+    var d = ST.load(slot); d.collection = []; ST.save(d);
+    msg('grad-msg', '珍藏清單已清空。', true); refresh();
+  });
+
+  // ── 7. 暱稱 / 關卡 / 測試模式 ──
+  $('set-nickname-btn').addEventListener('click', function () {
+    var d = ST.load(slot); d.childNickname = $('nickname-input').value.trim().slice(0, 6) || null; ST.save(d);
+    msg('misc-msg', '暱稱已設定。', true); refresh();
+  });
+  $('testmode-checkbox').addEventListener('change', function () {
+    ST.setTest(this.checked); msg('misc-msg', '測試模式已' + (this.checked ? '開啟' : '關閉') + '(全域設定,影響兩個小孩)。', true); refresh();
+  });
+  $('levels-set-cleared-btn').addEventListener('click', function () {
+    var d = ST.load(slot);
+    (CFG.math || []).concat(CFG.english || []).forEach(function (lv) {
+      d.levels[lv.id] = { attempts: 10, bestRate: 1, cleared: true, plays: 1, clears: 1, lastClearDate: null };
+    });
+    ST.save(d); msg('misc-msg', '全部數學/英文關卡已設為已通關。', true); refresh();
+  });
+  $('levels-clear-btn').addEventListener('click', function () {
+    var d = ST.load(slot); d.levels = {}; ST.save(d);
+    msg('misc-msg', '關卡進度已清空。', true); refresh();
+  });
+
+  // ── 8. 全域設定 ──
+  $('set-daily-limit-btn').addEventListener('click', function () {
+    ST.setDailyLimit(Math.max(1, parseInt($('daily-limit-input').value, 10) || 10));
+    msg('global-msg', '每日關卡上限已設定。', true); refresh();
+  });
+  $('set-cap-basic-btn').addEventListener('click', function () {
+    ST.setClearCapBasic(Math.max(1, parseInt($('cap-basic-input').value, 10) || 3));
+    msg('global-msg', '入門門檻已設定。', true); refresh();
+  });
+  $('set-cap-advanced-btn').addEventListener('click', function () {
+    ST.setClearCapAdvanced(Math.max(1, parseInt($('cap-advanced-input').value, 10) || 10));
+    msg('global-msg', '進階門檻已設定。', true); refresh();
+  });
+
+  // ── 9. 跳轉 ──
+  $('jump-btn').addEventListener('click', function () {
+    localStorage.setItem('pls.debug.jump', JSON.stringify({ screen: $('jump-select').value, params: { pet: slot } }));
+    location.href = 'index.html';
+  });
+
+  // ── 10. 雲端 ──
+  document.querySelectorAll('input[name="fake-src"]').forEach(function (r) {
+    r.addEventListener('change', function () { $('fake-custom-fields').style.display = this.value === 'custom' ? 'block' : 'none'; });
+  });
+
+  $('cloud-check-btn').addEventListener('click', function () {
+    if (!CLOUD.isConfigured()) { msg('cloud-status', '雲端未設定,無法連結。', false); return; }
+    $('cloud-status').textContent = '連結中…';
+    CLOUD.init().then(function () { return CLOUD.ensureLinked(slot); }).then(function (rec) {
+      if (!rec) { msg('cloud-status', '連結失敗(可能離線)。', false); return; }
+      msg('cloud-status', ST.SLOT_NAMES[slot] + ' 已連結:playerId=' + rec.playerId + '、好友代碼=' + rec.friendCode, true);
+    });
+  });
+
+  function siblingSlot() { return slot === 'kidL' ? 'kidR' : 'kidL'; }
+
+  $('fake-visit-btn').addEventListener('click', function () {
+    var mode = document.querySelector('input[name="fake-src"]:checked').value;
+    msg('fake-visit-msg', '準備中…', true);
+    CLOUD.init().then(function () {
+      if (mode === 'sibling') {
+        return CLOUD.ensureLinked(siblingSlot()).then(function (rec) {
+          if (!rec) { msg('fake-visit-msg', '另一個小孩雲端連結失敗(可能離線),改用「完全自訂」試試。', false); return null; }
+          var sib = ST.load(siblingSlot());
+          return { playerId: rec.playerId, childNickname: sib.childNickname || ST.SLOT_NAMES[siblingSlot()], species: sib.species || 'rabbit' };
+        });
+      }
+      return { playerId: 'debug-' + Math.random().toString(36).slice(2, 10), childNickname: $('fake-nickname-input').value.trim() || '測試好友', species: $('fake-species-select').value };
+    }).then(function (friend) {
+      if (!friend) return;
+      localStorage.setItem('pls.debug.jump', JSON.stringify({ screen: 'visit', params: { pet: slot, friend: friend } }));
+      location.href = 'index.html';
+    });
+  });
+
+  $('inject-visit-btn').addEventListener('click', function () {
+    if (!CLOUD.isConfigured()) { msg('inject-msg', '雲端未設定。', false); return; }
+    msg('inject-msg', '寫入中…', true);
+    CLOUD.init().then(function (ok) {
+      if (!ok) { msg('inject-msg', '連線失敗(可能離線)。', false); return; }
+      return CLOUD.ensureLinked(slot).then(function (rec) {
+        if (!rec) { msg('inject-msg', '這個小孩尚未連結雲端,先按上面「檢查 / 建立雲端連結」。', false); return; }
+        var gift = {
+          type: document.querySelector('input[name="inject-gift-type"]:checked').value,
+          key: $('inject-key-input').value.trim().slice(0, 40) || 'apple',
+          label: $('inject-label-input').value.trim().slice(0, 20) || '禮物'
+        };
+        return firebase.firestore().collection('players').doc(rec.playerId).collection('visitLog').doc().set({
+          fromNickname: $('inject-nickname-input').value.trim().slice(0, 6) || '神秘好友',
+          fromSpecies: $('inject-species-select').value,
+          fromPetName: '',
+          gift: gift,
+          at: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(function () {
+          msg('inject-msg', '已寫入!下次進 ' + ST.SLOT_NAMES[slot] + ' 的房間會看到來訪通知橫幅。', true);
+        });
+      });
+    }).catch(function () { msg('inject-msg', '寫入失敗,請稍後再試。', false); });
+  });
+
+  refresh();
+}
+</script>
+<script>
+// ── QA 登入門檻:獨立於上面 initTool() 用的匿名身份(app/cloud.js 的預設 Firebase app),
+// 用「第二個具名 app」單純驗證登入者(避免跟預設 app 的匿名登入互相覆蓋),
+// 通過才顯示/初始化整頁工具。帳號要先在 children-pet-dev 專案的 Authentication 手動建立。
+(function () {
+  function $(id) { return document.getElementById(id); }
+  var CFG = window.PLS_CONFIG;
+  var gateAuth = null;
+  var started = false;
+
+  function showTool(email) {
+    $('login-gate').style.display = 'none';
+    $('gate-bar').style.display = 'flex';
+    $('qa-body').style.display = '';
+    $('gate-who').textContent = email;
+    if (!started) { started = true; initTool(); }
+  }
+  function showGate() {
+    $('login-gate').style.display = 'block';
+    $('gate-bar').style.display = 'none';
+    $('qa-body').style.display = 'none';
+  }
+
+  if (!CFG || !CFG.firebase || !CFG.firebase.apiKey) {
+    $('gate-err').textContent = 'Firebase 尚未設定(CFG.firebase 是空的)。';
+  } else {
+    var gateApp = firebase.initializeApp(CFG.firebase, 'debugGate');
+    gateAuth = gateApp.auth();
+    gateAuth.onAuthStateChanged(function (user) {
+      if (user && user.email) showTool(user.email); else showGate();
+    });
+  }
+
+  $('gate-login-btn').addEventListener('click', function () {
+    $('gate-err').textContent = '';
+    var email = $('gate-email').value.trim(), pw = $('gate-pw').value;
+    if (!email || !pw) { $('gate-err').textContent = '請輸入 email 與密碼'; return; }
+    if (!gateAuth) { $('gate-err').textContent = 'Firebase 尚未設定。'; return; }
+    gateAuth.signInWithEmailAndPassword(email, pw).catch(function (err) {
+      $('gate-err').textContent = '登入失敗:' + (err && err.message ? err.message : '');
+    });
+  });
+  $('gate-logout-btn').addEventListener('click', function () { gateAuth.signOut(); location.reload(); });
+})();
+</script>
+</body>
+</html>

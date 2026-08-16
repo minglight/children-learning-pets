@@ -96,6 +96,20 @@
 - **維運後台**(`admin.html`+`app/admin.js`,Email/Password 登入,跟小孩的匿名登入是不同帳號系統):**只有 `firestore.rules` 裡 `isAdmin()` 寫死的單一 email 能登入看到資料**,不是「每個家長都有 admin 權限」;一般家長全程匿名登入,不會意外拿到後台存取權。`admin.html`/`app/admin.js` 刻意不進 `sw.js` 的 `ASSETS`(不支援離線,後台本來就要即時連網)。
 - **改動這組功能的檢查清單**:動到 Firestore 欄位/集合 → 同步更新 `docs/cloud-friends-schema.md` 與 `firestore.rules`;動到本機 `childNickname`/`giftsGiven` 欄位結構 → 照最上面「向前/向後相容」章節走 `store.js` migration + `docs/export-import-schema.md`。
 
+## QA 測試工具(`debug.html`)
+- **獨立頁面,刻意不進 `sw.js` 的 `ASSETS`**(跟 `admin.html` 同套模式,不支援離線),給 QA/開發用來一鍵灌測試資料(物種/成長階段/積分/背包/圖鑑/配件圖鑑/畢業珍藏/暱稱/關卡進度/測試模式)、跳進 App 內特定畫面、測試好友拜訪與來訪通知流程。
+- **跳畫面機制**:寫一個一次性標記到 `localStorage`(`pls.debug.jump = {screen, params}`)後導向 `index.html`;`index.html` 開機跑完 `PLS.go('home')` 後會檢查這個 key,讀到就 `PLS.go(screen, params)` 並立刻刪掉。一般玩家永遠不會有這個 key,對正常流程零影響。
+- **雲端環境隔離(重要)**:`debug.html` 在載入 `app/cloud.js` 之前,用行內 `<script>` 把 `window.PLS_CONFIG.firebase` 覆寫成獨立的 **`children-pet-dev`** 測試專案,不是正式的 `children-pet`。**切換環境的機制是「開哪個 html 檔案」,不是 runtime 開關**——`index.html` 永遠讀 `app/config.js` 原本的正式設定,`debug.html` 永遠覆寫成測試專案,沒有中間狀態、也沒有頁面內按鈕可以切換。
+  - `app/cloud.js` 的本機連結快取(`pls.cloud.*`,存 playerId/好友代碼/還原碼)依 `CFG.firebase.projectId` 分 key(`localKey()`),避免 `debug.html` 跟 `index.html` 同源共用 `localStorage` 時,測試環境誤用到正式的 playerId(或反過來)。正式環境(`children-pet`)第一次讀取時,會自動把舊版無命名空間的鍵搬進新鍵(舊鍵保留當備份),不影響既有好友代碼——這個搬遷邏輯**只認 `projectId === 'children-pet'`**,新增/更換測試專案不會誤觸發。
+  - `children-pet-dev` 專案(Firestore + 匿名登入 + `firestore.rules`)要在 Firebase Console 手動建立/維護,跟正式專案一樣沒有 CLI 存取權;規則內容應與這個 repo 的 `firestore.rules` 保持一致,改動時兩邊都要更新。
+- **本機小孩存檔(`pls.kidL`/`pls.kidR`)沒有做環境隔離,仍然是同一份**:`debug.html` 本質上就是要讀寫「這個瀏覽器」的真實存檔來灌測試資料,跟 `index.html` 完全共用 `localStorage`。**絕對不要在小孩實際在用的裝置/瀏覽器上開 `debug.html`**,否則會直接覆蓋小孩的真實進度。
+- **登入門檻(email/password)**:`debug.html` 全頁工具(含本機存檔按鈕)預設隱藏在 `#qa-body`,要先用 Firebase **Email/Password** 登入通過才顯示——帳號建立在 `children-pet-dev` 專案的 Authentication(手動建立,跟正式帳號系統無關)。實作用「第二個具名 app」(`firebase.initializeApp(CFG.firebase, 'debugGate')`)單純驗證登入者,**不影響**下方雲端模擬功能用的預設 app / 匿名登入(`app/cloud.js` 的 `init()`),兩者互不干擾。`admin.html` 本來就有等價的 Email/Password 登入(`app/admin.js`,權限邊界在 `firestore.rules` 的 `isAdmin()`)。**因為兩頁都有登入門檻,`.github/workflows/static.yml` 才放心整包(`path: '.'`)部署到 GitHub Pages,不用特別排除 `debug.html`/`admin.html`。**
+
+## 本機開發
+- `make start` / `make stop` / `make status`:背景啟動/停止靜態伺服器(`python3 -m http.server`),PID 記在 `.server.pid`(已加進 `.gitignore`)。**故意不用 80xx 系列 port**(容易跟其他專案的伺服器搞混)，改用 `4173`。
+- `make debug` / `make admin` / `make open`:啟動後直接用預設瀏覽器開對應頁面。
+- `make serve`:前景啟動(看得到 log,Ctrl+C 結束),不透過 PID 檔案管理。
+
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。
 - 讀檔用 `Read`、搜尋用 `Grep`/`Glob`、改檔用 `Edit`/`Write`。

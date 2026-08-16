@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 11`（v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
+## 目前版本:`version = 12`（v12 難易度分級獎勵:過關次數上限依入門/進階分層,新增 advancedFrom;v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -17,7 +17,7 @@
 ```jsonc
 {
   "app": "pls",                       // 固定字串;不是 "pls" 一律拒絕匯入
-  "version": 11,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
+  "version": 12,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
   "exportedAt": "2026-06-18T08:00:00.000Z", // ISO 時間,僅供參考
   "kidL": { /* 左邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 rabbit)
   "kidR": { /* 右邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 hamster)
@@ -56,6 +56,7 @@
   "name": null,               // 自訂暱稱;null = 用預設名
   "childNickname": null,      // v11:小朋友暱稱(好友辨識用身份錨點,獨立於寵物名字/種類;slot 不變就不變,不受換寵物/畢業影響)
   "giftsGiven": 0,            // v11:拜訪好友時分享食物/玩具的次數(小統計,不影響經驗值/點數)
+  "advancedFrom": "m8",       // v12:這個小孩「進階關卡」從第幾關(id)開始算(家長區可個別調整;預設 'm8')
   "points": 12,               // v2:可兌換獎品的積分(本小孩獨立,畢業不歸零)
   "hwEarned": 8,              // v2:字母手寫練習累計已給的積分(上限 100)
   "hwRound": ["A", "b"],      // v3:本輪已描完的字母(大小寫各自獨立);描滿 52 個(A–Z+a–z)才 +1 分後清空
@@ -207,3 +208,13 @@
 - **本機以外的雲端資料**(選用,`app/cloud.js` + `firestore.rules`):Firestore 的 `players/{playerId}` 存一份唯讀快照(`species`/`childNickname`/`petName`/`friendCode`/`status`),供好友拜訪時顯示;**不是**本機 schema 的一部分,不進 export/import 檔,裝置本身沒網路/沒設定 `CFG.firebase` 完全不影響本機遊戲(fail-soft)。詳細集合結構見 `docs/cloud-friends-schema.md`。
 - **不影響匯出/匯入邊界**:雲端功能全部透過 `slot`(`kidL`/`kidR`)存取本機資料,不新增任何本機儲存鍵、不改變既有欄位語意。
 - `migratePet()` 對舊檔補 `childNickname = null`、`giftsGiven = 0`;v10(含更舊)備份檔匯入自動補齊,進度不受影響。
+
+### v12（2026-08,難易度分級獎勵)
+- **小孩**新增欄位:
+  - `advancedFrom`(string,預設 `"m8"`)— 這個小孩「進階關卡」從 `config.js` `math` 陣列的哪一關(id)開始算;家長區可依小孩程度個別調整(左右小孩各自獨立)。
+- **過關次數上限改分層**:同一關過關次數超過門檻就不再給點數/食物(仍可繼續玩、仍算過關)。門檻依關卡屬於「入門」(`advancedFrom` 之前)還是「進階」(`advancedFrom` 含之後)分兩組,各自預設 3 次 / 10 次,兩組門檻**全域共用**(不分小孩)、家長區可調,存在 `localStorage` 的 `pls.clearCapBasic` / `pls.clearCapAdvanced`(不進 export/import 檔,比照 `pls.dailyLimit`)。
+  - 舊版只擋點數(硬寫死「過 10 次不再給點數」)、食物無上限;v12 起**同一個門檻同時擋點數與食物**。
+  - 相關 API:`getClearCapBasic`/`setClearCapBasic`、`getClearCapAdvanced`/`setClearCapAdvanced`、`getAdvancedFrom`/`setAdvancedFrom`、`levelTier`、`clearCapFor`(見 `store.js`)。此變更只影響 `subject === 'math'` 的 `recordRun()`;英文關卡維持舊版「過 10 次不再給點數」規則不變。
+- **`config.js` 的 `u6`–`u9` 取消 `alwaysOpen`**,恢復序列鎖(原本是期末考暫時開放),跟其他關卡一起照順序解鎖——不是存檔結構變更,但會影響「目前破到第幾關」的計算(見下一點)。
+- **好友拜訪新增「獎盃」**(選用附加功能,見 `docs/cloud-friends-schema.md`):`app/cloud.js` 的 Firestore `status` 快照新增 `trophy` 欄位(數字,= 目前破到第幾關,由 `store.trophyNumber()` 計算),自己房間與好友拜訪畫面顯示同一個徽章。**不是**本機 schema 的一部分,不進 export/import 檔。
+- `migratePet()` 對舊檔補 `advancedFrom = 'm8'`;v11(含更舊)備份檔匯入自動補齊,進度不受影響。

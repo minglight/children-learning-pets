@@ -7,8 +7,8 @@
 
   function pickTalk(list) { return list[Math.floor(Math.random() * list.length)]; }
   const SLOT_ZH = { kidL: '左邊', kidR: '右邊' };
-  // 8 種可選物種(順序 = 選單排列)
-  const SPECIES = ['rabbit', 'hamster', 'tabby', 'meerkat', 'capybara', 'husky', 'elephant', 'xmascat'];
+  // 10 種可選物種(順序 = 選單排列)
+  const SPECIES = ['rabbit', 'hamster', 'tabby', 'meerkat', 'capybara', 'husky', 'elephant', 'xmascat', 'chick', 'owl'];
 
   function backButton(to, params) {
     PLS.addButton({
@@ -31,7 +31,8 @@
   // ════════════════════════════════════════════════════
   // pickpet — 從 8 種挑一隻,開始(或畢業後重新)養
   // ════════════════════════════════════════════════════
-  const COLS = 4, CW = 250, CH = 292, GAP = 26;
+  // v14:10 種物種維持 4 欄,改 3 排;卡片高度縮小(292→196)才裝得下,寵物幼幼縮放跟著等比例縮小(見 drawCard)
+  const COLS = 4, CW = 250, CH = 196, GAP = 26;
   const GRID_X = (W - (COLS * CW + (COLS - 1) * GAP)) / 2;   // 置中
   const GRID_Y = 168, ROW_STEP = CH + 26;
 
@@ -68,7 +69,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.30)'; A.el(ctx, x + CW / 2, y + CH - 54, CW * 0.4, 24); ctx.fill();
       // 幼幼樣子(帶呆毛),微微上下浮動
       const bob = Math.sin(t * 2 + x) * 4;
-      drawPetAt(ctx, sp, t, x + CW / 2, y + CH - 66 + bob, 0.62, { stage: 'baby' });
+      drawPetAt(ctx, sp, t, x + CW / 2, y + CH - 66 + bob, 0.42, { stage: 'baby' });
       ctx.restore();
       A.pill(ctx, x + CW / 2, y + CH - 30, CFG.pets[sp].name, th.accent, 'rgba(255,255,255,0.94)', 24);
     },

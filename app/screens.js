@@ -970,6 +970,118 @@
     }
   };
 
+  // ── 四種物種專屬場景(大象/橘貓/小雞/貓頭鷹房間背景)── 以 440×340 原始座標繪製,room.js 依 box 尺寸縮放
+  function elS(ctx, x, y, rx, ry, rot) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot || 0, 0, TAU2); }
+  function rrS(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+  const TAU2 = Math.PI * 2;
+  function leafDeco(ctx, x, y, r, rot, col) { ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.42, 0, 0, TAU2); ctx.fill(); ctx.restore(); }
+  function sunflowerDeco(ctx, x, y, r) {
+    ctx.save(); ctx.translate(x, y);
+    for (let i = 0; i < 13; i++) { ctx.save(); ctx.rotate(i / 13 * TAU2); ctx.fillStyle = i % 2 ? '#F0BE2E' : '#F6CE44'; ctx.beginPath(); ctx.moveTo(0, -r * 0.5); ctx.quadraticCurveTo(r * 0.16, -r, 0, -r * 1.05); ctx.quadraticCurveTo(-r * 0.16, -r, 0, -r * 0.5); ctx.fill(); ctx.restore(); }
+    ctx.fillStyle = '#3A2A1E'; elS(ctx, 0, 0, r * 0.46, r * 0.46); ctx.fill();
+    ctx.restore();
+  }
+  function daisyDeco(ctx, x, y, r) {
+    ctx.save(); ctx.translate(x, y);
+    for (let i = 0; i < 11; i++) { ctx.save(); ctx.rotate(i / 11 * TAU2); ctx.fillStyle = '#FCFCF6'; ctx.beginPath(); ctx.ellipse(0, -r * 0.7, r * 0.2, r * 0.5, 0, 0, TAU2); ctx.fill(); ctx.restore(); }
+    ctx.fillStyle = '#F5C21E'; elS(ctx, 0, 0, r * 0.34, r * 0.34); ctx.fill();
+    ctx.restore();
+  }
+  function hollySprigDeco(ctx, x, y, s, berries) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    [[-0.5, '#1E7A3C'], [0.4, '#2E924C']].forEach(function (p) {
+      ctx.save(); ctx.rotate(p[0]); ctx.fillStyle = p[1];
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-16, -14, -8, -30); ctx.quadraticCurveTo(-20, -34, -10, -48); ctx.quadraticCurveTo(-18, -56, -6, -66);
+      ctx.quadraticCurveTo(2, -52, 10, -58); ctx.quadraticCurveTo(6, -42, 16, -40); ctx.quadraticCurveTo(8, -28, 18, -20); ctx.quadraticCurveTo(6, -16, 0, 0);
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    });
+    if (berries) { ctx.fillStyle = '#D42230'; [[-6, -6], [8, -4], [0, 8]].forEach(function (b) { elS(ctx, b[0], b[1], 7, 7); ctx.fill(); }); }
+    ctx.restore();
+  }
+  function star4d(ctx, x, y, r, col) {
+    ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.3, y - r * 0.3); ctx.lineTo(x + r, y);
+    ctx.lineTo(x + r * 0.3, y + r * 0.3); ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.3, y + r * 0.3);
+    ctx.lineTo(x - r, y); ctx.lineTo(x - r * 0.3, y - r * 0.3); ctx.closePath(); ctx.fill();
+  }
+  function sceneElephant(ctx, W2, H2) {
+    let g = ctx.createLinearGradient(0, 0, 0, H2); g.addColorStop(0, '#7FD0C6'); g.addColorStop(1, '#5EBAB0');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W2, H2);
+    [[70, 70, 0.4], [150, 150, -0.6], [300, 60, 0.8], [380, 170, -0.3], [110, 260, 0.5], [60, 360, -0.7], [350, 300, 0.2], [300, 410, 0.9], [150, 430, -0.4]].forEach(function (p) {
+      leafDeco(ctx, p[0], p[1], 26, p[2], '#3FA05A'); leafDeco(ctx, p[0] + 18, p[1] + 8, 20, p[2] + 0.6, '#7FC46A');
+    });
+    ctx.fillStyle = '#F3AEC0'; [[210, 110], [260, 250], [90, 190], [330, 120], [180, 340]].forEach(function (p) { elS(ctx, p[0], p[1], 6, 6); ctx.fill(); });
+    sunflowerDeco(ctx, 90, 110, 58); sunflowerDeco(ctx, 330, 340, 64); sunflowerDeco(ctx, 370, 80, 50);
+    daisyDeco(ctx, 220, 180, 52); daisyDeco(ctx, 120, 320, 46); daisyDeco(ctx, 300, 220, 40);
+    ctx.fillStyle = 'rgba(46,110,96,0.18)'; ctx.fillRect(0, H2 - 40, W2, 40);
+  }
+  function sceneXmascat(ctx, W2, H2) {
+    let g = ctx.createLinearGradient(0, 0, 0, H2); g.addColorStop(0, '#B4212C'); g.addColorStop(1, '#8E1520');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W2, H2);
+    for (let x = 20; x < W2; x += 70) hollySprigDeco(ctx, x, 54, 1.1, x % 140 < 70);
+    hollySprigDeco(ctx, 44, H2 - 46, 1.4, true); hollySprigDeco(ctx, W2 - 54, H2 - 70, 1.3, true);
+    [[80, 150, 13], [330, 130, 15], [380, 260, 11], [60, 320, 12], [300, 360, 14], [200, 220, 9], [150, 380, 10]].forEach(function (p) { star4d(ctx, p[0], p[1], p[2], '#F5C518'); });
+    ctx.fillStyle = '#F6D24A'; [[120, 220], [350, 200], [90, 420], [260, 150], [330, 430]].forEach(function (p) { elS(ctx, p[0], p[1], 5, 5); ctx.fill(); });
+    ctx.fillStyle = 'rgba(60,10,14,0.16)'; ctx.fillRect(0, H2 - 40, W2, 40);
+  }
+  function sceneChick(ctx, W2, H2) {
+    let g = ctx.createLinearGradient(0, 0, 0, H2); g.addColorStop(0, '#F6E9CC'); g.addColorStop(1, '#EEDCB6');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W2, H2);
+    ctx.strokeStyle = 'rgba(196,158,110,0.28)'; ctx.lineWidth = 2;
+    for (let y = 30; y < H2 * 0.6; y += 46) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W2, y); ctx.stroke(); }
+    ctx.fillStyle = '#E7C98A'; elS(ctx, W2 * 0.5, 52, 52, 52); ctx.fill();
+    let sky = ctx.createLinearGradient(0, 10, 0, 94); sky.addColorStop(0, '#BFE6F2'); sky.addColorStop(1, '#E7F5EC');
+    ctx.save(); elS(ctx, W2 * 0.5, 52, 44, 44); ctx.clip(); ctx.fillStyle = sky; ctx.fillRect(W2 * 0.5 - 44, 8, 88, 88);
+    ctx.fillStyle = '#F7D45A'; elS(ctx, W2 * 0.5 + 16, 42, 13, 13); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; elS(ctx, W2 * 0.5 - 14, 60, 15, 9); ctx.fill(); elS(ctx, W2 * 0.5 - 2, 58, 11, 7); ctx.fill(); ctx.restore();
+    ctx.strokeStyle = '#C99A4E'; ctx.lineWidth = 5; elS(ctx, W2 * 0.5, 52, 44, 44); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W2 * 0.5, 10); ctx.lineTo(W2 * 0.5, 94); ctx.moveTo(W2 * 0.5 - 44, 52); ctx.lineTo(W2 * 0.5 + 44, 52); ctx.stroke();
+    const flagCols = ['#E0503C', '#F2B92E', '#5FA84A', '#EF8098']; let fi = 0;
+    [[0, 26, W2 * 0.32, 30], [W2 * 0.68, 30, W2, 26]].forEach(function (seg) {
+      for (let k = 0; k < 4; k++) { const p = k / 4 + 0.05; const x = seg[0] + (seg[2] - seg[0]) * p; const y = seg[1] + (seg[3] - seg[1]) * p + 8; ctx.fillStyle = flagCols[fi++ % 4]; ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y); ctx.lineTo(x, y + 16); ctx.closePath(); ctx.fill(); }
+    });
+    [W2 * 0.16, W2 * 0.84].forEach(function (hx) {
+      ctx.fillStyle = '#E7C56A'; ctx.save(); ctx.translate(hx, 74); ctx.rotate(hx < W2 * 0.5 ? -0.2 : 0.2); elS(ctx, 0, 0, 20, 26); ctx.fill();
+      ctx.strokeStyle = '#D3A63F'; ctx.lineWidth = 2; for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(k * 7, -24); ctx.lineTo(k * 7, 24); ctx.stroke(); }
+      ctx.fillStyle = '#B57F42'; rrS(ctx, -22, -4, 44, 8, 3); ctx.fill(); ctx.restore();
+    });
+    const penY = H2 * 0.42;
+    ctx.fillStyle = '#E0503C'; ctx.fillRect(0, penY, W2, 14);
+    ctx.fillStyle = '#F7F1E6'; for (let x = 24; x < W2; x += 52) { rrS(ctx, x, penY + 14, 18, H2 * 0.28, 6); ctx.fill(); }
+    ctx.fillStyle = '#E0503C'; ctx.fillRect(0, penY + 14 + H2 * 0.28, W2, 12);
+    ctx.fillStyle = '#E7C56A'; ctx.fillRect(0, penY + 26 + H2 * 0.28, W2, H2);
+    ctx.strokeStyle = '#D3A63F'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    for (let i = 0; i < 70; i++) { const rx = (Math.sin(i * 12.9898) * 43758.5453) % 1, ry = (Math.sin(i * 78.233 + 1) * 24634.6345) % 1, ra = (Math.sin(i * 39.425 + 2) * 15731.743) % 1; const x = Math.abs(rx) * W2, y = penY + 40 + H2 * 0.28 + Math.abs(ry) * (H2 - penY - 40 - H2 * 0.28), a = Math.abs(ra) * Math.PI; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 20, y + Math.sin(a) * 8); ctx.stroke(); }
+  }
+  function sceneOwl(ctx, W2, H2) {
+    let g = ctx.createLinearGradient(0, 0, 0, H2); g.addColorStop(0, '#5B6BA6'); g.addColorStop(0.45, '#8E86B8'); g.addColorStop(0.72, '#D5A2B4'); g.addColorStop(1, '#F4C88E');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W2, H2);
+    const mx = W2 * 0.82, my = 64;
+    const glow = ctx.createRadialGradient(mx, my, 6, mx, my, 70); glow.addColorStop(0, 'rgba(255,245,210,0.5)'); glow.addColorStop(1, 'rgba(255,245,210,0)');
+    ctx.fillStyle = glow; elS(ctx, mx, my, 70, 70); ctx.fill();
+    ctx.fillStyle = '#FBF0C6'; elS(ctx, mx, my, 26, 26); ctx.fill(); ctx.fillStyle = g; elS(ctx, mx + 11, my - 6, 24, 24); ctx.fill();
+    [[70, 50, 9], [150, 90, 7], [300, 60, 8], [110, 150, 6], [360, 140, 7], [230, 44, 6]].forEach(function (p) { star4d(ctx, p[0], p[1], p[2], '#FBF0C6'); });
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; [[200, 110], [60, 110], [330, 180], [130, 60], [280, 150]].forEach(function (p) { elS(ctx, p[0], p[1], 2.4, 2.4); ctx.fill(); });
+    ctx.fillStyle = 'rgba(90,90,130,0.35)';
+    ctx.beginPath(); ctx.moveTo(0, H2 * 0.66); ctx.quadraticCurveTo(W2 * 0.3, H2 * 0.5, W2 * 0.55, H2 * 0.64); ctx.quadraticCurveTo(W2 * 0.8, H2 * 0.76, W2, H2 * 0.6); ctx.lineTo(W2, H2); ctx.lineTo(0, H2); ctx.closePath(); ctx.fill();
+    function pine(x, base, h, col) {
+      ctx.fillStyle = col; ctx.fillRect(x - 3, base - h * 0.2, 6, h * 0.24);
+      for (let i = 0; i < 3; i++) { const ty = base - h + i * h * 0.3, ww = (10 + i * 11); ctx.beginPath(); ctx.moveTo(x, ty); ctx.lineTo(x - ww, ty + h * 0.34); ctx.lineTo(x + ww, ty + h * 0.34); ctx.closePath(); ctx.fill(); }
+    }
+    const gy = H2 * 0.78;
+    pine(W2 * 0.12, gy, 120, '#3E6E58'); pine(W2 * 0.26, gy + 8, 90, '#4A7A62'); pine(W2 * 0.9, gy, 110, '#3E6E58'); pine(W2 * 0.78, gy + 6, 84, '#4A7A62');
+    ctx.fillStyle = 'rgba(255,236,150,0.9)';
+    [[180, 220], [240, 250], [150, 270]].forEach(function (p) { const gl = ctx.createRadialGradient(p[0], p[1], 1, p[0], p[1], 9); gl.addColorStop(0, 'rgba(255,236,150,0.9)'); gl.addColorStop(1, 'rgba(255,236,150,0)'); ctx.fillStyle = gl; elS(ctx, p[0], p[1], 9, 9); ctx.fill(); });
+    ctx.fillStyle = '#4E8A54'; ctx.fillRect(0, gy, W2, H2);
+    ctx.fillStyle = '#5FA060'; ctx.fillRect(0, gy, W2, 8);
+    ctx.strokeStyle = '#6FB466'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (let x = 6; x < W2; x += 14) { const h = 9 + ((x * 37) % 17); ctx.beginPath(); ctx.moveTo(x, gy + 6); ctx.quadraticCurveTo(x + 3, gy + 6 - h, x + 6, gy + 6 - h); ctx.stroke(); }
+    ctx.strokeStyle = '#7A5334'; ctx.lineWidth = 13; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(W2 * 0.16, gy - 4); ctx.quadraticCurveTo(W2 * 0.5, gy - 14, W2 * 0.84, gy - 6); ctx.stroke();
+  }
+  window.PLS_SCENE_ROOM = { elephant: sceneElephant, xmascat: sceneXmascat, chick: sceneChick, owl: sceneOwl };
+
   PLS.register('home', home);
   PLS.register('room', room);
   PLS.register('map', map);

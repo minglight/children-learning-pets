@@ -197,6 +197,31 @@
     </section>
 
     <section>
+      <h3>過關次數上限(難易度分級獎勵)</h3>
+      <p class="hint" style="margin:0 0 12px">數學關卡過關幾次後不再給點數/食物(仍可繼續玩,只是沒獎勵)。入門關卡建議少一點,進階關卡可以多一點,讓孩子多練真正有挑戰的題目(需要家長密碼才能更改)。</p>
+      <div class="prow">
+        <label>入門關卡</label>
+        <input type="text" id="cap-basic-input" maxlength="3" placeholder="3" style="width:80px">
+        <span style="font-size:15px">次</span>
+      </div>
+      <div class="prow">
+        <label>進階關卡</label>
+        <input type="text" id="cap-advanced-input" maxlength="3" placeholder="10" style="width:80px">
+        <span style="font-size:15px">次</span>
+      </div>
+      <p class="hint" style="margin:12px 0 10px">「進階關卡」從哪一關開始算,兩個小朋友可以依程度各自設定:</p>
+      <div class="prow">
+        <label>左邊小孩</label>
+        <select id="adv-from-kidL" style="font-family:inherit;font-size:15px;padding:8px 10px;border:2px solid #EFE4D4;border-radius:12px"></select>
+      </div>
+      <div class="prow">
+        <label>右邊小孩</label>
+        <select id="adv-from-kidR" style="font-family:inherit;font-size:15px;padding:8px 10px;border:2px solid #EFE4D4;border-radius:12px"></select>
+      </div>
+      <div class="pbtns"><button class="pbtn ghost" id="save-clear-caps">儲存(需要密碼)</button></div>
+    </section>
+
+    <section>
       <h3>備份</h3>
       <div class="pbtns">
         <button class="pbtn" id="export-btn">匯出進度(下載備份)</button>
@@ -367,9 +392,50 @@
       const d = ST.load(slot);
       d.childNickname = el.value.trim() || null;
       ST.save(d);
+      // 暱稱是好友辨識用的身份錨點,存檔後立刻推上雲端,不要等 90 秒的背景自動備份週期,
+      // 不然朋友這時候查代碼/看好友清單會先看到舊暱稱(甚至還沒設定過的空字串)。
+      if (window.PLS_CLOUD && PLS_CLOUD.pushStatus) PLS_CLOUD.pushStatus(slot);
     });
     msg.textContent = '暱稱已儲存';
     refreshNicknames();
+  });
+
+  // ── v12:過關次數上限(難易度分級獎勵)── 兩個全域門檻 + 兩個小孩各自的「進階起點」。
+  function refreshClearCaps() {
+    document.getElementById('cap-basic-input').value = ST.getClearCapBasic();
+    document.getElementById('cap-advanced-input').value = ST.getClearCapAdvanced();
+    ST.SLOTS.forEach(function (slot) {
+      const sel = document.getElementById('adv-from-' + slot);
+      if (!sel) return;
+      sel.innerHTML = '';
+      CFG.math.forEach(function (lv) {
+        const opt = document.createElement('option');
+        opt.value = lv.id;
+        opt.textContent = lv.name + '(' + lv.sub + ')';
+        sel.appendChild(opt);
+      });
+      sel.value = ST.getAdvancedFrom(slot);
+    });
+  }
+  document.getElementById('save-clear-caps').addEventListener('click', function () {
+    const vb = parseInt(document.getElementById('cap-basic-input').value.trim(), 10);
+    const va = parseInt(document.getElementById('cap-advanced-input').value.trim(), 10);
+    if (isNaN(vb) || vb < 1 || vb > 99 || isNaN(va) || va < 1 || va > 99) {
+      msg.textContent = '請輸入 1–99 之間的數字'; return;
+    }
+    openPin(
+      function () {
+        ST.setClearCapBasic(vb);
+        ST.setClearCapAdvanced(va);
+        ST.SLOTS.forEach(function (slot) {
+          const sel = document.getElementById('adv-from-' + slot);
+          if (sel) ST.setAdvancedFrom(slot, sel.value);
+        });
+        msg.textContent = '過關次數上限已儲存';
+        refreshClearCaps();
+      },
+      null
+    );
   });
 
   // ── 雲端備份資訊(還原碼 / 上次備份時間;純讀本機快取,不用等網路)──
@@ -437,7 +503,7 @@
 
   window.PLS_PARENT = {
     open: function () {
-      refreshStats(); refreshNicknames(); refreshCloudInfo(); msg.textContent = '';
+      refreshStats(); refreshNicknames(); refreshCloudInfo(); refreshClearCaps(); msg.textContent = '';
       document.getElementById('test-toggle').checked = ST.isTest();
       document.getElementById('rewards-hide-toggle').checked = ST.rewardsHidden();
       renderPrizes();
@@ -568,7 +634,7 @@
       try {
         ST.importAll(r.result);
         msg.textContent = '匯入成功!';
-        refreshStats(); refreshNicknames(); refreshCloudInfo();
+        refreshStats(); refreshNicknames(); refreshCloudInfo(); refreshClearCaps();
       } catch (e) {
         msg.textContent = '匯入失敗:' + e.message;
       }
@@ -614,7 +680,7 @@
         msg.textContent = '還原成功!';
         document.getElementById('restore-code-input').value = '';
         document.getElementById('restore-confirm').style.display = 'none';
-        refreshStats(); refreshNicknames(); refreshCloudInfo();
+        refreshStats(); refreshNicknames(); refreshCloudInfo(); refreshClearCaps();
       } else {
         msg.textContent = RESTORE_REASON_MSG[res.reason] || '還原失敗,請稍後再試';
       }
@@ -694,6 +760,7 @@
     document.getElementById('my-friend-code').textContent = '取得中…';
     document.getElementById('friend-list').textContent = '載入中…';
 
+    if (window.PLS_CLOUD.pushStatus) window.PLS_CLOUD.pushStatus(slot);   // 打開好友面板前先推自己的最新暱稱/狀態,別人看到才不是舊資料
     window.PLS_CLOUD.ensureLinked(slot).then(function (rec) {
       if (!rec) {
         document.getElementById('friends-body').style.display = 'none';
@@ -767,6 +834,18 @@
   if (window.PLS_CLOUD) window.PLS_CLOUD.init();   // 提早匿名登入,不等到第一次好友/備份操作才連線
   window.PLS.init(document.getElementById('game'));
   window.PLS.go('home');
+
+  // ── QA 除錯跳轉(debug.html 專用,一般使用者永遠不會設定這個 key,不影響正常流程)──
+  // debug.html 把要去的畫面/參數存進 pls.debug.jump 後導回這裡;讀到就立刻跳轉並清掉,
+  // 避免下次一般重新整理又被跳轉一次。
+  try {
+    var qaJumpRaw = localStorage.getItem('pls.debug.jump');
+    if (qaJumpRaw) {
+      localStorage.removeItem('pls.debug.jump');
+      var qaJump = JSON.parse(qaJumpRaw);
+      if (qaJump && qaJump.screen) window.PLS.go(qaJump.screen, qaJump.params || {});
+    }
+  } catch (e) {}
 
   // ── PWA:service worker ──
   if ('serviceWorker' in navigator && location.protocol === 'https:') {

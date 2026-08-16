@@ -170,6 +170,26 @@
     const m = 22;
     return { ix: fx + m, iy: fy + m, iw: fw - m * 2, ih: fh - m * 2 };
   }
+  // v12:獎盃徽章(「目前破到第幾關」,自己房間 / 好友拜訪畫面共用同一個繪製,確保視覺一致)。
+  // n=0(還沒破第一關)不畫。沿用既有的皇冠圖示(window.PLS_CROWN,關卡圖 mastered 徽章同一款)當獎盃視覺。
+  // v13:多接一個 icon 參數區分數學/英文(兩個科目各自的「第幾關」)。
+  function trophyBadge(ctx, cx, cy, n, icon) {
+    if (!n) return;
+    const label = (icon ? icon + ' ' : '') + '第 ' + n + ' 關';
+    ctx.save();
+    ctx.font = '700 20px ' + FONT;
+    const tw = ctx.measureText(label).width;
+    const pw = tw + 54, ph = 40, pr = 20;
+    ctx.shadowColor = 'rgba(150,100,40,0.3)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = '#FFF6E0'; rr(ctx, cx - pw / 2, cy - ph / 2, pw, ph, pr); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#E8C47C'; ctx.lineWidth = 2; rr(ctx, cx - pw / 2, cy - ph / 2, pw, ph, pr); ctx.stroke();
+    window.PLS_CROWN(ctx, cx - pw / 2 + 26, cy, 0.72, '#F2B96B');
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#A85A3C';
+    ctx.fillText(label, cx - pw / 2 + 44, cy + 1);
+    ctx.restore();
+  }
+
   // 一個區(食物或遊戲):純地墊(v6 起佈置移除,墊子是餵食/陪玩的定點)
   function station(ctx, cx, matY, kind) {
     ctx.fillStyle = kind === 'food' ? MAT.foodMatEdge : MAT.playMatEdge; el(ctx, cx, matY + 9, 150, 44); ctx.fill();
@@ -858,7 +878,20 @@
       const fx = PW + 26, fy = 158, fw = W - (PW + 26) - 30, fh = H - 158 - 34;
       const box = roofFrame(ctx, fx, fy, fw, fh, name + '的房間');
       this._box = box;
-      const wallB = roomInterior(ctx, box.ix, box.iy, box.iw, box.ih, 14, th.wall, th.dot);
+      trophyBadge(ctx, fx + fw - 78, fy - 44, ST.trophyNumber(d), '🧮');           // v12:數學獎盃(目前破到第幾關)
+      trophyBadge(ctx, fx + fw - 78, fy - 90, ST.trophyNumberEnglish(d), '🔤');    // v13:英文獎盃,疊在數學獎盃上方
+      // 部分物種有專屬場景背景(見 screens.js SCENE_ROOM);沒有的物種沿用通用壁紙房間
+      const sceneFn = window.PLS_SCENE_ROOM && window.PLS_SCENE_ROOM[species];
+      let wallB;
+      if (sceneFn) {
+        ctx.save(); ctx.beginPath(); rr(ctx, box.ix, box.iy, box.iw, box.ih, 14); ctx.clip();
+        ctx.translate(box.ix, box.iy); ctx.scale(box.iw / 440, box.ih / 340);
+        sceneFn(ctx, 440, 340);
+        ctx.restore();
+        wallB = box.iy + box.ih * 0.47;
+      } else {
+        wallB = roomInterior(ctx, box.ix, box.iy, box.iw, box.ih, 14, th.wall, th.dot);
+      }
       ctx.save();
       ctx.beginPath(); rr(ctx, box.ix, box.iy, box.iw, box.ih, 14); ctx.clip();
       const frontY = box.iy + box.ih - 36;
@@ -985,6 +1018,7 @@
   window.PLS_ROOM2 = {
     MAT: MAT, el: el, rr: rr, roofFrame: roofFrame, roomInterior: roomInterior, station: station,
     petAt: petAt, xRange: xRange, yAt: yAt, scAt: scAt, dirOf: dirOf,
-    wanderStep: wanderStep, walkStep: walkStep, clamp: clamp, smooth: smooth
+    wanderStep: wanderStep, walkStep: walkStep, clamp: clamp, smooth: smooth,
+    trophyBadge: trophyBadge   // v12:獎盃徽章,app/visit.js 拜訪畫面重用同一份繪製
   };
 })();

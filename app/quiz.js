@@ -105,7 +105,8 @@
         let q = null, sig = null, retries = 0;
         do {
           q = G.gen[this.lv.gen](diff);
-          sig = JSON.stringify([q.kind, q.display, q.answer]);
+          // dedupKey(若有)只放題目本質欄位,排除裝飾用欄位(見 gen.js 開頭說明)
+          sig = JSON.stringify([q.kind, q.dedupKey || q.display, q.answer]);
           retries++;
         } while (this.seenSigs.has(sig) && retries < 80);
         this.seenSigs.add(sig);

@@ -35,12 +35,26 @@ players/{playerId}                  // playerId = Firestore 自動 ID
   childNickname: "小明",             // 同步自 app/store.js pet blob 的 childNickname(schema v11 起),獨立於寵物名字/種類
   petName: "阿福",                   // 同步自 pet.name(可能是 null → 存空字串),顯示房間標題用
   friendCode: "K7M2Q9",             // 6 碼好友代碼
-  status: {                         // 拜訪時看到的唯讀快照(節流上傳,不是即時)。不含背包/圖鑑/關卡等學習細節。
+  status: {                         // 拜訪時看到的唯讀快照(節流上傳,不是即時)。不含背包目前庫存數量/關卡明細/
+                                     // 答對率等學習細節——trophy(v12)、dex/decoDex/collection(v13)是刻意放行的
+                                     // 例外,都是「收集了什麼」而不是「現在還剩多少/答得好不好」。
     species: "elephant",
     name: "阿福",
     stage: "grown",                 // "baby" | "kid" | "grown"(見 store.js STAGE_NAMES)
     growDeco: 2,                    // 大寶配件款式 index(0-4)
     points: 12,
+    trophy: 8,                      // v12:數學破到第幾關(store.js trophyNumber()),拜訪畫面的「獎盃」亮點,
+                                     // 自己房間與好友拜訪畫面顯示同一個徽章(app/room.js trophyBadge,PLS_ROOM2 匯出)
+    trophyEn: 5,                    // v13:英文破到第幾關(store.js trophyNumberEnglish()),跟 trophy 同一顆徽章元件、
+                                     // 疊在數學獎盃上方顯示(app/room.js/app/visit.js 各呼叫兩次 trophyBadge)
+    dex: {                          // v13:收集圖鑑(同步自 pet.dex,只有 key 清單,沒有數量)
+      foods: ["apple", "eggcake"],
+      toys: ["car", "train"]
+    },
+    decoDex: { "elephant": [true, false, true, false, false] },   // v13:配件圖鑑,同步自 pet.decoDex
+    collection: [                   // v13:珍藏館(畢業寶貝牆),同步自 pet.collection,最多留最近 40 筆
+      { species: "rabbit", deco: 1, name: "阿白", date: "2026-3-1" }
+    ],
     updatedAt: <serverTimestamp>
   },
   createdAt: <serverTimestamp>
@@ -293,7 +307,38 @@ doc 已存在時 `create` 規則天然不適用,等於「今天已經拜訪過�
   跟既有的雙寵物互訪共用同一套 `app/room.js` 演出邏輯。
 - **好友代碼加上一鍵複製按鈕**(`index.html` 的 `#copy-code-btn`),純前端 UI 改動,無資料結構變更。
 
+### v5(2026-08,拜訪「獎盃」— 難易度分級獎勵疊加功能)
+- **`status` 新增 `trophy`**(number,= 目前破到第幾關,`store.js trophyNumber()` 計算)——拜訪好友時的
+  新亮點,讓小朋友看到「哇,他解到第 N 關了!」。刻意只給一個數字,不給關卡明細/答對率/背包內容,維持
+  `status` 原本「不含學習細節」的邊界(見上方 `status` 註解)。
+- **`firestore.rules` 不用改**:`status` 一直只驗證 `is map`(未對內部欄位 `.hasOnly()`),新增欄位天然合法。
+- **前置條件**:`config.js` 的 `u6`–`u9` 取消 `alwaysOpen`,恢復序列鎖(本機 schema 變更,見
+  `docs/export-import-schema.md`「v12」段落),讓「破到第幾關」對所有關卡都是單純的序列位置,不用另外
+  處理「常開關卡插隊」的情況。
+- 同一批(v12)還疊加了「難易度分級獎勵」(過關次數上限依入門/進階分層、家長區可調),那部分是純本機
+  `store.js`/`config.js` 變更,不影響這份雲端 schema,詳見 `docs/export-import-schema.md`。
+
+### v6(2026-08,拜訪時可以看朋友的收集圖鑑/珍藏館/配件圖鑑 + 英文獎盃)
+- **`status` 新增四個欄位**(`app/cloud.js` `statusSnapshot()`):`dex`(收集圖鑑,同步自 `pet.dex.foods`/`toys`
+  的 key 清單,各裁到最多 60 筆)、`decoDex`(配件圖鑑,同步自 `pet.decoDex`)、`collection`(珍藏館畢業寶貝牆,
+  同步自 `pet.collection`,只留最近 40 筆、每筆 `name` 裁到 12 字)、`trophyEn`(英文破到第幾關,`store.js`
+  新增的 `trophyNumberEnglish()`,算法跟既有的 `trophyNumber()` 共用同一個 `trophyNumberFor(d, list)`,只是
+  換成走 `CFG.english` 序列)。刻意排除 `inv`(背包目前庫存數量)與 `levels`(關卡明細/答對率)——dex/collection
+  只回答「曾經收集過什麼」,不會洩漏「現在還剩多少/答得好不好」,維持 `status` 原本的隱私邊界(見上方 `status`
+  註解)。拜訪畫面 `app/visit.js` 跟自己房間 `app/room.js` 一樣,`trophyBadge` 現在呼叫兩次疊在一起(數學🧮
+  在下、英文🔤在上),讓拜訪者同時看到朋友兩科各解到第幾關。
+- **`firestore.rules` 不用改**:跟 v5 的 `trophy` 一樣,`status` 一直只驗證 `is map`(未對內部欄位
+  `.hasOnly()`),新增欄位天然合法。
+- **`app/dex.js` 新增「朋友模式」**:`enter()` 多接受 `params.friendView`(好友的唯讀物件,含上面的
+  `status`),食物/玩具圖鑑改讀這份快照而不是 `ST.load()`;多兩個唯讀區塊——珍藏館縮圖牆(用
+  `window.PLS_PETS.draw` 畫,不能點進去換裝)、配件圖鑑(借用 `ST.decoOwned()` 邏輯,每物種一排 5 個點)。
+  朋友模式的返回鈕回 `visit` 畫面,不是 `room`。
+- **`app/dex.js` 同時補了「哪一關拿到的」hover 提示**(自己/朋友的收集圖鑑都有):純靜態算法,依
+  `config.js` 的 `math`/`english` 關卡順序找「第一個給這個 key 的關卡」當來源標籤,不需要另外存檔記錄——
+  沒有新增本機 schema 欄位,`app/store.js` 的 `SCHEMA_VERSION` 不受影響。
+- **`app/visit.js` 新增「看圖鑑」按鈕**,導去 `dex` 畫面的朋友模式。
+
 <!-- 新版本請依此格式往上加:
-### v5(YYYY-MM,變更摘要)
+### v7(YYYY-MM,變更摘要)
 - 新增/變更欄位 X;同步更新 firestore.rules 與相關程式。
 -->
