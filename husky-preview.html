@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>寵物動作示範 v3 — 轉向偏移 + 自發行為</title>
+<style>
+  :root{
+    --bg:#EFE3D2; --panel:#FFF9F0; --line:#E0CDB4;
+    --ink:#5E4A36; --dim:#9A7B5C; --accent:#8FC9A8; --accent2:#C2A15E;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Andika","Huninn","Baloo 2",system-ui,sans-serif;padding:24px}
+  h1{font-size:24px;margin:0 0 6px}
+  p.sub{max-width:880px;margin:0 0 22px;color:var(--dim);font-size:14.5px;line-height:1.75}
+  code{background:#00000010;padding:1px 6px;border-radius:6px;font-size:13.5px}
+  .panels{display:flex;gap:26px;flex-wrap:wrap}
+  .panel{background:var(--panel);border:2px solid var(--line);border-radius:20px;padding:18px;
+    box-shadow:0 6px 18px rgba(120,90,50,0.08)}
+  h2{font-size:18px;margin:0 0 2px}
+  .hint{font-size:12.5px;color:var(--dim);margin:0 0 12px;line-height:1.6}
+  canvas{display:block;border-radius:14px}
+  .ctrl{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;align-items:flex-start}
+  .dirpad{display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(2,42px);gap:5px}
+  .dirpad div{visibility:hidden}
+  button{font:inherit;font-size:15px;padding:8px 10px;border-radius:12px;
+    border:2px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;line-height:1}
+  button:hover{background:#F6ECD9}
+  button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.amb.active{background:var(--accent2);border-color:var(--accent2);color:#fff}
+  .actions{display:flex;flex-direction:column;gap:6px}
+  .actions button{font-size:14px;padding:8px 14px;white-space:nowrap}
+  .amblabel{font-size:11.5px;color:var(--dim);margin:8px 0 2px}
+  .state{margin-top:10px;font-size:13px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<h1>寵物動作示範 v3 — 走路轉向偏移 + 不用互動也會自己演的環境行為</h1>
+<p class="sub">
+  上一版哈士奇走路時整隻用 <code>rotate()</code> 硬轉一個角度,對稱的正面素材轉起來只像「快跌倒」而不是「轉身」——這版改成
+  <b>轉向偏移</b>:身體用 shear(上重下輕的斜切)往行走方向靠、頭再單獨往那個方向偏轉一點,腳底完全不動,像是重心真的偏過去。小雞維持原本正面搖擺走法不變(這隻本來就沒問題)。<br>
+  另外加了「不用叫牠也會自己做」的環境行為——休息 / 睡覺 / 伸懶腰——閒置一陣子會隨機挑一個自己演,演完回到待機;面板上的按鈕是手動測試用,平常這幾個是自己跳出來的。
+</p>
+
+<div class="panels">
+
+  <div class="panel" id="p-husky">
+    <h2>🐺 哈士奇</h2>
+    <p class="hint">走路:前腳交替邁步 + 身體往行走方向偏 + 頭轉向那一側。開心:前腳舉起蹦跳、吐舌頭。吃東西:低頭咀嚼、地上出現碗。</p>
+    <canvas width="420" height="380"></canvas>
+    <div class="ctrl">
+      <div class="dirpad">
+        <div></div><button data-dir="up">↑</button><div></div>
+        <button data-dir="left">←</button><button data-stop="1">⏹</button><button data-dir="right">→</button>
+        <div></div><button data-dir="down">↓</button><div></div>
+      </div>
+      <div class="actions">
+        <button data-mode="happy">😊 開心</button>
+        <button data-mode="eat">🍖 吃東西</button>
+        <button data-mode="play">🧸 玩耍</button>
+        <div class="amblabel">🎲 自發行為(測試用)</div>
+        <button class="amb" data-mode="rest">🧘 休息</button>
+        <button class="amb" data-mode="sleep">😴 睡覺</button>
+        <button class="amb" data-mode="stretch">🙆 伸懶腰</button>
+      </div>
+    </div>
+    <div class="state"></div>
+  </div>
+
+  <div class="panel" id="p-chick">
+    <h2>🐥 小雞</h2>
+    <p class="hint">走路:身體左右搖晃的誇張擺步。開心:雙腳一起跳、翅膀狂拍。吃東西:低頭連續啄地。</p>
+    <canvas width="420" height="380"></canvas>
+    <div class="ctrl">
+      <div class="dirpad">
+        <div></div><button data-dir="up">↑</button><div></div>
+        <button data-dir="left">←</button><button data-stop="1">⏹</button><button data-dir="right">→</button>
+        <div></div><button data-dir="down">↓</button><div></div>
+      </div>
+      <div class="actions">
+        <button data-mode="happy">😊 開心</button>
+        <button data-mode="eat">🌾 吃東西</button>
+        <button data-mode="play">🧸 玩耍</button>
+        <div class="amblabel">🎲 自發行為(測試用)</div>
+        <button class="amb" data-mode="rest">🧘 休息</button>
+        <button class="amb" data-mode="sleep">😴 睡覺</button>
+        <button class="amb" data-mode="stretch">🙆 伸懶腰</button>
+      </div>
+    </div>
+    <div class="state"></div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const TAU = Math.PI*2;
+
+  // ── 通用數學/特效小工具:純算式(畫橢圓、算眨眼曲線、Zzz 飄字),不是「造型模板」──
+  function el(ctx,x,y,rx,ry,rot){ ctx.beginPath(); ctx.ellipse(x,y,Math.max(0.01,Math.abs(rx)),Math.max(0.01,Math.abs(ry)),rot||0,0,TAU); }
+  function blink(t,seed){
+    const period=3.2+seed, ph=(t+seed*2.3)%period;
+    if(ph<0.13) return 1-Math.sin((ph/0.13)*Math.PI);
+    return 1;
+  }
+  function zzz(ctx,x,y,t){
+    for(let i=0;i<3;i++){
+      const ph=((t*0.55)+i*0.33)%1;
+      const yy=y-ph*36;
+      const a=Math.sin(ph*Math.PI);
+      ctx.globalAlpha=a*0.8;
+      ctx.fillStyle='#8FA0AE';
+      ctx.font=(10+i*4)+'px "Andika","Huninn","Baloo 2",sans-serif';
+      ctx.fillText('z', x+i*7, yy);
+    }
+    ctx.globalAlpha=1;
+  }
+  function lerp(a,b,k){ return a+(b-a)*k; }
+  function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+  function pickWeighted(pool){
+    const total=pool.reduce(function(a,p){return a+p.weight;},0);
+    let r=Math.random()*total;
+    for(let i=0;i<pool.length;i++){ r-=pool[i].weight; if(r<=0) return pool[i].mode; }
+    return pool[pool.length-1].mode;
+  }
+
+  // ── 每隻動物自己的舞台:位置、朝向、動作節奏、自發排程都自己管,引擎只丟狀態名字進去 ──
+  function makeStage(canvas, speciesDraw, opts){
+    const dpr = window.devicePixelRatio||1;
+    const W=420,H=380;
+    canvas.width=W*dpr; canvas.height=H*dpr; canvas.style.width=W+'px'; canvas.style.height=H+'px';
+    const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+    const groundY = opts.groundY, centerX=W/2;
+    const st = {
+      mode:'idle', dir:null, modeStart:0,
+      pos:{x:0,y:0}, vel:{x:0,y:0},
+      legPhase:0, legAmp:0, tailPhase:0, lean:0, leanTarget:0,
+      ambientTimer: opts.ambientMin+Math.random()*(opts.ambientMax-opts.ambientMin)
+    };
+    function resetAmbient(){ st.ambientTimer = opts.ambientMin+Math.random()*(opts.ambientMax-opts.ambientMin); }
+    function setMode(mode, dir){
+      const t = performance.now()/1000;
+      if(mode==='walk'){
+        st.mode='walk'; st.dir=dir; st.modeStart=t;
+        const spd=opts.walkSpeed;
+        st.vel.x = dir==='left'?-spd:dir==='right'?spd:0;
+        st.vel.y = dir==='up'?-spd*0.6:dir==='down'?spd*0.6:0;
+        st.leanTarget = dir==='right'?-opts.leanAmount:dir==='left'?opts.leanAmount:0;
+      } else if(mode==='stop'){
+        st.mode='idle'; st.dir=null; st.vel.x=0; st.vel.y=0; st.leanTarget=0;
+        resetAmbient();
+      } else {
+        st.mode=mode; st.dir=null; st.modeStart=t; st.vel.x=0; st.vel.y=0; st.leanTarget=0;
+      }
+    }
+    function update(t,dt){
+      if(st.mode==='walk'){
+        st.pos.x=clamp(st.pos.x+st.vel.x*dt,-150,150);
+        st.pos.y=clamp(st.pos.y+st.vel.y*dt,-80,80);
+        if(Math.abs(st.pos.x)>=150) st.vel.x*=-1;
+        if(Math.abs(st.pos.y)>=80) st.vel.y*=-1;
+      }
+      const walking = st.mode==='walk';
+      st.legAmp = lerp(st.legAmp, walking?1:0, Math.min(1,dt*6));
+      st.legPhase += dt*opts.legFreq*(walking?1:0);
+      st.tailPhase += dt*opts.tailFreq*(st.mode==='happy'?2.2:1);
+      st.lean = lerp(st.lean, st.leanTarget, Math.min(1,dt*5));
+
+      const holdTimes = opts.holdTimes||{};
+      if(st.mode!=='walk' && st.mode!=='idle' && (t-st.modeStart) > (holdTimes[st.mode]||2.4)){
+        st.mode='idle'; st.leanTarget=0;
+        resetAmbient();
+      }
+      if(st.mode==='idle'){
+        st.ambientTimer -= dt;
+        if(st.ambientTimer<=0 && opts.ambientPool && opts.ambientPool.length){
+          st.mode = pickWeighted(opts.ambientPool);
+          st.modeStart = t;
+        }
+      }
+    }
+    function render(t){
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle='#EAF2F0'; ctx.fillRect(0,0,W,H);
+      ctx.strokeStyle='rgba(150,120,90,0.14)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(20,groundY+34); ctx.lineTo(W-20,groundY+34); ctx.stroke();
+      ctx.save();
+      const depth = 1+(-st.pos.y/80)*0.16;
+      ctx.translate(centerX+st.pos.x, groundY+st.pos.y);
+      ctx.transform(1,0,st.lean,1,0,0); // 上重下輕的斜切:腳底不動,身體/頭往行走方向靠
+      ctx.scale(depth,depth);
+      speciesDraw(ctx,t,st);
+      ctx.restore();
+    }
+    return {st,setMode,update,render};
+  }
+
+  // ══════════════ 哈士奇:自己的一套結構,不借小雞、也不借舊版任何 part 函式 ══════════════
+  const HC = {
+    dark:'#5B6670', mid:'#7C8894', lite:'#9FA9B3', white:'#FBFCFE',
+    nose:'#2B2E33', eye:'#4FA8DA', innerEar:'#E8B9C4', tongue:'#E4728A'
+  };
+  const H_HOLD = {rest:3.2, sleep:4.6, stretch:1.8};
+  function drawHusky(ctx,t,st){
+    const walk = st.legAmp;
+    const legPh = st.legPhase;
+    const elapsed = t-st.modeStart;
+    const settle = (st.mode==='rest'||st.mode==='sleep') ? Math.min(1, elapsed/0.4) : 0;
+    const bodySink = st.mode==='sleep' ? 20*settle : st.mode==='rest' ? 11*settle : 0;
+    const bow = st.mode==='stretch' ? Math.sin(Math.min(elapsed,H_HOLD.stretch)/H_HOLD.stretch*Math.PI) : 0;
+
+    ctx.fillStyle='rgba(90,70,50,0.16)'; el(ctx,0,4,66,11); ctx.fill();
+
+    ctx.save(); ctx.translate(0,bodySink);
+
+    // 後腳暗示(只露一點,不做側面)
+    ctx.fillStyle=HC.mid;
+    [-1,1].forEach(function(s){
+      const sway=Math.sin(legPh+(s<0?0:Math.PI))*10*walk;
+      el(ctx, s*30+sway*0.4, -8, 12, 9); ctx.fill();
+    });
+    // 前腳(交替邁步;伸懶腰時往前下方延伸)
+    [-1,1].forEach(function(s){
+      const ph=legPh+(s<0?0:Math.PI);
+      const sway=Math.sin(ph)*14*walk + bow*8;
+      const lift=Math.max(0,Math.sin(ph))*9*walk;
+      const stretchDown=bow*14;
+      ctx.fillStyle=HC.dark;
+      el(ctx, s*44+sway, -2-lift+stretchDown, 15, 26+bow*7); ctx.fill();
+      ctx.fillStyle=HC.white;
+      el(ctx, s*44+sway, 18-lift*0.5+stretchDown, 14, 10); ctx.fill();
+    });
+
+    // 捲尾巴(搖擺;開心/伸懶腰快又高,睡覺幾乎不動)
+    const tailAmp = st.mode==='happy'?0.55 : st.mode==='stretch'?0.5 : st.mode==='sleep'?0.05 : st.mode==='rest'?0.12 : 0.28;
+    const tailA = Math.sin(st.tailPhase)*tailAmp;
+    ctx.save();
+    ctx.translate(58,-24); ctx.rotate(-0.7+tailA);
+    ctx.fillStyle=HC.mid;
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.quadraticCurveTo(30,-6,34,-38);
+    ctx.quadraticCurveTo(20,-52,4,-40);
+    ctx.quadraticCurveTo(14,-20,0,0);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle=HC.white; el(ctx,20,-40,9,9); ctx.fill();
+    ctx.restore();
+
+    // 身體(圓潤桶身;伸懶腰時前低後翹)
+    const g=ctx.createLinearGradient(0,-90,0,40);
+    g.addColorStop(0,HC.lite); g.addColorStop(1,HC.mid);
+    ctx.fillStyle=g; el(ctx,0,-30-bow*6,64,54); ctx.fill();
+    // 胸口白絨毛(荷葉邊)
+    ctx.fillStyle=HC.white;
+    ctx.beginPath(); ctx.moveTo(-34,10);
+    for(let i=0;i<5;i++){ const ix=-34+i*17; ctx.quadraticCurveTo(ix+8.5,26,ix+17,8); }
+    ctx.quadraticCurveTo(0,44,-34,10);
+    ctx.closePath(); ctx.fill();
+
+    // 開心舉前腳蹦跳 / 玩耍時單腳撥弄玩具
+    if(st.mode==='happy'){
+      const hop=Math.abs(Math.sin(t*8))*8;
+      ctx.fillStyle=HC.dark;
+      el(ctx,-40,-58-hop,13,20); ctx.fill();
+      el(ctx,40,-58-hop,13,20); ctx.fill();
+    } else if(st.mode==='play'){
+      ctx.save(); ctx.translate(38,-40); ctx.rotate(Math.sin(t*4)*0.5-0.3);
+      ctx.fillStyle=HC.dark; el(ctx,0,0,12,20); ctx.fill();
+      ctx.restore();
+    }
+
+    // 頭(大圓 + 吻部 + 招牌眉斑)。走路轉向不用旋轉頭(那只會看起來像歪頭疑惑),
+    // 改用「五官整組往行走方向平移、頭骨只跟一點點」的視差偏移——跟這個 codebase
+    // 原本 app/pets.js 給 side 視角用的 fx 手法同一個道理,只是幅度收小成「偏一下」而非「轉半身」。
+    const walkFx = st.mode==='walk' ? (st.dir==='right'?15:st.dir==='left'?-15:0) : 0;
+    const headBob = st.mode==='eat' ? Math.abs(Math.sin(t*3))*14
+      : st.mode==='stretch' ? bow*16
+      : st.mode==='sleep' ? 8*settle
+      : (walk>0.05 ? Math.sin(legPh*2)*2 : 0);
+    ctx.save(); ctx.translate(0,-96+headBob);
+    const hg=ctx.createLinearGradient(0,-38,0,30);
+    hg.addColorStop(0,HC.lite); hg.addColorStop(1,HC.mid);
+    ctx.fillStyle=hg; el(ctx,walkFx*0.3,-4,54,48); ctx.fill();
+
+    const mfx = walkFx*0.45;
+    ctx.fillStyle=HC.white;
+    ctx.beginPath();
+    ctx.moveTo(-40+mfx,4);
+    ctx.quadraticCurveTo(-46+mfx,-32,-14+mfx,-40);
+    ctx.quadraticCurveTo(0+mfx,-44,14+mfx,-40);
+    ctx.quadraticCurveTo(46+mfx,-32,40+mfx,4);
+    ctx.quadraticCurveTo(30+mfx,36,0+mfx,40);
+    ctx.quadraticCurveTo(-30+mfx,36,-40+mfx,4);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle=HC.dark;
+    ctx.beginPath();
+    ctx.moveTo(-38+mfx,-6); ctx.quadraticCurveTo(-40+mfx,-30,-16+mfx,-38);
+    ctx.quadraticCurveTo(-30+mfx,-24,-24+mfx,-4); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(38+mfx,-6); ctx.quadraticCurveTo(40+mfx,-30,16+mfx,-38);
+    ctx.quadraticCurveTo(30+mfx,-24,24+mfx,-4); ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle=HC.white; el(ctx,walkFx*0.7,20,26,20); ctx.fill();
+
+    // 五官(眼睛/鼻子/嘴巴)整組偏移最多,像轉頭看向行走方向那邊
+    ctx.save(); ctx.translate(walkFx,0);
+    // 眼睛:清醒用眨眼曲線,休息/睡覺用固定的瞇眼/閉眼表情(不是同一套眼型)
+    const open = blink(t,0.4);
+    [-1,1].forEach(function(s){
+      if(st.mode==='sleep'){
+        ctx.strokeStyle=HC.dark; ctx.lineWidth=3; ctx.lineCap='round';
+        ctx.beginPath(); ctx.moveTo(s*20-6,-9); ctx.quadraticCurveTo(s*20,-5,s*20+6,-9); ctx.stroke();
+      } else if(st.mode==='rest'){
+        ctx.fillStyle=HC.eye; el(ctx,s*20,-9,6.5,3.2); ctx.fill();
+        ctx.fillStyle='#fff'; el(ctx,s*20-2,-10,1.6,1); ctx.fill();
+      } else if(st.mode==='happy'||open<=0.3){
+        ctx.strokeStyle=HC.dark; ctx.lineWidth=3.4; ctx.lineCap='round';
+        ctx.beginPath(); ctx.arc(s*20,-10,7,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
+      } else {
+        ctx.fillStyle=HC.eye; el(ctx,s*20,-10,6.5,6.5*open); ctx.fill();
+        ctx.fillStyle='#fff'; el(ctx,s*20-2,-12,2,2*open); ctx.fill();
+      }
+    });
+    ctx.fillStyle=HC.nose; el(ctx,0,10,7,5); ctx.fill();
+
+    if(st.mode==='eat'){
+      const ch=0.5+0.5*Math.sin(t*13);
+      ctx.fillStyle=HC.nose; el(ctx,0,20,6,3+5*ch); ctx.fill();
+    } else if(st.mode==='happy'){
+      ctx.fillStyle=HC.tongue;
+      ctx.beginPath(); ctx.arc(0,17,9,0.1*Math.PI,0.9*Math.PI); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0,24,4,7,0,0,TAU); ctx.fill();
+    } else if(st.mode==='sleep'){
+      ctx.strokeStyle=HC.nose; ctx.lineWidth=2; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-5,17); ctx.lineTo(5,17); ctx.stroke();
+    } else if(st.mode==='stretch'){
+      ctx.fillStyle=HC.nose; el(ctx,0,20+bow*2,7,4+bow*7); ctx.fill();
+    } else {
+      ctx.strokeStyle=HC.nose; ctx.lineWidth=2.6; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-7,16); ctx.quadraticCurveTo(0,21,7,16); ctx.stroke();
+    }
+    ctx.restore(); // 五官偏移
+
+    // 耳朵:維持在頭骨上原位(不跟五官偏移,只有角度變化)——
+    // 睡覺/休息時放鬆外倒,開心時往前豎,走路時往行走方向多倒一點點
+    [-1,1].forEach(function(s){
+      ctx.save();
+      ctx.translate(s*30+walkFx*0.2,-38);
+      const earRot = st.mode==='happy'?0.05 : st.mode==='sleep'?0.34 : st.mode==='rest'?0.24 : 0.16;
+      ctx.rotate(s*earRot - walkFx*0.006);
+      ctx.fillStyle=HC.dark;
+      ctx.beginPath(); ctx.moveTo(-14,10); ctx.lineTo(0,-38); ctx.lineTo(14,10); ctx.closePath(); ctx.fill();
+      ctx.fillStyle=HC.innerEar;
+      ctx.beginPath(); ctx.moveTo(-7,4); ctx.lineTo(0,-24); ctx.lineTo(7,4); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore(); // 頭
+
+    ctx.restore(); // bodySink
+
+    if(st.mode==='sleep'){ zzz(ctx, 44, -152, t); }
+    if(st.mode==='eat'){
+      ctx.fillStyle='#C99355'; el(ctx,0,52,30,9); ctx.fill();
+      ctx.fillStyle='#E8B57A'; el(ctx,0,48,26,7); ctx.fill();
+    }
+    if(st.mode==='play'){
+      ctx.save(); ctx.translate(56+Math.sin(t*3)*4,50);
+      ctx.fillStyle='#E4728A'; el(ctx,0,0,14,14); ctx.fill();
+      ctx.strokeStyle='#B8506A'; ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.moveTo(0,-14); ctx.lineTo(0,14); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // ══════════════ 小雞:完全另一套結構,體型比例、動作節奏都跟哈士奇無關 ══════════════
+  const CC = { body:'#FFE174', body2:'#F6C63E', beak:'#F0912E', beak2:'#E0791E', eye:'#2E2119', blush:'rgba(247,150,120,0.5)' };
+  const C_HOLD = {rest:2.8, sleep:4.2, stretch:1.6};
+  function drawChick(ctx,t,st){
+    const walk = st.legAmp;
+    const legPh = st.legPhase;
+    const elapsed = t-st.modeStart;
+    const settle = (st.mode==='rest'||st.mode==='sleep') ? Math.min(1, elapsed/0.35) : 0;
+    const bodySink = st.mode==='sleep' ? 10*settle : st.mode==='rest' ? 6*settle : 0;
+    const bow = st.mode==='stretch' ? Math.sin(Math.min(elapsed,C_HOLD.stretch)/C_HOLD.stretch*Math.PI) : 0;
+
+    ctx.fillStyle='rgba(90,70,50,0.16)'; el(ctx,0,4,38,8); ctx.fill();
+
+    ctx.save(); ctx.translate(0,bodySink);
+    const roll = Math.sin(legPh)*0.16*walk + (st.mode==='sleep'?0.1*settle:0);
+    ctx.save(); ctx.rotate(roll);
+
+    // 細腿三爪(交替、彈跳幅度比哈士奇誇張很多)
+    ctx.strokeStyle=CC.beak; ctx.lineWidth=4; ctx.lineCap='round';
+    [-1,1].forEach(function(s){
+      const ph=legPh+(s<0?0:Math.PI);
+      const lift=Math.max(0,Math.sin(ph))*14*walk;
+      const fx=s*10;
+      ctx.beginPath(); ctx.moveTo(fx,20); ctx.lineTo(fx,34-lift); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(fx,34-lift); ctx.lineTo(fx-8,42-lift);
+      ctx.moveTo(fx,34-lift); ctx.lineTo(fx,44-lift);
+      ctx.moveTo(fx,34-lift); ctx.lineTo(fx+8,42-lift);
+      ctx.stroke();
+    });
+
+    // 圓胖身體(頭身一體,沒有脖子)
+    const g=ctx.createLinearGradient(0,-58,0,26);
+    g.addColorStop(0,CC.body); g.addColorStop(1,CC.body2);
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    ctx.moveTo(0,-58);
+    ctx.bezierCurveTo(32,-58,40,-10,34,16);
+    ctx.bezierCurveTo(28,32,-28,32,-34,16);
+    ctx.bezierCurveTo(-40,-10,-32,-58,0,-58);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='rgba(255,244,200,0.5)'; el(ctx,0,10,22,18); ctx.fill();
+
+    // 翅膀(貼在身體外側,畫在身體之後才不會被蓋住;伸懶腰時大大展開)
+    const flap = st.mode==='happy' ? Math.abs(Math.sin(t*10))*0.9
+      : st.mode==='stretch' ? 0.95*bow
+      : Math.sin(legPh)*0.15*walk;
+    [-1,1].forEach(function(s){
+      ctx.save(); ctx.translate(s*28,-2); ctx.rotate(s*(0.5+flap*s));
+      ctx.fillStyle=CC.body2; el(ctx,0,4,10,16); ctx.fill();
+      ctx.restore();
+    });
+
+    ctx.strokeStyle=CC.beak2; ctx.lineWidth=4; ctx.lineCap='round';
+    [-8,0,8].forEach(function(a){ ctx.beginPath(); ctx.moveTo(a*0.5,-52); ctx.quadraticCurveTo(a,-70,a*1.4,-76); ctx.stroke(); });
+
+    const eatDip = st.mode==='eat' ? Math.max(0,Math.sin(t*10))*16 : 0;
+    ctx.save(); ctx.translate(0,eatDip);
+
+    // 眼睛:清醒眨眼曲線,休息瞇眼,睡覺閉眼(跟哈士奇同一套邏輯、不同眼型畫法)
+    if(st.mode==='sleep'){
+      ctx.strokeStyle=CC.eye; ctx.lineWidth=2.6; ctx.lineCap='round';
+      [-1,1].forEach(function(s){ ctx.beginPath(); ctx.moveTo(s*9-4,-30); ctx.quadraticCurveTo(s*9,-27,s*9+4,-30); ctx.stroke(); });
+    } else if(st.mode==='rest'){
+      [-1,1].forEach(function(s){ ctx.fillStyle=CC.eye; el(ctx,s*9,-29,4.6,2); ctx.fill(); });
+    } else {
+      const open=blink(t,0.7);
+      [-1,1].forEach(function(s){
+        ctx.fillStyle=CC.eye; el(ctx,s*9,-30,4.6,4.8*open); ctx.fill();
+        ctx.fillStyle='#fff'; el(ctx,s*9-1.4,-32,1.6,1.6*open); ctx.fill();
+      });
+    }
+    ctx.fillStyle=CC.blush; el(ctx,-20,-22,7,4.4); ctx.fill(); el(ctx,20,-22,7,4.4); ctx.fill();
+
+    const beakOpen = st.mode==='eat' ? (0.5+0.5*Math.sin(t*13))
+      : st.mode==='happy' ? 0.7
+      : st.mode==='stretch' ? 0.5*bow
+      : st.mode==='sleep' ? 0.04
+      : 0.15;
+    ctx.fillStyle=CC.beak;
+    ctx.beginPath(); ctx.moveTo(-7,-16); ctx.lineTo(7,-16); ctx.lineTo(0,-8-beakOpen*6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=CC.beak2;
+    ctx.beginPath(); ctx.moveTo(-5,-12); ctx.lineTo(5,-12); ctx.lineTo(0,-8-beakOpen*6); ctx.closePath(); ctx.fill();
+    ctx.restore(); // eatDip
+
+    ctx.restore(); // roll
+    ctx.restore(); // bodySink
+
+    if(st.mode==='happy'){
+      const bob=Math.abs(Math.sin(t*10))*6;
+      ctx.save(); ctx.translate(30,-70-bob); ctx.rotate(0.3);
+      ctx.fillStyle='#F4C64E';
+      ctx.beginPath(); ctx.arc(0,0,4,0,TAU); ctx.fill();
+      ctx.fillRect(3,-16,2,16);
+      ctx.restore();
+    }
+    if(st.mode==='sleep'){ zzz(ctx, 22, -76, t); }
+    if(st.mode==='eat'){
+      ctx.fillStyle='#D8A24E';
+      [[-6,26],[4,29],[10,25]].forEach(function(p){ el(ctx,p[0],p[1],2.6,2); ctx.fill(); });
+    }
+    if(st.mode==='play'){
+      ctx.save(); ctx.translate(40+Math.sin(t*4)*6,26);
+      ctx.fillStyle='#8FC9A8'; el(ctx,0,0,10,10); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // ── 掛上互動 ──
+  function wire(panelId, drawFn, opts){
+    const panel=document.getElementById(panelId);
+    const canvas=panel.querySelector('canvas');
+    const stage=makeStage(canvas, drawFn, opts);
+    const label=panel.querySelector('.state');
+    const buttons=Array.from(panel.querySelectorAll('button'));
+    buttons.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if(btn.dataset.dir) stage.setMode('walk', btn.dataset.dir);
+        else if(btn.dataset.stop) stage.setMode('stop');
+        else if(btn.dataset.mode) stage.setMode(btn.dataset.mode);
+      });
+    });
+    let lastT=performance.now()/1000;
+    function loop(now){
+      const t=now/1000;
+      const dt=Math.min(0.05, t-lastT);
+      lastT=t;
+      stage.update(t,dt);
+      stage.render(t);
+      buttons.forEach(function(btn){
+        const active = (btn.dataset.dir && stage.st.mode==='walk' && stage.st.dir===btn.dataset.dir)
+          || (btn.dataset.mode && stage.st.mode===btn.dataset.mode);
+        btn.classList.toggle('active', !!active);
+      });
+      label.textContent = '狀態:'+stage.st.mode+(stage.st.dir?(' → '+stage.st.dir):'');
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  wire('p-husky', drawHusky, {
+    groundY:280, walkSpeed:55, legFreq:5.5, tailFreq:2.4, leanAmount:0.22,
+    holdTimes:{happy:2.6, eat:2.6, play:2.4, rest:H_HOLD.rest, sleep:H_HOLD.sleep, stretch:H_HOLD.stretch},
+    ambientMin:3, ambientMax:7,
+    ambientPool:[{mode:'stretch',weight:3},{mode:'rest',weight:3},{mode:'sleep',weight:2}]
+  });
+  wire('p-chick', drawChick, {
+    groundY:260, walkSpeed:70, legFreq:9, tailFreq:1, leanAmount:0,
+    holdTimes:{happy:2.2, eat:2.2, play:2.0, rest:C_HOLD.rest, sleep:C_HOLD.sleep, stretch:C_HOLD.stretch},
+    ambientMin:2.5, ambientMax:6,
+    ambientPool:[{mode:'stretch',weight:3},{mode:'rest',weight:3},{mode:'sleep',weight:2}]
+  });
+})();
+</script>
+</body>
+</html>

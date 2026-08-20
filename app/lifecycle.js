@@ -22,10 +22,10 @@
     });
   }
 
-  // 在 (cx, footY) 底部置中畫一隻寵物(footY = 腳底 y)
+  // 在 (cx, footY) 底部置中畫一隻寵物(footY = 腳底 y)。
+  // v13:統一走 PLS_ACTOR.drawAt —— 新制物種用自己的造型,尚未搬家的物種自動回舊的 P.draw。
   function drawPetAt(ctx, species, t, cx, footY, s, o) {
-    ctx.save(); ctx.translate(cx, footY - 146 * s); ctx.scale(s, s);
-    P.draw(species, ctx, t, o || {}); ctx.restore();
+    window.PLS_ACTOR.drawAt(ctx, species, t, cx, footY, s, o || {});
   }
 
   // ════════════════════════════════════════════════════
@@ -152,12 +152,12 @@
   // ════════════════════════════════════════════════════
   // museum — 寵物珍藏館(左右兩小孩各自的收藏;點寵物 → 換裝 dressup)
   // ════════════════════════════════════════════════════
-  const PET_SPAN = 366;   // 大寶在 P.draw 座標的總高(含最高的兔耳);反推縮放讓頭頂不被 clip 切到
+  // 每隻自己報自己的總高(PLS_ACTOR.spanOf);舊制物種一律回 366(原本寫死的那個值)
   const CUR_H = 118;
 
   // 在方框內置中畫寵物,縮放依框高反推,頭頂剛好落在 (框頂+topM)、腳底在 (框底-botM),不會被 clip 切到
   function petInBox(ctx, species, t, bx, by, bw, bh, o, topM, botM) {
-    const sc = (bh - topM - botM) / PET_SPAN;
+    const sc = (bh - topM - botM) / window.PLS_ACTOR.spanOf(species);
     drawPetAt(ctx, species, t, bx + bw / 2, by + bh - botM, sc, o);
   }
   function corner(ctx, x, y, s) {   // 右上角小圖示(🎨 = 可換裝)

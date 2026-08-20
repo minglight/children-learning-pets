@@ -5,12 +5,121 @@
 // v6:佈置(換擺設)已移除,墊子只是餵食/陪玩的定點。
 (function () {
   const PLS = window.PLS, A = window.PLS_ART, P = window.PLS_PETS, TOY = window.PLS_TOY;
+  const ACT = window.PLS_ACTOR;   // v13:新制寵物引擎(沒搬家的物種會自動走 legacy,見 app/actor.js)
   const CFG = window.PLS_CONFIG, ST = window.PLS_STORE;
   const W = PLS.W, H = PLS.H, FONT = A.FONT, TAU = Math.PI * 2;
 
   function el(ctx, x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); }
   function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
   function pickTalk(list) { return list[Math.floor(Math.random() * list.length)]; }
+
+  // ════════════════════════════════════════════════════
+  // v13:聊天引擎 —— 讓寵物有「在聊天」的感覺,而不是只在餵食/陪玩時才出一句罐頭。
+  // 素材分三層(說什麼):
+  //   memo  記憶 = 寵物記得發生過的事(去誰家玩、誰來過、上次哪一關全對…),存在 pet.memo
+  //   state 現況 = 此刻的存檔數字(金幣、圖鑑、成長階段)
+  //   chat  閒聊 = 罐頭(自言自語 / 傻話 / 會等主人回答的問句)
+  // 何時說(排程)在 room.chatTick();回答選項的繪製/命中在 drawAsk()/tap()。
+  // 台詞一律集中在 config.js 的 talkCare,這裡只負責挑選與代換。
+  // ════════════════════════════════════════════════════
+  function itemName(key, type) {
+    return window.PLS_TREASURE ? window.PLS_TREASURE.label(key, type) : key;
+  }
+  // 代換模板裡的 {who} / {item} / {name} / {n}
+  function fill(tpl, m) {
+    if (!tpl) return '';
+    m = m || {};
+    var item = m.item;
+    // favFood / goldFood 存的是食物 key,要翻成中文;其餘(朋友送的、換到的獎品)本來就存中文
+    if (item && (m.k === 'favFood' || m.k === 'goldFood')) item = itemName(item, 'food');
+    return String(tpl)
+      .replace(/\{who\}/g, m.who || '朋友')
+      .replace(/\{item\}/g, item || '那個')
+      .replace(/\{name\}/g, m.name || '那一關')
+      .replace(/\{n\}/g, m.n == null ? '' : m.n);
+  }
+  // 記憶裡那一關現在還能不能去?能的話回 PLS.go 需要的參數(跟 screens.js tapNode 同一套規則)
+  function levelJump(d, slot, m) {
+    if (!m.lv || !CFG) return null;
+    var eng = m.sub === 'english';
+    var list = (eng ? CFG.english : CFG.math) || [];
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) if (list[i].id === m.lv) { idx = i; break; }
+    if (idx < 0 || ST.levelState(d, list, idx) === 'locked') return null;
+    var practice = ST.clearedToday(d, m.lv) || ST.remainToday(d, eng ? 'english' : 'math') <= 0;
+    return { screen: eng ? 'eplay' : 'quiz', params: { pet: slot, levelIdx: idx, practice: practice } };
+  }
+  // 從記憶抽一筆講出來。回 { text, ask }(ask = 回答選項,例如「再去解一次」的邀請)
+  function memoLine(d, slot) {
+    var list = ST.memoList ? ST.memoList(d) : [];
+    if (!list.length) return null;
+    var L = (CFG.talkCare && CFG.talkCare.memo) || {};
+    var m = list[Math.floor(Math.random() * list.length)];
+    if (!m || !m.k) return null;
+    var pool = L[m.k], out = {};
+    if (m.k === 'visitOut' && m.item && L.visitOutGift) pool = L.visitOutGift.concat(L.visitOut || []);
+    if (m.k === 'visitIn' && m.ate && L.visitInAte) pool = L.visitInAte.concat(L.visitIn || []);
+    if (m.k === 'clear') {
+      // 一半機率不是誇獎,而是真的邀主人再去一次 —— 選「走!」直接跳進那一關
+      var jump = levelJump(d, slot, m);
+      if (jump && L.clearAsk && Math.random() < 0.5) {
+        pool = L.clearAsk;
+        out.ask = [
+          { label: L.clearGoLabel || '走!', go: jump },
+          { label: L.clearLaterLabel || '待會兒', r: pickTalk(L.clearLaterReply || ['好~我等你']) }
+        ];
+      } else pool = L.clear;
+    }
+    if (!pool || !pool.length) return null;
+    out.text = fill(pickTalk(pool), m);
+    return out;
+  }
+  // 現況(此刻的存檔數字,不是事件記憶)
+  function stateLine(d) {
+    var S = (CFG.talkCare && CFG.talkCare.state) || {};
+    var cand = [];
+    var pts = ST.getPoints(d);
+    if (pts >= 5 && S.points) cand.push({ pool: S.points, n: pts });
+    var nf = (d.dex && d.dex.foods && d.dex.foods.length) || 0;
+    if (nf >= 3 && S.dexFoods) cand.push({ pool: S.dexFoods, n: nf });
+    var st = ST.growthInfo(d).stage;
+    var sp = st === 'grown' ? S.stageGrown : st === 'kid' ? S.stageKid : S.stageBaby;
+    if (sp && sp.length) cand.push({ pool: sp, n: null });
+    if (!cand.length) return null;
+    var c = cand[Math.floor(Math.random() * cand.length)];
+    return { text: fill(pickTalk(c.pool), { n: c.n }) };
+  }
+  // 純閒聊:陳述句,或會等主人回答的問句(問句帶 ask 選項)
+  function chatLine() {
+    var T = CFG.talkCare || {};
+    var asks = T.chatAsk || [], idles = T.chatIdle || [];
+    if (asks.length && Math.random() < 0.42) {
+      var q = asks[Math.floor(Math.random() * asks.length)];
+      if (q && q.q) return { text: q.q, ask: q.a };
+    }
+    if (!idles.length) return null;
+    return { text: pickTalk(idles) };
+  }
+  // 綜合挑一句:記憶優先(那才像「認識你」),其次現況,最後閒聊
+  function pickChat(d, slot) {
+    var r = Math.random(), line = null;
+    if (r < 0.42) line = memoLine(d, slot);
+    else if (r < 0.58) line = stateLine(d);
+    if (!line || !line.text) line = chatLine();
+    return line;
+  }
+  // 進房打招呼:久沒來優先「好久不見」,否則看現在幾點挑早/午/晚,再不然一般招呼
+  function greetLine(gap) {
+    var T = CFG.talkCare || {};
+    if (gap >= 2 && T.greetBack && T.greetBack.length) return pickTalk(T.greetBack);
+    var h = new Date().getHours(), pool = null;
+    if (h >= 5 && h < 11) pool = T.greetMorning;
+    else if (h >= 11 && h < 17) pool = T.greetNoon;
+    else if (h >= 17) pool = T.greetEvening;
+    // 時段招呼與一般招呼各半,免得同一個時段每天都聽到同一批
+    if (pool && pool.length && Math.random() < 0.5) return pickTalk(pool);
+    return pickTalk(T.greet || ['你來啦!']);
+  }
 
   // 固定地墊色(兩隻寵物共用,維持「食物=暖橘 / 遊戲=綠」的辨識)
   const MAT = {
@@ -27,13 +136,45 @@
   function xRange(geo, z) {                              // 地板梯形 + 前緣兩角讓給籃子
     return { min: geo.x0 + 90 + 90 * z, max: geo.x1 - 90 - 90 * z };
   }
-  // rot:整隻旋轉角度(開心轉圈用);face:-1 = 向左(只在側面時翻面);dir:'front'|'side'|'back'
-  // species = 物種 id;growDeco = 大寶配件 index(隨機抽的那款)
-  function petAt(ctx, species, t, x, footY, s, mode, stage, rot, face, dir, growDeco) {
-    ctx.save(); ctx.translate(x, footY - 140 * s);
-    ctx.scale(s * (dir === 'side' ? (face || 1) : 1), s);
-    if (rot) { ctx.translate(0, 20); ctx.rotate(rot); ctx.translate(0, -20); }
-    P.draw(species, ctx, t, { mode: mode, stage: stage, dir: dir, growDeco: growDeco }); ctx.restore();
+  // 在地板上畫一隻寵物。o = {act, mode, stage, deco, rot, face, dir}
+  //   act   語意動作('idle'|'walk'|'eat'|'play'|'happy'…)—— 新制物種只吃這個
+  //   mode  舊制的四種模式('idle'|'chew'|'happy'|'sad');dir 舊制三視角 —— 只給 legacy 物種用
+  //   rot   整隻旋轉(開心轉圈);face -1 = 朝左;deco 大寶配件 index
+  // 新制物種的方向感由牠自己詮釋(視差偏移/側面/不變都行),所以這裡不再強制鏡射。
+  function petAt(ctx, species, t, x, footY, s, o) {
+    o = o || {};
+    ctx.save();
+    if (ACT && ACT.has(species)) {
+      ctx.translate(x, footY);
+      // 新舊座標系的單位換算常數:舊制角色固定 366 單位高,新制哈士奇 194 單位 → 366/194 ≈ 1.9。
+      // 這是「單位換算」不是「對齊身高」——所以體型差異會如實呈現:
+      // 小雞 span 108 × 1.9 只有哈士奇的 55%,本來就該比較小。
+      ctx.scale(s * ACT.UNIT, s * ACT.UNIT);
+      if (o.rot) { ctx.translate(0, -40); ctx.rotate(o.rot); ctx.translate(0, 40); }
+      ACT.pose(species, ctx, t, {
+        action: o.act || 'idle', facing: o.face || 1, stage: o.stage, deco: o.deco
+      });
+    } else {
+      ctx.translate(x, footY - 140 * s);
+      ctx.scale(s * (o.dir === 'side' ? (o.face || 1) : 1), s);
+      if (o.rot) { ctx.translate(0, 20); ctx.rotate(o.rot); ctx.translate(0, -20); }
+      P.draw(species, ctx, t, { mode: o.mode, stage: o.stage, dir: o.dir, growDeco: o.deco });
+    }
+    ctx.restore();
+  }
+  // 舊制 mode + 走路狀態 → 新制語意動作。房間只需要在一個地方做這層翻譯。
+  function actOf(w) {
+    if (w.act) return w.act;
+    if (w.state === 'walk') return 'walk';
+    if (w.mode === 'chew') return 'eat';
+    if (w.mode === 'happy') return 'happy';
+    if (w.mode === 'sad') return 'sad';
+    return 'idle';
+  }
+  // 這隻物種走多快(新制物種自己報,舊制沿用原本寫死的 300)
+  function speedOf(species) {
+    if (ACT && ACT.has(species)) return 300 * (ACT.spec(species).locomotion.speed / 62);
+    return 300;
   }
   // 依移動向量決定視角:縱向為主 → 走遠=背面/走近=正面;橫向為主 → 側面
   function dirOf(geo, ddx, ddz) {
@@ -44,26 +185,32 @@
   // 漫遊一步(主寵物與訪客共用):隨機走走停停、近大遠小、轉身翻面
   function wanderStep(t, geo, w) {
     const dt = clamp(t - w.lastT, 0, 0.1); w.lastT = t;
+    const spd = speedOf(w.species);        // v13:走多快由物種自己決定
     if (w.state === 'walk') {
       const sc = scAt(w.z);
       const dx = w.tx - w.x, dzz = w.tz - w.z;
-      w.x += clamp(dx, -300 * sc * dt, 300 * sc * dt);
+      w.x += clamp(dx, -spd * sc * dt, spd * sc * dt);
       w.z += clamp(dzz, -0.24 * dt, 0.24 * dt);
       if (Math.abs(dx) > 3) w.face = dx < 0 ? -1 : 1;
       w.dir = dirOf(geo, dx, dzz);
-      w.hop = -Math.abs(Math.sin(t * 7)) * 38 * sc;
+      // 新制物種自己有走路動畫(邁步/搖擺),不需要引擎再幫牠上下彈;
+      // 舊制沒有腿的概念,只能靠整隻上下跳來表示在走路。
+      w.hop = (ACT && ACT.has(w.species)) ? 0 : -Math.abs(Math.sin(t * 7)) * 38 * sc;
       w.mode = 'idle';
+      w.act = 'walk';
       if (Math.abs(dx) < 4 && Math.abs(dzz) < 0.02) {
         const r = Math.random();
         w.state = r < 0.6 ? 'idle' : 'happy';
         w.until = t + (w.state === 'happy' ? 1.3 : 1.6 + Math.random() * 2.4);
         w.hop = 0;
         w.dir = 'front';   // 停下來就轉回來看鏡頭
+        w.act = w.state === 'happy' ? 'happy' : 'idle';
       }
     } else {
       w.dir = 'front';
       w.hop = w.state === 'happy' ? -Math.abs(Math.sin(t * 6)) * 26 * scAt(w.z) : 0;
       w.mode = w.state === 'happy' ? 'happy' : 'idle';
+      w.act = w.state === 'happy' ? 'happy' : 'idle';
       if (t >= w.until) {
         w.tz = Math.random();
         const xr = xRange(geo, w.tz);
@@ -79,14 +226,15 @@
   // 直線走向目標(訪客進場/離場/走向點心墊用);回傳是否到達。不夾 xRange,才能走出房外
   function walkStep(t, geo, w, tx, tz) {
     const dt = clamp(t - w.lastT, 0, 0.1); w.lastT = t;
-    const sc = scAt(w.z);
+    const sc = scAt(w.z), spd = speedOf(w.species);
     const dx = tx - w.x, dzz = tz - w.z;
-    w.x += clamp(dx, -300 * sc * dt, 300 * sc * dt);
+    w.x += clamp(dx, -spd * sc * dt, spd * sc * dt);
     w.z += clamp(dzz, -0.24 * dt, 0.24 * dt);
     if (Math.abs(dx) > 3) w.face = dx < 0 ? -1 : 1;
     w.dir = dirOf(geo, dx, dzz);
-    w.hop = -Math.abs(Math.sin(t * 7)) * 38 * sc;
+    w.hop = (ACT && ACT.has(w.species)) ? 0 : -Math.abs(Math.sin(t * 7)) * 38 * sc;
     w.mode = 'idle';
+    w.act = 'walk';
     return Math.abs(dx) < 4 && Math.abs(dzz) < 0.02;
   }
 
@@ -252,7 +400,10 @@
       this.act = null;       // 進行中的餵食/陪玩動畫
       this.grow = null;      // 升階慶祝 {t0, stage, stageZh}
       this.pat = null;       // 摸摸寵物 {t0}
-      this.bubble = null;    // 寵物對話泡泡 {text, until}
+      this.bubble = null;    // 寵物對話泡泡 {text, until, ask}
+      this._askRects = null; // v13:回答選項鈕的命中範圍(每幀由 drawAsk 更新)
+      this._chatT = 0;       // v13:上一句話的時間
+      this._chatWait = 0;    // v13:距離下一句要等幾秒
       this._prDisp = null;   // 成長條顯示值(緩動)
       this._down = null;
       this._wander = null;   // 2.5D 漫遊狀態 {x, z, tx, tz, state, until, face, hop, mode}
@@ -295,6 +446,16 @@
         window.PLS_CLOUD.checkVisitLog(pid).then(function (list) {
           if (self.petId !== pid || !list.length) return;
           self.visitNotices = list.slice().reverse();   // 舊的先顯示,依序點掉
+          // v13:誰來過、送了什麼,記進寵物的回憶(之後閒聊會提起「{who}偷偷留了…給我」)
+          const dg = ST.load(pid);
+          list.forEach(function (n) {
+            if (!n || !n.gift) return;
+            ST.pushMemo(dg, {
+              k: 'giftGot', mood: 'touched',
+              who: n.fromNickname || '朋友', item: n.gift.label || '好東西'
+            }, 'who');
+          });
+          ST.save(dg);
           PLS.addButton({
             x: PW + 40, y: 30, w: W - PW - 80, h: 104,
             hidden: function () { return !self.visitNotices.length; },
@@ -379,6 +540,14 @@
         },
         onTap: function () { if (window.PLS_PARENT) window.PLS_PARENT.open(); }
       });
+
+      // v13:進門先打招呼(距上次進來 ≥2 天會說「好久不見」;其餘看現在幾點)
+      const gap = ST.touchSeen ? ST.touchSeen(pid) : 0;
+      const hello = greetLine(gap);
+      this.say(hello);
+      this._lastSaid = hello;
+      this._chatT = PLS.t;                       // 招呼算第一句,之後才開始排閒聊
+      this._chatWait = 8 + Math.random() * 6;
     },
     // ── 輸入:自己做 tap 偵測(避免和左欄按鈕打架,只處理房間框內的點擊)──
     pointer: function (phase, x, y) {
@@ -408,6 +577,21 @@
         }
         if (!inR(this._trayPanel)) this.tray = null;   // 點托盤外:收起
         return;
+      }
+      // v13:回答寵物的問題(選項鈕在泡泡下方,命中範圍由上一幀的 drawAsk 記下)
+      if (this._askRects) {
+        for (let ai = 0; ai < this._askRects.length; ai++) {
+          const ar = this._askRects[ai];
+          if (!inR(ar)) continue;
+          const opt = ar.opt;
+          this._askRects = null;
+          this.bubble = null;
+          PLS.sfx.tap();
+          if (opt.go) { PLS.go(opt.go.screen, opt.go.params); return; }   // 「走!」→ 直接跳那一關
+          this.say(opt.r || '嘿嘿~');
+          this._chatT = PLS.t;                                            // 回答完重新排下一句
+          return;
+        }
       }
       if (inR(this._foodBasket)) { this.tray = 'food'; PLS.sfx.tap(); return; }
       if (inR(this._toyBox)) { this.tray = 'toy'; PLS.sfx.tap(); return; }
@@ -449,8 +633,83 @@
         PLS.sfx.tap();
       }
     },
-    say: function (text) { this.bubble = { text: text, until: PLS.t + 2.4 }; },
+    // v13:opts.ask = 回答選項 [{label, r}|{label, go}] —— 泡泡下方出鈕,等小朋友點。
+    // 有選項的話泡泡停久一點(要留時間讀完再選)。
+    say: function (text, opts) {
+      opts = opts || {};
+      this.bubble = { text: text, until: PLS.t + (opts.ask ? 9 : 2.4), ask: opts.ask || null };
+      this._askRects = null;
+    },
     sayG: function (text) { this.gBubble = { text: text, until: PLS.t + 2.4 }; },
+
+    // ── v13:聊天排程 ───────────────────────────────
+    // 沒有別的演出時,寵物會自己找話講:今天還沒被照顧就先撒嬌(不催促、不負面),
+    // 其餘時間輪流講回憶 / 現況 / 閒聊,約每 12~20 秒一句。
+    // 問句(有 ask 選項)會停在畫面上等小朋友回答,回答完才重新排下一句。
+    chatTick: function (t, d) {
+      if (this.act || this.grow || this.tray) return;       // 正在演出/開著托盤就別插嘴
+      if (this.bubble && t < this.bubble.until) return;     // 上一句還在講
+      if (t - (this._chatT || 0) < (this._chatWait || 12)) return;
+      this._chatT = t;
+      // 有訪客在的時候拉長間隔,免得主寵物跟訪客的泡泡一直撞在一起
+      this._chatWait = (12 + Math.random() * 8) * (this._visit && this._visit.phase !== 'wait' ? 1.6 : 1);
+      const line = this.pickLine(d);
+      if (!line || !line.text) return;
+      this.say(line.text, line);
+      this._lastSaid = line.text;
+    },
+    // 挑一句要講的話,並避開「剛剛才講過的那一句」——
+    // 素材再多,連著講兩次一模一樣的話就整個破功了。
+    pickLine: function (d) {
+      for (let i = 0; i < 3; i++) {
+        const line = this.rollLine(d);
+        if (line && line.text && line.text !== this._lastSaid) return line;
+      }
+      return null;
+    },
+    // 撒嬌機率刻意壓低:今天還沒被照顧時偶爾提一下就好,其餘時間都拿來聊天。
+    rollLine: function (d) {
+      const fed = d.care.fed > 0, played = d.care.played > 0;
+      if (!fed && Math.random() < 0.35) return { text: pickTalk(CFG.talkCare.hungryNag) };
+      if (fed && !played && ST.invTotal(d, 'toys') > 0 && Math.random() < 0.2) {
+        return { text: pickTalk(CFG.talkCare.playNag) };
+      }
+      return pickChat(d, this.petId);
+    },
+
+    // v13:回答選項鈕(畫在泡泡正下方一排);同時記下命中範圍給 tap() 用。
+    drawAsk: function (ctx, t, cx, top, ask) {
+      const B = this._box;
+      ctx.font = '20px ' + FONT;
+      const GAP = 12, h = 46;
+      const ws = ask.map(function (o) { return Math.max(96, ctx.measureText(o.label).width + 34); });
+      let total = GAP * (ask.length - 1);
+      ws.forEach(function (w) { total += w; });
+      let x = cx - total / 2;
+      if (B) {
+        // 兩端留位子給食物籃 / 玩具箱;選項真的太寬時才容許貼近邊緣
+        const pad = (total <= B.iw - 264) ? 132 : 12;
+        x = Math.max(B.ix + pad, Math.min(x, B.ix + B.iw - pad - total));
+      }
+      const rects = [];
+      ask.forEach(function (o, i) {
+        const w = ws[i];
+        const pulse = 0.5 + 0.5 * Math.sin(t * 3 + i);
+        ctx.save();
+        ctx.shadowColor = 'rgba(150,110,70,' + (0.14 + 0.10 * pulse) + ')';
+        ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+        ctx.fillStyle = '#FFFFFF'; rr(ctx, x, top, w, h, h / 2); ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = o.go ? '#F2C46B' : '#F0DBAB'; ctx.lineWidth = 2.5;
+        rr(ctx, x, top, w, h, h / 2); ctx.stroke();
+        ctx.fillStyle = '#8A6242'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = '20px ' + FONT;
+        ctx.fillText(o.label, x + w / 2, top + h / 2 + 1);
+        rects.push({ x: x, y: top, w: w, h: h, opt: o });
+        x += w + GAP;
+      });
+      this._askRects = rects;
+    },
 
     // v11:拜訪分享通知橫幅(疊在房間框上方,點一下關閉、換下一則)
     drawNotice: function (ctx) {
@@ -500,13 +759,22 @@
         const sc = scAt(a.fromZ + (stand.z - a.fromZ) * k);
         return {
           x: a.fromX + (stand.x - a.fromX) * k, z: a.fromZ + (stand.z - a.fromZ) * k,
-          hop: -Math.abs(Math.sin(e * 7)) * 38 * sc, mode: 'idle', face: face,
+          hop: (ACT && ACT.has(this.species)) ? 0 : -Math.abs(Math.sin(e * 7)) * 38 * sc,
+          mode: 'idle', act: 'walk', face: face,
           dir: dirOf(this._geo, stand.x - a.fromX, stand.z - a.fromZ)
         };
       }
       const dz = stand.z;
       const sc = scAt(dz), headY = yAt(this._geo, dz) - 300 * sc;
-      const at = function (mode, hop, rot) { return { x: stand.x, z: dz, hop: hop || 0, mode: mode, rot: rot, face: face }; };
+      // mode 是舊制的四種模式;act 是新制的語意動作(餵食 → eat、陪玩 → play),兩者一起帶著走,
+      // 新舊物種各取所需。
+      const at = function (mode, hop, rot, act) {
+        return {
+          x: stand.x, z: dz, hop: hop || 0, mode: mode, rot: rot, face: face,
+          act: act || (mode === 'chew' ? 'eat'
+            : mode === 'happy' ? (a.kind === 'play' ? 'play' : 'happy') : 'idle')
+        };
+      };
       if (a.kind === 'feed') {
         if (e < 3.35) {
           if (!a.saidStart) {
@@ -583,7 +851,8 @@
         const xr0 = xRange(geo, 0.7);
         w = this._wander = {
           x: (xr0.min + xr0.max) / 2, z: 0.7, tx: 0, tz: 0.7,
-          state: 'idle', until: t + 1.2, face: 1, hop: 0, mode: 'idle', lastT: t
+          state: 'idle', until: t + 1.2, face: 1, hop: 0, mode: 'idle', act: 'idle',
+          species: this.species, lastT: t
         };
       }
       return wanderStep(t, geo, w);
@@ -603,7 +872,8 @@
         v.exitX = fromLeft ? geo.x0 - 90 : geo.x1 + 90;
         v.phase = 'in';
         v.w = { x: v.exitX, z: z0, tx: fromLeft ? xr.min + 30 : xr.max - 30, tz: z0,
-                state: 'walk', until: 0, face: fromLeft ? 1 : -1, hop: 0, mode: 'idle', lastT: t };
+                state: 'walk', until: 0, face: fromLeft ? 1 : -1, hop: 0, mode: 'idle', act: 'walk',
+                species: v.species || v.id, lastT: t };
         v.stayUntil = t + 45;
         v.hostSayAt = t + 1.6;   // 主人寵物晚一點回話,泡泡才不會撞在一起
         this.sayG(pickTalk(CFG.talkCare.visitArrive));
@@ -626,7 +896,7 @@
         } else if (act && act.kind === 'play') {
           // 在旁邊蹦蹦跳跳幫忙加油
           w.hop = -Math.abs(Math.sin(t * 6)) * 26 * scAt(w.z);
-          w.mode = 'happy'; w.dir = 'front';
+          w.mode = 'happy'; w.dir = 'front'; w.act = 'play';
         } else if (t >= v.stayUntil) {
           v.phase = 'leave';
           this.sayG(pickTalk(CFG.talkCare.visitLeave));
@@ -644,15 +914,25 @@
           const e = t - act.t0;
           w.hop = 0; w.dir = 'front';
           w.mode = e > 1.2 && e < 3.35 ? 'chew' : 'happy';
+          w.act = w.mode === 'chew' ? 'eat' : 'happy';
         }
       } else if (v.phase === 'leave') {
-        if (walkStep(t, geo, w, v.exitX, w.z)) { this._visit = null; return null; }
+        if (walkStep(t, geo, w, v.exitX, w.z)) {
+          // v13:記住這次有誰來作客、有沒有一起吃點心(同一位朋友只留最新一次)
+          if (!v.remembered && ST.pushMemo) {
+            v.remembered = true;
+            const dv = ST.load(this.petId);
+            ST.pushMemo(dv, { k: 'visitIn', mood: 'happy', who: v.name || '朋友', ate: !!v.thanked }, 'who');
+            ST.save(dv);
+          }
+          this._visit = null; return null;
+        }
       }
       // 被摸摸:開心一下
       if (v.pat && t - v.pat < 1.0 && (v.phase === 'stay' || v.phase === 'join')) {
-        w.mode = 'happy'; w.dir = 'front';
+        w.mode = 'happy'; w.dir = 'front'; w.act = 'greet';
       }
-      return { x: w.x, z: w.z, hop: w.hop, mode: w.mode, face: w.face, dir: w.dir };
+      return { x: w.x, z: w.z, hop: w.hop, mode: w.mode, act: actOf(w), face: w.face, dir: w.dir };
     },
 
     // ── v5:照顧圖示(頭上兩顆:飯碗=今天餵過、球=今天玩過;沒做的半透明)──
@@ -930,9 +1210,9 @@
       }
       if (!pose) {
         const w = this.updateWander(t, geo);
-        pose = { x: w.x, z: w.z, hop: w.hop, mode: w.mode, face: w.face, dir: w.dir };
+        pose = { x: w.x, z: w.z, hop: w.hop, mode: w.mode, act: actOf(w), face: w.face, dir: w.dir };
       }
-      if (this.pat && t - this.pat.t0 < 1.0 && !this.act) { pose.mode = 'happy'; pose.dir = 'front'; }
+      if (this.pat && t - this.pat.t0 < 1.0 && !this.act) { pose.mode = 'happy'; pose.act = 'greet'; pose.dir = 'front'; }
       // 訪客(另一隻寵物來作客);兩隻依深度排序,遠的先畫
       const gpose = this.updateVisit(t, geo, foodPt);
       const petsDraw = [{ id: species, pose: pose, stage: gi.stage, deco: gi.deco, main: true }];
@@ -942,7 +1222,10 @@
       petsDraw.forEach(function (it) {
         const s = scAt(it.pose.z), gy = yAt(geo, it.pose.z);
         ctx.fillStyle = 'rgba(150,110,70,0.16)'; el(ctx, it.pose.x, gy + 4, 150 * s, 34 * s); ctx.fill();
-        petAt(ctx, it.id, t, it.pose.x, gy + it.pose.hop, s, it.pose.mode, it.stage, it.pose.rot, it.pose.face, it.pose.dir, it.deco);
+        petAt(ctx, it.id, t, it.pose.x, gy + it.pose.hop, s, {
+          act: it.pose.act, mode: it.pose.mode, stage: it.stage, deco: it.deco,
+          rot: it.pose.rot, face: it.pose.face, dir: it.pose.dir
+        });
         if (it.main) { self._petX = it.pose.x; self._petY = gy; self._petS = s; }
         else { self._guestX = it.pose.x; self._guestY = gy; self._guestS = s; }
       });
@@ -956,14 +1239,7 @@
         this._wishRect = null;
         if (wish && !wish.done) this.drawWish(ctx, t, wish, pose.x, groundY, psc);
         this._wishInfo = wish;
-        // 撒嬌:今天還沒餵(每 16 秒)/ 餵了但還沒陪玩且有玩具(每 26 秒)
-        if (!this.bubble || t >= this.bubble.until) {
-          if (d.care.fed === 0 && t - (this._nagT || -99) > 16) {
-            this._nagT = t; this.say(pickTalk(CFG.talkCare.hungryNag));
-          } else if (d.care.fed > 0 && d.care.played === 0 && ST.invTotal(d, 'toys') > 0 && t - (this._nagT || -99) > 26) {
-            this._nagT = t; this.say(pickTalk(CFG.talkCare.playNag));
-          }
-        }
+        this.chatTick(t, d);   // v13:閒聊 / 撒嬌 / 講回憶(取代舊版只有兩句的撒嬌)
       } else { this._wishRect = null; }
 
       // ── v5:掛畫 = 收集圖鑑入口 ──
@@ -984,7 +1260,7 @@
       // 頭像
       ctx.save(); ctx.beginPath(); el(ctx, 132, 116, 42, 42); ctx.clip();
       ctx.fillStyle = '#FCEFE6'; ctx.fillRect(86, 66, 92, 100);
-      petAt(ctx, species, t, 132, 168, 0.32, 'idle', gi.stage, 0, 1, 'front', gi.deco); ctx.restore();
+      petAt(ctx, species, t, 132, 168, 0.32, { act: 'idle', mode: 'idle', stage: gi.stage, deco: gi.deco, face: 1, dir: 'front' }); ctx.restore();
       ctx.strokeStyle = '#F2D8C0'; ctx.lineWidth = 4; el(ctx, 132, 116, 42, 42); ctx.stroke();
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.font = '34px ' + FONT; ctx.fillStyle = th.deep; ctx.fillText(name + '的房間', 190, 100);
@@ -998,10 +1274,18 @@
     },
 
     drawTop: function (ctx, t) {
+      this._askRects = null;
       if (this.bubble && t < this.bubble.until && !this.grow) {
         const bx = Math.min(W - 190, Math.max(PW + 190, this._petX || (PW + 400)));
         const by = Math.max(200, (this._petY || 640) - 460 * (this._petS || 0.42));
         A.bubble(ctx, bx, by, this.bubble.text, { size: 22 });
+        // v13:回答選項固定排在房間下緣中央(跟食物籃/玩具箱同一排)。
+        // 不跟著泡泡走的原因:泡泡在寵物頭上會飄,鈕會壓到寵物臉和地墊標籤;
+        // 固定在下緣既不擋任何東西,位置也穩定,小手好點。托盤開著時讓位給托盤。
+        const B = this._box;
+        if (this.bubble.ask && this.bubble.ask.length && !this.tray && !this.act && B) {
+          this.drawAsk(ctx, t, B.ix + B.iw / 2, B.iy + B.ih - 84, this.bubble.ask);
+        }
       }
       // 訪客的泡泡(跟著訪客位置)
       if (this.gBubble && t < this.gBubble.until && !this.grow && this._guestX != null) {

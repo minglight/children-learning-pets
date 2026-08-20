@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>哈士奇 — 10 個語意動作總覽</title>
+<style>
+  :root{ --bg:#EFE3D2; --panel:#FFF9F0; --line:#E0CDB4; --ink:#5E4A36; --dim:#9A7B5C; --accent:#8FC9A8; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Andika","Huninn","Baloo 2",system-ui,sans-serif;padding:20px}
+  h1{font-size:21px;margin:0 0 4px}
+  p.sub{max-width:980px;margin:0 0 14px;color:var(--dim);font-size:13.5px;line-height:1.7}
+  .bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+  button{font:inherit;font-size:13.5px;padding:7px 13px;border-radius:11px;
+    border:2px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;line-height:1}
+  button:hover{background:#F6ECD9}
+  button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .cell{background:var(--panel);border:2px solid var(--line);border-radius:16px;padding:8px 8px 10px;text-align:center}
+  .cell canvas{display:block;border-radius:11px;background:#EAF2F0;width:100%;height:auto}
+  .cell b{display:block;font-size:13.5px;margin-top:7px}
+  .cell span{display:block;font-size:11.5px;color:var(--dim);line-height:1.45;min-height:30px}
+  @media (max-width:1100px){ .grid{grid-template-columns:repeat(3,1fr)} }
+</style>
+</head>
+<body>
+
+<h1>哈士奇 — 10 個語意動作總覽</h1>
+<p class="sub">
+畫面只會對牠下這 10 個指令,怎麼演是 <code>app/actors/husky.js</code> 自己的事。
+每格都在跑真實動畫(動作演完會重播),不是靜態圖。切換成長階段可以看比例差異 —— 幼幼是頭大腿短的幼犬,不是整隻等比縮小。
+</p>
+
+<div class="bar">
+  <span style="font-size:12.5px;color:var(--dim)">成長階段:</span>
+  <button data-stage="baby">幼幼</button>
+  <button data-stage="kid" class="active">小寶</button>
+  <button data-stage="grown">大寶</button>
+  <span style="width:16px"></span>
+  <button id="deco">大寶配件 ▸ 0</button>
+  <span style="width:16px"></span>
+  <button data-face="1" class="active">朝右</button>
+  <button data-face="-1">朝左(引擎鏡射)</button>
+  <span style="width:16px"></span>
+  <button id="play">▶ 繼續播放</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script src="app/pets.js"></script>
+<script src="app/actor.js"></script>
+<script src="app/actors/husky.js"></script>
+<script>
+(function(){
+  const A = window.PLS_ACTOR;
+  const SP = 'husky';
+  const LIST = [
+    ['idle',    '沒事做', '呼吸起伏、尾巴慢擺、不定時眨眼'],
+    ['walk',    '在房間移動', '四足小跑,前後腿相位差 180°,身體微前傾'],
+    ['eat',     '餵食', '低頭到碗邊,嘴一開一合咀嚼'],
+    ['play',    '陪玩', '前身壓低、屁股翹高的邀玩姿(play bow),尾巴甩快'],
+    ['happy',   '過關慶祝', '原地彈跳、耳朵前豎、吐舌、眼睛彎成弧'],
+    ['sad',     '失落', '頭低、耳朵垮下、尾巴夾起、上眼瞼壓低'],
+    ['sleep',   '自發行為', '整個趴下、閉眼、前腳往前伸、Zzz'],
+    ['rest',    '自發行為', '坐下、半瞇眼、尾巴幾乎不動'],
+    ['stretch', '自發行為', '前身壓低往前伸懶腰,後腿撐直'],
+    ['greet',   '打招呼', '坐下抬起前腳揮手、吐舌']
+  ];
+
+  let stage = 'kid', deco = 0, face = 1;
+  const cells = [];
+
+  LIST.forEach(function (it) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const cv = document.createElement('canvas');
+    cell.appendChild(cv);
+    const b = document.createElement('b'); b.textContent = it[0];
+    const sp = document.createElement('span'); sp.textContent = it[2];
+    cell.appendChild(b); cell.appendChild(sp);
+    document.getElementById('grid').appendChild(cell);
+
+    const W = 230, H = 210, dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+
+    // lock:動作演完重播同一個,不回 idle(展示用)
+    const actor = A.create(SP, { stage: stage, ambient: false, lock: true });
+    actor.act(it[0], { facing: face });
+    if (it[0] === 'walk') actor.setMoving(true, { facing: face, speedRatio: 1 });
+
+    cells.push({ actor: actor, ctx: ctx, W: W, H: H, action: it[0] });
+  });
+
+  function apply() {
+    cells.forEach(function (c) {
+      c.actor.setStage(stage, deco);
+      c.actor.st.facing = face;
+      if (c.action === 'walk') c.actor.setMoving(true, { facing: face, speedRatio: 1 });
+    });
+  }
+  document.querySelectorAll('[data-stage]').forEach(function (b) {
+    b.onclick = function () {
+      stage = b.dataset.stage; apply();
+      document.querySelectorAll('[data-stage]').forEach(function (x) { x.classList.toggle('active', x === b); });
+    };
+  });
+  document.querySelectorAll('[data-face]').forEach(function (b) {
+    b.onclick = function () {
+      face = +b.dataset.face; apply();
+      document.querySelectorAll('[data-face]').forEach(function (x) { x.classList.toggle('active', x === b); });
+    };
+  });
+  document.getElementById('deco').onclick = function () {
+    deco = (deco + 1) % 5; this.textContent = '大寶配件 ▸ ' + deco;
+    stage = 'grown'; apply();
+    document.querySelectorAll('[data-stage]').forEach(function (x) { x.classList.toggle('active', x.dataset.stage === 'grown'); });
+  };
+
+  // 把 cells 掛出去,並提供「手動推進 n 秒」——瀏覽器分頁失焦時會 throttle rAF,
+  // 動作會卡在剛開始那一幀(settle 還是 0),截圖就只看得到起手式。
+  window.__cells = cells;
+  // 推進前先凍結 rAF:否則 loop 會用真實時間把 elapsed 一次衝過 hold,
+  // 動作立刻被重播,畫面永遠停在起手式(分頁失焦被 throttle 時特別明顯)。
+  window.__pause = false;
+  window.__step = function (secs) {
+    window.__pause = true;
+    const step = 1 / 60;
+    for (let i = 0; i < Math.round((secs || 2) / step); i++) {
+      simT += step;
+      cells.forEach(function (c) { c.actor.update(simT, step); });
+    }
+    render(simT);
+    return cells.map(function (c) { return c.action + ':' + c.actor.st.settle.toFixed(2); }).join(' ');
+  };
+
+  document.getElementById('play').onclick = function () {
+    window.__pause = false; last = performance.now() / 1000;
+  };
+
+  let simT = 0;
+  let last = performance.now() / 1000;
+  function loop(now) {
+    const t = now / 1000, dt = Math.min(0.05, t - last); last = t;
+    if (!window.__pause) {
+      simT = t;
+      cells.forEach(function (c) { c.actor.update(t, dt); });
+      render(t);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function render(t) {
+    cells.forEach(function (c) {
+      const ctx = c.ctx;
+      ctx.clearRect(0, 0, c.W, c.H);
+      ctx.fillStyle = '#EAF2F0'; ctx.fillRect(0, 0, c.W, c.H);
+      const groundY = c.H - 30;
+      ctx.strokeStyle = 'rgba(150,120,90,0.14)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(12, groundY + 1); ctx.lineTo(c.W - 12, groundY + 1); ctx.stroke();
+      ctx.save();
+      ctx.translate(c.W / 2, groundY);
+      const sc = A.fitScale(SP, c.H - 34, 8, 8);
+      ctx.scale(sc, sc);
+      c.actor.render(ctx, t);
+      ctx.restore();
+    });
+  }
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

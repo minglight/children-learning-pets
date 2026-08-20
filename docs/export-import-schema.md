@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 12`（v12 難易度分級獎勵:過關次數上限依入門/進階分層,新增 advancedFrom;v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
+## 目前版本:`version = 13`（v13 聊天記憶:新增 memo/lastSeen,寵物記得發生過的事;v12 難易度分級獎勵:過關次數上限依入門/進階分層,新增 advancedFrom;v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -17,7 +17,7 @@
 ```jsonc
 {
   "app": "pls",                       // 固定字串;不是 "pls" 一律拒絕匯入
-  "version": 12,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
+  "version": 13,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
   "exportedAt": "2026-06-18T08:00:00.000Z", // ISO 時間,僅供參考
   "kidL": { /* 左邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 rabbit)
   "kidR": { /* 右邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 hamster)
@@ -75,6 +75,13 @@
   "dex": {                    // v5:收集圖鑑(吃過的食物 / 玩過的玩具 key;只增不減)
     "foods": ["apple", "sushi"], "toys": ["doll"]
   },
+  "memo": [                   // v13:聊天記憶(寵物記得發生過的事;最多 20 筆,房間閒聊時拿出來講)
+    { "k": "clear", "d": "2026-8-20", "mood": "proud",
+      "sub": "math", "lv": "m3", "name": "加法", "perfect": true },
+    { "k": "visitOut", "d": "2026-8-19", "mood": "proud", "who": "小美", "item": "草莓" },
+    { "k": "giftGot", "d": "2026-8-18", "mood": "touched", "who": "小明", "item": "壽司" }
+  ],
+  "lastSeen": "2026-8-20",    // v13:上次進房間的日期(距今 ≥2 天,寵物會說「好久不見」);null = 還沒進過
   "levels": {                 // 關卡進度:levelId -> 紀錄
     "e2": {
       "attempts": 30,         // 累計作答題數
@@ -218,3 +225,17 @@
 - **`config.js` 的 `u6`–`u9` 取消 `alwaysOpen`**,恢復序列鎖(原本是期末考暫時開放),跟其他關卡一起照順序解鎖——不是存檔結構變更,但會影響「目前破到第幾關」的計算(見下一點)。
 - **好友拜訪新增「獎盃」**(選用附加功能,見 `docs/cloud-friends-schema.md`):`app/cloud.js` 的 Firestore `status` 快照新增 `trophy` 欄位(數字,= 目前破到第幾關,由 `store.trophyNumber()` 計算),自己房間與好友拜訪畫面顯示同一個徽章。**不是**本機 schema 的一部分,不進 export/import 檔。
 - `migratePet()` 對舊檔補 `advancedFrom = 'm8'`;v11(含更舊)備份檔匯入自動補齊,進度不受影響。
+
+### v13（2026-08,寵物聊天系統 — 讓寵物會主動聊天、而且記得發生過的事)
+- **小孩**新增欄位:
+  - `memo`(陣列,預設 `[]`)— **聊天記憶**。寵物記得發生過的事,房間閒聊時抽一筆講出來,講的內容才會像「認識你」而不是罐頭。每筆 `{ k, d, mood, ...依 kind 的欄位 }`:
+    - `k` 事件種類:`clear`(過關,含 `sub`/`lv`/`name`/`perfect`)、`visitOut`(去朋友家玩,含 `who`,分享過禮物再帶 `item`)、`visitIn`(朋友來作客,含 `who`/`ate`)、`giftGot`(收到朋友分享,含 `who`/`item`)、`favFood` / `goldFood`(吃過的食物,含 `item` = 食物 key)、`grow`(長大,含 `stage`)、`newDeco`(抽到大寶配件,含 `deco`/`species`)、`hwRound`(描滿一輪 A–Z)、`redeem`(換獎品,含 `item` = 獎品名)、`graduate`(有寵物畢業,含 `name`/`species`)。
+    - `d` 事件日期(絕對日期字串,格式同 `store.today()` 的 `YYYY-M-D`);`mood` 當時的感覺(`happy`/`proud`/`excited`/`touched`/`miss`),供台詞語氣使用。
+    - **容量規則**:總筆數上限 `MEMO_MAX = 20`;另外每種事件各有上限(`MEMO_KIND_MAX`,例如 `clear` 4 筆、`favFood` 2 筆、`grow` 1 筆),避免餵食這種高頻事件把拜訪 / 過關這種難得的回憶洗掉。超過就丟最舊的。
+    - **去重**:`pushMemo(d, ev, dedupeField)` 帶 `dedupeField` 時,同 kind 且該欄位相同的舊紀錄先移除(同一關、同一種食物、同一位朋友只留最新一筆)。
+    - **不隨畢業/換寵物歸零**(比照 `points` / `dex`):回憶屬於小孩,新養的寵物會提起前一隻(`graduate` 記憶)。
+  - `lastSeen`(string 或 null,預設 `null`)— 上次進房間的日期。距今 ≥2 天時,寵物進門會說「好久不見~我有乖乖等你喔」。由 `store.touchSeen(slot)` 在 `room.enter()` 打卡更新。
+- **不回填歷史**:`migratePet()` 對舊檔只補 `memo = []` / `lastSeen = null`,**不**從既有 `levels` / `dex` 反推假的回憶——不能讓寵物說得像它記得沒發生過的事。舊檔匯入後從「還沒有回憶」開始,玩幾次就長出來。
+- **相關 API**(`store.js`):`pushMemo` / `memoList` / `touchSeen` / `levelLabel`;`redeem(d, cost, name)` 多一個選填的獎品名參數(只用來寫記憶,不影響扣點)。
+- **台詞與排程**:台詞模板全部集中在 `config.js` 的 `talkCare`(新增 `greet*` 進門招呼、`chatIdle` 閒聊、`chatAsk` 會等回答的問句、`memo` 記憶模板、`state` 現況模板);挑選與代換在 `app/room.js` 的聊天引擎,排程在 `room.chatTick()`。**不是**存檔結構的一部分,改台詞不需要動 schema 版本。
+- `migratePet()` 對舊檔補 `memo = []`、`lastSeen = null`;v12(含更舊)備份檔匯入自動補齊,進度不受影響。

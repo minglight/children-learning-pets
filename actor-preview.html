@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Actor 引擎預覽 — 語意動作 × 物種自訂表現</title>
+<style>
+  :root{ --bg:#EFE3D2; --panel:#FFF9F0; --line:#E0CDB4; --ink:#5E4A36; --dim:#9A7B5C; --accent:#8FC9A8; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Andika","Huninn","Baloo 2",system-ui,sans-serif;padding:24px}
+  h1{font-size:23px;margin:0 0 6px}
+  p.sub{max-width:960px;margin:0 0 20px;color:var(--dim);font-size:14px;line-height:1.75}
+  code{background:#00000010;padding:1px 6px;border-radius:6px;font-size:13px}
+  .panels{display:flex;gap:22px;flex-wrap:wrap}
+  .panel{background:var(--panel);border:2px solid var(--line);border-radius:20px;padding:16px;
+    box-shadow:0 6px 18px rgba(120,90,50,0.08)}
+  h2{font-size:17px;margin:0 0 2px}
+  .hint{font-size:12px;color:var(--dim);margin:0 0 10px;line-height:1.6;max-width:400px}
+  canvas{display:block;border-radius:14px;background:#EAF2F0}
+  .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px;max-width:420px}
+  button{font:inherit;font-size:13.5px;padding:7px 11px;border-radius:11px;
+    border:2px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;line-height:1}
+  button:hover{background:#F6ECD9}
+  button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .lbl{font-size:11.5px;color:var(--dim);width:100%;margin:6px 0 0}
+  .state{margin-top:9px;font-size:12.5px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<h1>Actor 引擎預覽 — 畫面只講語意動作,每隻自己詮釋</h1>
+<p class="sub">
+上排兩隻走<b>新制</b>(<code>app/actors/*.js</code>):同一組動作按鈕,兩隻的表現方式完全不同 ——
+哈士奇四足小跑、走路身體前傾、甩捲尾;小雞碎步、身體左右滾、沒尾巴改甩翅膀。
+兩個檔案<b>沒有共用任何造型函式</b>。<br>
+右邊兔兔走 <b>legacy adapter</b>(還沒搬家的 8 隻自動走這條):同樣接受語意動作,
+內部轉回舊的 <code>PLS_PETS.draw</code>,畫面與改版前一致 —— 所以可以一隻一隻慢慢搬。
+</p>
+
+<div class="panels" id="panels"></div>
+
+<script src="app/pets.js"></script>
+<script src="app/actor.js"></script>
+<script src="app/actors/husky.js"></script>
+<script src="app/actors/chick.js"></script>
+<script>
+(function(){
+  const A = window.PLS_ACTOR;
+  const ACTIONS = ['idle','walk','eat','play','happy','sad','sleep','rest','stretch','greet'];
+  const STAGES = ['baby','kid','grown'];
+
+  function panel(species, title, hint){
+    const wrap = document.createElement('div');
+    wrap.className = 'panel';
+    wrap.innerHTML = '<h2>'+title+'</h2><p class="hint">'+hint+'</p>';
+    const cv = document.createElement('canvas');
+    wrap.appendChild(cv);
+    document.getElementById('panels').appendChild(wrap);
+
+    const W=400, H=340, dpr=window.devicePixelRatio||1;
+    cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+    const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+
+    const actor = A.create(species, {stage:'kid'});
+    let x = 0, facing = 1, walking = false, stage='kid', deco=0;
+
+    // 動作列
+    const rowA = document.createElement('div'); rowA.className='row';
+    rowA.innerHTML = '<div class="lbl">語意動作(畫面唯一講得出口的東西)</div>';
+    ACTIONS.forEach(function(a){
+      if(a==='walk') return;
+      const b=document.createElement('button'); b.textContent=a; b.dataset.act=a;
+      b.onclick=function(){ walking=false; actor.act(a,{stage:stage,deco:deco}); };
+      rowA.appendChild(b);
+    });
+    wrap.appendChild(rowA);
+
+    // 走路
+    const rowW = document.createElement('div'); rowW.className='row';
+    rowW.innerHTML = '<div class="lbl">走路(方向由房間決定,步態由物種決定)</div>';
+    [['← 往左',-1],['往右 →',1],['停',0]].forEach(function(p){
+      const b=document.createElement('button'); b.textContent=p[0];
+      b.onclick=function(){
+        if(p[1]===0){ walking=false; actor.setMoving(false); }
+        else { walking=true; facing=p[1]; actor.setMoving(true,{facing:facing,speedRatio:1}); }
+      };
+      rowW.appendChild(b);
+    });
+    wrap.appendChild(rowW);
+
+    // 成長階段 / 配件
+    const rowS = document.createElement('div'); rowS.className='row';
+    rowS.innerHTML = '<div class="lbl">成長階段(每隻自己定義比例,不是全域等比縮放)</div>';
+    STAGES.forEach(function(s){
+      const b=document.createElement('button'); b.textContent=s; b.dataset.stage=s;
+      b.onclick=function(){ stage=s; actor.setStage(s,deco); };
+      rowS.appendChild(b);
+    });
+    const bd=document.createElement('button'); bd.textContent='換配件 ▸';
+    bd.onclick=function(){ deco=(deco+1)%5; actor.setStage(stage,deco); };
+    rowS.appendChild(bd);
+    wrap.appendChild(rowS);
+
+    const state=document.createElement('div'); state.className='state';
+    wrap.appendChild(state);
+
+    const spec = A.spec(species);
+    const groundY = 250;
+    let last=performance.now()/1000;
+    function loop(now){
+      const t=now/1000, dt=Math.min(0.05, t-last); last=t;
+
+      if(walking){
+        x += spec.locomotion.speed * facing * dt;
+        if(x>140){ x=140; facing=-1; actor.setMoving(true,{facing:-1,speedRatio:1}); }
+        if(x<-140){ x=-140; facing=1; actor.setMoving(true,{facing:1,speedRatio:1}); }
+      }
+      actor.update(t,dt);
+
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle='#EAF2F0'; ctx.fillRect(0,0,W,H);
+      ctx.strokeStyle='rgba(150,120,90,0.16)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(16,groundY+2); ctx.lineTo(W-16,groundY+2); ctx.stroke();
+
+      ctx.save();
+      ctx.translate(W/2+x, groundY);
+      ctx.scale(0.92,0.92);
+      actor.render(ctx,t);
+      ctx.restore();
+
+      // 縮圖模式(右上角):驗證 fitScale 每隻各自的框都塞得進去
+      const box=74, bx=W-box-12, by=12;
+      ctx.save();
+      ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.fillRect(bx,by,box,box);
+      ctx.strokeStyle='var(--line)'; ctx.strokeStyle='#E0CDB4'; ctx.strokeRect(bx,by,box,box);
+      const sc=A.fitScale(species, box, 6, 6);
+      const b=A.bounds(species);
+      ctx.beginPath(); ctx.rect(bx,by,box,box); ctx.clip();
+      ctx.translate(bx+box/2, by+box-6 - (b.bottom*sc));
+      ctx.scale(sc,sc);
+      A.pose(species, ctx, t, {action:'idle', stage:stage, deco:deco});
+      ctx.restore();
+
+      const st=actor.st;
+      state.textContent='action: '+st.action+(st.moving?(' (走路 facing '+(st.facing>0?'右':'左')+')'):'')
+        +' · stage: '+st.stage+' · deco: '+st.deco+' · gait: '+spec.locomotion.gait
+        +(spec.legacy?' · LEGACY':'');
+      rowA.querySelectorAll('button').forEach(function(b){
+        b.classList.toggle('active', !walking && b.dataset.act===st.action);
+      });
+      rowS.querySelectorAll('button').forEach(function(b){
+        if(b.dataset.stage) b.classList.toggle('active', b.dataset.stage===stage);
+      });
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  panel('husky','哈哈(哈士奇)· 新制',
+    '四足桶身 + 突出吻部 + 眉斑 + 捲尾。走路身體前傾(lean 0.22)、四足小跑(trot)。'
+    +'幼幼是頭大腿短的幼犬比例,不是整隻等比縮小。');
+  panel('chick','小雞 · 新制',
+    '兩腳直立 + 三爪細腿 + 翅膀。走路完全不前傾(lean 0),靠身體左右滾;步頻是哈士奇的 1.6 倍。'
+    +'幼幼還頂著半顆蛋殼。');
+  panel('rabbit','兔兔 · legacy adapter(尚未搬家)',
+    '沒有註冊新制的物種會自動走這條:語意動作轉回舊的 mode/dir/stage,'
+    +'畫面與改版前完全一致。sad/sleep/rest/stretch/greet 這些舊制沒有的動作會落回 idle。');
+})();
+</script>
+</body>
+</html>

@@ -182,7 +182,7 @@
       if (this.mode === 'confirm') {
         if (inR(OK)) {
           const d = ST.load(this.petId);
-          if (ST.redeem(d, this.sel.cost)) {
+          if (ST.redeem(d, this.sel.cost, this.sel.name)) {   // v13:帶獎品名,讓寵物記得這件事
             if (window.PLS_POINTS) window.PLS_POINTS.mark();
             PLS.sfx.feast(); PLS.burst(W / 2, 360, 'feast');
             this.mode = 'done'; this.doneT = PLS.t;

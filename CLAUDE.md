@@ -85,7 +85,7 @@
 - **雙寵物互訪(無 schema 變更)**:每次進房 **1/3 機率**(測試版必來),另一隻寵物過 6~14 秒從房間邊緣走進來作客(`room.js` 的 `this._visit` 狀態機:wait→in→stay→join→leave,`updateVisit()`)。作客期間在地板漫遊(與主寵物共用 `wanderStep()`)、**餵食時走到食物墊右側一起咀嚼**(主寵物站 -64、訪客站 +64)、陪玩時在旁邊蹦跳加油、可以點牠摸摸;約 45 秒後道別走出房間。**純演出,不讀寫任何存檔**(訪客外觀 stage 進房時讀一次)。語錄在 `config.talkCare.visit*`(`{name}` 會代換成訪客名);訪客有自己的泡泡(`sayG()`/`gBubble`),兩隻寵物繪製依 z 深度排序(遠的先畫)。
 - **收集圖鑑(v5)**:`pet.dex`(吃過/玩過自動點亮,`feed()`/`playToy()` 寫入),畫面在 `app/dex.js`(房間點掛畫進入)。**新增畫面檔要同時加進 `index.html` 的 script 與 `sw.js` 的 ASSETS。**
 - **答題遊戲感**:quiz/eplay 有連對 combo 徽章(streak≥2)、同一題錯 2 次給提示並重唸、最後一題答對加大慶祝。
-- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` / `species` / `slot` / `collection` / `decoDex` → 已是 schema **v10**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物;v8 加 `care.xpToday` + `DAILY_XP_CAP` 每日成長上限;**v9 改以小孩為單位**:鍵改 `pls.kidL`/`pls.kidR`、新增 `species`/`slot`/`collection`/`growth.grownAt`/`growth.deco`,舊 rabbit/hamster 鍵與匯出檔自動搬遷;**v10 配件可收集**:新增 `decoDex` 配件圖鑑、兔兔/倉倉補到 5 款、珍藏館可換裝),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。目前整體 schema 是 **v12**(v11 疊加「好友雲端同步」章節的 `childNickname`/`giftsGiven`;**v12 新增小雞/貓頭鷹 2 物種 + 過關獎勵依難易度分級 + 破關獎盃 + 好友圖鑑/珍藏館瀏覽**),電子雞化本身的欄位在 v10 就已經穩定。
+- 動到 `inv` / `growth` / `care` / `wish` / `dex` / `home` / `species` / `slot` / `collection` / `decoDex` → 已是 schema **v10**(v6 移除佈置、home 轉背包、GROW 加重;v7 新增 `inv.gold` 金色食物;v8 加 `care.xpToday` + `DAILY_XP_CAP` 每日成長上限;**v9 改以小孩為單位**:鍵改 `pls.kidL`/`pls.kidR`、新增 `species`/`slot`/`collection`/`growth.grownAt`/`growth.deco`,舊 rabbit/hamster 鍵與匯出檔自動搬遷;**v10 配件可收集**:新增 `decoDex` 配件圖鑑、兔兔/倉倉補到 5 款、珍藏館可換裝),migration 與匯出入相容見 `store.js` 與 `docs/export-import-schema.md`。目前整體 schema 是 **v13**(v11 疊加「好友雲端同步」章節的 `childNickname`/`giftsGiven`;v12 新增小雞/貓頭鷹 2 物種 + 過關獎勵依難易度分級 + 破關獎盃 + 好友圖鑑/珍藏館瀏覽;**v13 新增 `memo` 聊天記憶 + `lastSeen`**,見「寵物聊天系統」章節),電子雞化本身的欄位在 v10 就已經穩定。
 
 ## 過關獎勵的次數上限與豪華版(v12)
 - **過關次數上限依難易度分層**:`clearCapBasic`(入門關,預設 3)／`clearCapAdvanced`(進階關,預設 10),存在 `pls.clearCapBasic`／`pls.clearCapAdvanced`(全域,家長區可改,需密碼);「進階關卡從第幾關開始算」兩個小孩可各自設定。超過上限後仍可繼續玩,只是不再給點數/食物。
@@ -93,10 +93,40 @@
 - ⚠️ **已知問題**:`deluxeAt`(10) 與 `clearCapBasic`(3) 互相打架 → **入門關卡的豪華獎勵事實上永遠觸發不到**,進階關卡也剛好卡在 10 的邊界。14 個豪華食物 + 10 個豪華玩具的美術幾乎沒有曝光機會。要動獎勵給予邏輯時請一併考慮這件事。
 - **破關獎盃**:房間右上角 `trophyBadge()`(`app/room.js`)顯示數學/英文各自「目前破到第幾關」,自己房間與好友拜訪畫面共用同一個繪製。
 
+## 寵物聊天系統(v13,`app/config.js` talkCare + `app/room.js` 聊天引擎)
+- **起因**:小朋友回饋「寵物跟主人說話太少了,要有聊天的感覺」。舊版只有事件回應(餵食/陪玩/摸摸/升階/訪客)加兩句撒嬌,而且撒嬌條件是 `care.fed === 0` —— **餵過之後整天再也不說話**,進房間也不打招呼。完整企劃見 `docs/pet-chat-design.md`。
+- **說什麼(素材三層,全部集中在 `config.js` 的 `talkCare`)**:
+  - `memo` **記憶** — 寵物記得發生過的事(去誰家玩、誰來過、上次哪一關全對、吃過什麼、誰送了什麼)。這層才是「聊天感」的來源:對方記得你。
+  - `state` **現況** — 此刻的存檔數字(金幣、圖鑑種類數、成長階段)。
+  - `chatIdle` / `chatAsk` **閒聊** — 罐頭陳述句,以及**會等主人回答的問句**。
+  - 另有 `greet` / `greetMorning` / `greetNoon` / `greetEvening` / `greetBack` 進門招呼。
+- **何時說**:`room.chatTick()`,每 12~20 秒一句(有訪客在場時 ×1.6 拉長,免得兩隻寵物的泡泡一直撞在一起)。撒嬌機率刻意壓低(沒餵 35% / 沒玩 20%),其餘時間都拿來聊天。`pickLine()` 會避開「剛剛才講過的那一句」——素材再多,連著講兩次一樣的話就整個破功。
+- **回話(一來一往)**:`chatAsk` 的問句會在**房間下緣中央**排一列選項鈕(`drawAsk()`,跟食物籃/玩具箱同一排),點了寵物再回一句。**鈕不跟著泡泡走**——泡泡在寵物頭上會飄,鈕會壓到寵物的臉和地墊標籤;固定在下緣不擋任何東西、位置穩定、小手好點。命中判定在 `tap()`,用上一幀 `drawAsk` 記下的 `_askRects`(同 `_wishRect` 的模式)。
+- **可點的邀請**:`clear` 記憶有一半機率不是誇獎,而是真的邀主人再去一次(`clearAsk`),選項「🚀 走!」直接 `PLS.go('quiz'/'eplay', {levelIdx, practice})` 跳進那一關。跳關前會用 `levelJump()` 檢查關卡沒被鎖,`practice` 判斷跟 `screens.js tapNode` 同一套規則。
+- **泡泡是單行不換行**(`art.js bubble` 寬度隨字數線性長)→ **台詞一律控制在 16 字以內,最長不超過 20 字**;含 `{who}`/`{item}` 佔位符的模板要用「代換後」的長度算。
+- **`pet.memo` 的容量規則**(`store.js`):總筆數 `MEMO_MAX = 20`,另有每種事件各自的 `MEMO_KIND_MAX`(`clear` 4、`favFood` 2、`grow` 1…),**免得餵食這種高頻事件把拜訪/過關這種難得的回憶洗掉**。`pushMemo(d, ev, dedupeField)` 帶 dedupe 時,同一關/同一種食物/同一位朋友只留最新一筆。
+- **不回填歷史**:migration 只補 `memo = []`,**不**從既有 `levels`/`dex` 反推假的回憶——不能讓寵物說得像它記得沒發生過的事。
+- **記憶寫入點**:`store.js` 的 `recordRun`(過關)/ `feed`(食物、金色食物)/ `gainXp`(長大、抽到配件)/ `submitHwLetter`(描滿一輪)/ `redeem`(換獎品,多一個選填的 `name` 參數)/ `graduate`(畢業);`room.js` 的 `updateVisit` leave(誰來作客)與 `checkVisitLog`(收到誰的分享);`visit.js` 的 `enter`/`confirmShare`(去誰家玩、送了什麼)。**新增記憶種類要同時加 `MEMO_KIND_MAX` 與 `talkCare.memo` 的台詞模板。**
+- **改台詞不用動 schema**:台詞在 `config.js`,不是存檔結構。動到 `pet.memo`/`lastSeen` 的**結構**才要走 migration + `docs/export-import-schema.md`(目前 schema **v13**)。
+
+## 寵物 actor 架構(v13,新制 — 新增/重做寵物一律走這條)
+- **問題背景**:舊制 `app/pets.js` 所有物種共用 `face()`／`motion()`／`shadow()` 三個模板,動作只有 `idle/chew/happy/sad`、視角只有 `front/side/back`、成長只有全域 ×0.85／×1.12。結果每隻都是「同一具骨架換配色」——哈士奇畫不出狗該有的桶身、長吻、四肢。`docs/design-brief.md` 舊版 C1 還明文要求設計端「造型要是一團可以被壓扁拉長的結構,不要有依賴精確比例才成立的細節」,等於從 prompt 端就把物種特徵封死。
+- **新制拆法**:`app/actor.js`(`window.PLS_ACTOR`)只管**所有動物都一樣的時基**(動作切換、持續時間、走路/擺尾相位、傾斜緩動、自發行為排程);**造型與動作表現 100% 下放給物種自己**,每隻一個檔案 `app/actors/<species>.js`。
+  - **物種之間不共用任何造型函式,重複的程式碼是刻意的。** 哈士奇的腿跟小雞的腿本來就不該是同一段程式。要抄可以抄,但不要抽共用。
+  - 座標契約:**原點 = 腳底中心,y 向上為負**(跟舊制的「中心原點 + 腳底 y=146」不同)。每隻自己報 `bounds {top,bottom,halfWidth}`,沒有全物種共用的 366 總高。
+  - 語意動作 10 個:`idle/walk/eat/play/happy/sad/sleep/rest/stretch/greet`。**畫面只講語意,不講怎麼演。**
+  - `spec` 欄位:`draw(ctx,t,st)`、`bounds`、`stages`(各階段**比例差異**,不是等比縮放)、`locomotion{speed,legFreq,tailFreq,lean,gait}`、`ambient{min,max,pool}`、`holds`。
+- **已搬家**:`husky`、`chick`。**其餘 8 隻自動走 legacy adapter**(包一層舊 `PLS_PETS.draw`,輸出與改版前逐格相同),可以一隻一隻慢慢搬,不用一次到齊。
+- **畫寵物的統一入口**:`PLS_ACTOR.drawAt(ctx, species, t, cx, footY, s, o)`(靜態一張圖)與 `PLS_ACTOR.create(species)`→`actor.act()/update()/render()`(房間裡活的)。縮圖反推縮放用 `PLS_ACTOR.spanOf(species)`,**不要再寫死 `PET_SPAN = 366`**。房間走位在 `app/room.js` 的 `petAt()`／`wanderStep()`,走多快由 `locomotion.speed` 決定(每隻不同)。
+- **新舊座標換算常數 `PLS_ACTOR.UNIT = 1.9`**(舊制 366 ÷ 哈士奇 194)。這是**單位換算**不是「把每隻拉成一樣高」——所以小雞就是比哈士奇小一半,體型差異會如實呈現。
+- 預覽頁 `actor-preview.html`(10 個動作 × 走路 × 三階段 × 配件,含 legacy 對照組),跟 `debug.html` 一樣**不進 `sw.js` 的 ASSETS**。
+- 新增一隻物種要動的地方:`app/actors/<species>.js`(新檔)＋ `config.js PLS_CONFIG.pets`(名字/主題色)＋ `index.html` script ＋ `sw.js` ASSETS 與 `VERSION` +1。
+
 ## 視覺 / 美術升級
 - 要外包設計（新寵物、新房間場景、新獎品道具、UI 改版）一律走 **`docs/design-brief.md`** 的 prompt 模板,不要臨時發明說法。裡面有各類資產的座標系、必要變體、回傳格式與驗收清單。
 - **`Path2D` 可以直接吃 SVG path 字串畫進 canvas**,`app/letters.js:169` 已經在用(`ctx.stroke(new Path2D(st.d))`)。所以可交付的視覺範圍不限於實色+圓角,任何向量圖形都行。
 - **點陣 sprite 實質上不可行**:寵物有 3 視角 × 3 成長階段 × 10 物種,外加 10 個 `xxxDeco()` × 5 款 = 50 組寫死的配件座標,且 sprite 無法套用 `motion()` 的擠壓拉伸。要換媒材只能走 SVG path + 維持既有的程序化變形。
+- **寵物的美術升級走上面的「寵物 actor 架構」章節**,`design-brief.md` 的 C1 模板已同步改寫成「交一組動作表 + 節奏參數 + 自己的 bounds」,不再要求三視角與固定外框。
 
 ## 好友雲端同步 / 自動備份(選用附加功能,v11,`app/cloud.js`)
 - **身份錨點是「小孩存檔 slot」（`kidL`/`kidR`），不是物種**:物種(`species`)是小孩底下會換的屬性(換寵物/畢業都會變),雲端好友代碼/還原碼/暱稱一律跟著 slot 走,不跟著物種走。所有 `app/cloud.js` 的方法第一個參數都是 `slot`。

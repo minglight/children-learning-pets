@@ -33,7 +33,10 @@
   //     家長區可依小孩程度個別調整)。過關次數上限改依入門/進階分層(clearCapBasic/clearCapAdvanced,
   //     全域、家長區可調),同一門檻現在**同時**擋點數與食物(舊版只擋點數)。u6–u9 取消 alwaysOpen,
   //     恢復序列鎖,「目前破到第幾關」(trophyNumber)才有意義——同步曝光給好友拜訪當「獎盃」。
-  const SCHEMA_VERSION = 12;
+  // v13:聊天記憶 — 每小孩新增 memo(寵物記得的事件,最多 20 筆,閒聊時拿出來講)、
+  //     lastSeen(上次進房間日期,給「好久不見」的招呼用)。兩者都是本機聊天素材,
+  //     不影響成長/積分/關卡;舊檔缺欄位補空即可(不回填歷史,不騙小孩說記得沒發生的事)。
+  const SCHEMA_VERSION = 13;
   const GRADUATE_DAYS = 3;   // 大寶停留幾天後可畢業入珍藏(測試版不限)
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
@@ -44,6 +47,16 @@
   // v8:DAILY_XP_CAP = 每日成長值上限(平板時間煞車)。100xp ÷ 15 ≈ 7 天,最快一週長大;測試模式不限。
   const GROW = { KID_AT: 30, GROWN_AT: 100, FEED_XP: 4, PLAY_XP: 6, DAILY_BONUS: 2, DAILY_XP_CAP: 15 };
   const STAGE_NAMES = { baby: '幼幼', kid: '小寶', grown: '大寶' };
+
+  // ── v13:聊天記憶(memo)──
+  // 寵物「記得發生過的事」,房間閒聊時抽一筆出來講(台詞模板在 config.js talkCare.memo)。
+  // 總筆數上限 MEMO_MAX;另外每種事件各有上限 MEMO_KIND_MAX,免得餵食這種高頻事件
+  // 把拜訪/過關這種難得的回憶洗掉。每筆 { k, d(日期), mood, ...依 kind 的欄位 }。
+  const MEMO_MAX = 20;
+  const MEMO_KIND_MAX = {
+    clear: 4, visitOut: 3, visitIn: 3, giftGot: 3, favFood: 2,
+    goldFood: 1, grow: 1, newDeco: 1, hwRound: 1, redeem: 2, graduate: 2
+  };
 
   function today() {
     const d = new Date();
@@ -71,6 +84,8 @@
       growth: { xp: 0, deco: null, grownAt: null },  // v4:成長值。v8:deco=大寶配件 index。v9:grownAt=升大寶日期
       decoDex: {},                // v10:配件圖鑑 {species:[5 bool]};養大寶抽到的款式會解鎖,珍藏館換裝只能用已解鎖的
       care: { date: today(), fed: 0, played: 0, xpToday: 0 },  // v4:今日照顧計數(跨日歸零)。v8:xpToday=今日已累積成長值
+      memo: [],                      // v13:聊天記憶(最多 20 筆事件,閒聊時拿出來講)
+      lastSeen: null,                // v13:上次進房間的日期(給「好久不見」的招呼用)
       wish: null,                    // v5:今日許願 {key, date, done};由 getWish() 產生
       dex: { foods: [], toys: [] },  // v5:圖鑑(吃過的食物 / 玩過的玩具 key 清單,畢業不歸零)
       home: {                     // 家裡展示:3 食物格 + 3 玩具格(各格每天可換一次)
@@ -186,6 +201,9 @@
     if (!p.dex || typeof p.dex !== 'object') p.dex = {};
     if (!Array.isArray(p.dex.foods)) p.dex.foods = [];
     if (!Array.isArray(p.dex.toys)) p.dex.toys = [];
+    // ── v13:聊天記憶 ──
+    if (!Array.isArray(p.memo)) p.memo = [];
+    if (typeof p.lastSeen !== 'string') p.lastSeen = null;
     p.home = migrateHome(p.home);
     // ── v6:移除佈置功能 — 把家裡擺出的食物/玩具轉進背包(deluxe 算 2 份),格子清空 ──
     if (from < 6) {
@@ -376,6 +394,15 @@
           deluxe = hitDeluxeMilestone;
           d.points = (d.points || 0) + 1; point = 1;
         }
+        // v13:記進寵物的回憶 — 之後閒聊時會誇這一關,並邀主人再去解一次(泡泡可點,直接跳關)。
+        // 同一關只留最新一筆,免得反覆刷同一關把其他回憶擠掉。
+        var lvName = levelLabel(subject, levelId);
+        if (lvName) {
+          pushMemo(d, {
+            k: 'clear', mood: rate >= 1 ? 'proud' : 'happy',
+            sub: subject, lv: levelId, name: lvName, perfect: rate >= 1
+          }, 'lv');
+        }
       }
     }
     d.levels[levelId] = rec;
@@ -422,6 +449,7 @@
     if (d.hwRound.length >= HW_ROUND_TOTAL) {
       var res = awardHandwriting(d);     // 套用每天 3 輪 / 累計上限 100 規則(內含 save)
       d.hwRound = [];                    // 不論有沒有拿到分,完成一輪就開始新的一輪
+      pushMemo(d, { k: 'hwRound', mood: 'proud' });   // v13:描滿 A–Z 一整輪,值得記住
       save(d);
       res.complete = true;
       res.count = HW_ROUND_TOTAL;
@@ -489,6 +517,50 @@
   function dateNum(s) { var p = (s || '').split('-'); return p.length === 3 ? Date.UTC(+p[0], +p[1] - 1, +p[2]) : NaN; }
   function daysSince(s) { var n = dateNum(s); return isNaN(n) ? 0 : Math.floor((dateNum(today()) - n) / 86400000); }
 
+  // ── v13:聊天記憶 API ──────────────────────────────
+  // 記一件事。dedupeField 有給時,同 kind 且該欄位相同的舊紀錄會先被移除(只留最新一筆),
+  // 例如同一種食物、同一關、同一個朋友不重複佔位。不自己 save,由呼叫端既有的 save 帶走。
+  function pushMemo(d, ev, dedupeField) {
+    if (!d || !ev || !ev.k) return;
+    if (!Array.isArray(d.memo)) d.memo = [];
+    if (dedupeField) {
+      d.memo = d.memo.filter(function (m) {
+        return !(m && m.k === ev.k && m[dedupeField] === ev[dedupeField]);
+      });
+    }
+    ev.d = today();
+    d.memo.push(ev);
+    // 同一種事件超過自己的上限 → 丟掉最舊的那幾筆
+    var cap = MEMO_KIND_MAX[ev.k];
+    if (cap) {
+      var n = 0;
+      for (var i = d.memo.length - 1; i >= 0; i--) {
+        if (d.memo[i] && d.memo[i].k === ev.k) { n++; if (n > cap) d.memo.splice(i, 1); }
+      }
+    }
+    while (d.memo.length > MEMO_MAX) d.memo.shift();
+  }
+  // 全部記憶(新的在後面);kinds 有給時只回那幾種。
+  function memoList(d, kinds) {
+    var arr = (d && Array.isArray(d.memo)) ? d.memo : [];
+    if (!kinds || !kinds.length) return arr.slice();
+    return arr.filter(function (m) { return m && kinds.indexOf(m.k) >= 0; });
+  }
+  // 進房間時打卡:回「距上次進來幾天」(第一次進來回 0),順便把日期更新成今天。
+  function touchSeen(slot) {
+    var d = load(slot);
+    var prev = d.lastSeen;
+    var gap = prev ? daysSince(prev) : 0;
+    if (prev !== today()) { d.lastSeen = today(); save(d); }
+    return gap;
+  }
+  // 關卡短名(記憶用;數學/英文共用)
+  function levelLabel(subject, levelId) {
+    var list = (window.PLS_CONFIG && window.PLS_CONFIG[subject === 'english' ? 'english' : 'math']) || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === levelId) return list[i].name;
+    return null;
+  }
+
   function speciesOf(slot) { return load(slot).species; }
 
   // 這個小孩選了(或畢業後重選)一隻物種,從幼幼開始養。
@@ -529,6 +601,8 @@
     if (!Array.isArray(d.collection)) d.collection = [];
     d.collection.push(entry);
     markDeco(d.decoDex || (d.decoDex = {}), entry.species, entry.deco);  // v10:確保畢業戴的配件已收集
+    // v13:回憶留給小孩(memo 跟 points/dex 一樣不隨畢業歸零),之後養的新寵物會提起這位前輩。
+    pushMemo(d, { k: 'graduate', mood: 'miss', name: entry.name, species: entry.species });
     d.species = null;              // 需要重新選一隻
     d.growth = { xp: 0, deco: null, grownAt: null };
     d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
@@ -584,7 +658,9 @@
     if (grew && after === 'grown' && d.growth.deco == null) {
       d.growth.deco = Math.floor(Math.random() * DECO_N);
       markDeco(d.decoDex || (d.decoDex = {}), d.species, d.growth.deco);
+      pushMemo(d, { k: 'newDeco', mood: 'excited', deco: d.growth.deco, species: d.species });   // v13
     }
+    if (grew) pushMemo(d, { k: 'grow', mood: 'proud', stage: after, stageZh: STAGE_NAMES[after] });   // v13:長大是大事
     // v9:第一次升上大寶 → 記日期,開始 3 天畢業倒數
     if (grew && after === 'grown' && !d.growth.grownAt) d.growth.grownAt = today();
     return { gain: gain, capped: gain < want, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: grew, deco: d.growth.deco };
@@ -606,6 +682,8 @@
     res.wishGranted = wishGranted;
     res.gold = !!gold;
     if (d.dex.foods.indexOf(key) < 0) d.dex.foods.push(key);   // v5:圖鑑點亮
+    // v13:記進回憶(同一種食物只留最新一筆)。金色食物是難得的大事,獨立記一種。
+    pushMemo(d, { k: gold ? 'goldFood' : 'favFood', mood: gold ? 'excited' : 'happy', item: key }, 'item');
     save(d);
     return res;
   }
@@ -680,10 +758,12 @@
   }
 
   // 兌換獎品:扣本寵物積分,成功回 true(點數不足回 false)。
-  function redeem(d, cost) {
+  // v13:name(獎品名稱,選填)只用來記進寵物的回憶,不影響扣點邏輯。
+  function redeem(d, cost, name) {
     cost = Math.max(0, parseInt(cost, 10) || 0);
     if ((d.points || 0) < cost) return false;
     d.points = (d.points || 0) - cost;
+    if (name) pushMemo(d, { k: 'redeem', mood: 'happy', item: String(name).slice(0, 24) }, 'item');
     save(d);
     return true;
   }
@@ -757,6 +837,8 @@
     invList: invList, invTotal: invTotal,
     addFoods: addFoods, addToy: addToy, feed: feed, playToy: playToy,
     // v5:驚喜加成 / 許願
-    bonusXp: bonusXp, getWish: getWish
+    bonusXp: bonusXp, getWish: getWish,
+    // v13:聊天記憶
+    pushMemo: pushMemo, memoList: memoList, touchSeen: touchSeen, levelLabel: levelLabel
   };
 })();

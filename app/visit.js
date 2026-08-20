@@ -32,6 +32,16 @@
       // mode 預設 idle,但如果是從「看圖鑑」晃一圈回來(params.shared),要記得這次拜訪已經分享過,
       // 不然子畫面把 visit 的 enter() 重跑一次,「一次拜訪限分享一次」的軟限制就被繞過去了。
       this.mode = (params && params.shared) ? 'shared' : 'idle';        // 'idle' | 'confirm' | 'shared'
+
+      // v13:記住「我們去誰家玩過」(同一位朋友只留最新一次;分享成功後會再更新成帶禮物的版本)。
+      // 從子畫面(看圖鑑)晃一圈回來時 enter() 會重跑,dedupe 保證不會重複佔位。
+      if (ST.pushMemo) {
+        const dm = ST.load(this.petId);
+        ST.pushMemo(dm, {
+          k: 'visitOut', mood: 'happy', who: this.friend.childNickname || '朋友'
+        }, 'who');
+        ST.save(dm);
+      }
       this.sel = null;
       this.note = ''; this.noteT = -10;
       this._friendWander = null;
@@ -109,6 +119,12 @@
         if (!res || !res.ok) { self.note = '分享失敗,請稍後再試'; self.noteT = PLS.t; self.mode = 'idle'; return; }
         const d = ST.load(self.petId);
         d.giftsGiven = (d.giftsGiven || 0) + 1;
+        // v13:把這趟拜訪的回憶升級成「我送{who}那個{item},他超開心的!」
+        if (ST.pushMemo) {
+          ST.pushMemo(d, {
+            k: 'visitOut', mood: 'proud', who: f.childNickname || '朋友', item: label
+          }, 'who');
+        }
         ST.save(d);
         self.mode = 'shared';
         self.note = '分享了「' + label + '」!';
@@ -149,7 +165,8 @@
         const xr0 = R2.xRange(geo, 0.62);
         this._friendWander = {
           x: (xr0.min + xr0.max) / 2, z: 0.62, tx: 0, tz: 0.62,
-          state: 'idle', until: t + 1.0, face: 1, hop: 0, mode: 'idle', lastT: t
+          state: 'idle', until: t + 1.0, face: 1, hop: 0, mode: 'idle', act: 'idle',
+          species: fSpecies, lastT: t
         };
       }
       const fw2 = R2.wanderStep(t, geo, this._friendWander);
@@ -159,14 +176,16 @@
         const xr1 = R2.xRange(geo, 0.86);
         this._mine = {
           x: geo.x0 - 80, z: 0.86, tx: xr1.min + 70, tz: 0.86,
-          state: 'walk', until: 0, face: 1, hop: 0, mode: 'idle', lastT: t, arrived: false
+          state: 'walk', until: 0, face: 1, hop: 0, mode: 'idle', act: 'walk',
+          species: this.mySpecies, lastT: t, arrived: false
         };
       }
       const mw = this._mine;
       if (!mw.arrived) {
-        if (R2.walkStep(t, geo, mw, mw.tx, mw.tz)) { mw.arrived = true; mw.hop = 0; mw.mode = 'idle'; mw.dir = 'front'; }
+        if (R2.walkStep(t, geo, mw, mw.tx, mw.tz)) { mw.arrived = true; mw.hop = 0; mw.mode = 'idle'; mw.act = 'greet'; mw.dir = 'front'; }
       } else {
         mw.dir = 'front'; mw.mode = 'idle'; mw.hop = Math.sin(t * 2) * 3;
+        if (mw.act === 'greet' && t - (mw.greetT0 || (mw.greetT0 = t)) > 1.8) mw.act = 'idle';
       }
 
       const petsDraw = [
@@ -178,7 +197,10 @@
       petsDraw.forEach(function (it) {
         const s = R2.scAt(it.pose.z), gy = R2.yAt(geo, it.pose.z);
         ctx.fillStyle = 'rgba(150,110,70,0.16)'; R2.el(ctx, it.pose.x, gy + 4, 150 * s, 34 * s); ctx.fill();
-        R2.petAt(ctx, it.species, t, it.pose.x, gy + it.pose.hop, s, it.pose.mode, it.stage, 0, it.pose.face, it.pose.dir, it.deco);
+        R2.petAt(ctx, it.species, t, it.pose.x, gy + it.pose.hop, s, {
+          act: it.pose.act, mode: it.pose.mode, stage: it.stage, deco: it.deco,
+          face: it.pose.face, dir: it.pose.dir
+        });
       });
       ctx.restore();
 

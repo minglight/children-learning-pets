@@ -202,14 +202,10 @@
   }
 
   // ── 朋友模式:珍藏館縮圖 + 配件圖鑑(唯讀,不能換裝)──────────
-  var PET_SPAN = 366;   // 同 app/lifecycle.js:大寶在 P.draw 座標的總高(含最高兔耳),反推縮放避免頭被 clip 切到
+  // v13:縮放與繪製都交給 PLS_ACTOR(每隻自己報總高;尚未搬家的物種自動回舊的 366 + P.draw)
   function petInBoxRO(ctx, species, t, bx, by, bw, bh, o, topM, botM) {
-    var sc = (bh - topM - botM) / PET_SPAN;
-    ctx.save();
-    ctx.translate(bx + bw / 2, by + bh - botM - 146 * sc);
-    ctx.scale(sc, sc);
-    window.PLS_PETS.draw(species, ctx, t, o || {});
-    ctx.restore();
+    var sc = (bh - topM - botM) / window.PLS_ACTOR.spanOf(species);
+    window.PLS_ACTOR.drawAt(ctx, species, t, bx + bw / 2, by + bh - botM, sc, o || {});
   }
 
   function drawCollGrid(ctx, t, list, gridX, gridY, scrollY, clipTop, clipBot) {

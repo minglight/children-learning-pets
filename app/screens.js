@@ -299,8 +299,8 @@
     // 地毯
     ctx.fillStyle = 'rgba(255,255,255,0.34)'; A.el(ctx, left + w * 0.5, top + h - 30, w * 0.42, 30); ctx.fill();
     // 寵物(帶大寶配件)
-    ctx.save(); ctx.translate(left + w * 0.30, top + h - 64); ctx.scale(0.56, 0.56);
-    P.draw(species, ctx, t, { stage: gi.stage, growDeco: gi.deco }); ctx.restore();
+    window.PLS_ACTOR.drawAt(ctx, species, t, left + w * 0.30, top + h - 64, 0.56,
+      { stage: gi.stage, growDeco: gi.deco });
     ctx.restore();
     A.pill(ctx, left + 80, top + 36, name, th.accent, 'rgba(255,255,255,0.92)', 26);
     A.pill(ctx, left + w - 74, top + 36, gi.stageZh, 'rgba(255,255,255,0.95)', th.accent, 20);
