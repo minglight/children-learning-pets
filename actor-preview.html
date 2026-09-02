@@ -44,6 +44,7 @@
 <script src="app/actor.js"></script>
 <script src="app/actors/husky.js"></script>
 <script src="app/actors/chick.js"></script>
+<script src="app/actors/_template.js"></script>
 <script>
 (function(){
   const A = window.PLS_ACTOR;
@@ -166,6 +167,10 @@
   panel('rabbit','兔兔 · legacy adapter(尚未搬家)',
     '沒有註冊新制的物種會自動走這條:語意動作轉回舊的 mode/dir/stage,'
     +'畫面與改版前完全一致。sad/sleep/rest/stretch/greet 這些舊制沒有的動作會落回 idle。');
+  panel('_template','_template.js · 複製起點',
+    '新增物種時 cp app/actors/_template.js 成 app/actors/&lt;species&gt;.js 改寫的起點,'
+    +'只有一顆最小圓身證明骨架能動。改完欄位/造型後回來這個面板看動作會不會壞、框選(右上角縮圖)塞不塞得下。'
+    +'完整規則見 docs/actor-schema.md。');
 })();
 </script>
 </body>

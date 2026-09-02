@@ -115,12 +115,13 @@
   - **物種之間不共用任何造型函式,重複的程式碼是刻意的。** 哈士奇的腿跟小雞的腿本來就不該是同一段程式。要抄可以抄,但不要抽共用。
   - 座標契約:**原點 = 腳底中心,y 向上為負**(跟舊制的「中心原點 + 腳底 y=146」不同)。每隻自己報 `bounds {top,bottom,halfWidth}`,沒有全物種共用的 366 總高。
   - 語意動作 10 個:`idle/walk/eat/play/happy/sad/sleep/rest/stretch/greet`。**畫面只講語意,不講怎麼演。**
-  - `spec` 欄位:`draw(ctx,t,st)`、`bounds`、`stages`(各階段**比例差異**,不是等比縮放)、`locomotion{speed,legFreq,tailFreq,lean,gait}`、`ambient{min,max,pool}`、`holds`。
+  - `spec` 欄位:`draw(ctx,t,st)`、`bounds`、`mirror`、`locomotion{speed,legFreq,tailFreq,lean,gait}`、`ambient{min,max,pool}`、`holds`。**沒有 `stages` 欄位**——三個成長階段的比例差異是每個物種自己在 `draw()` 內部讀局部 `STAGES` 常數處理,傳進 `spec.stages` 引擎不會讀(舊版 `husky.js`/`chick.js` 曾經誤傳過,已清掉)。
+  - `define()` 會做**執行期驗證**(`bounds` 型別/方向、`holds`/`ambient.pool` 的動作名稱合不合法、有沒有誤傳 `stages`),不合法只 `console.error` 警告、**不會中斷載入**(fail-soft,一隻新物種寫錯欄位不該讓所有小孩的 App 白屏)。
 - **已搬家**:`husky`、`chick`。**其餘 8 隻自動走 legacy adapter**(包一層舊 `PLS_PETS.draw`,輸出與改版前逐格相同),可以一隻一隻慢慢搬,不用一次到齊。
-- **畫寵物的統一入口**:`PLS_ACTOR.drawAt(ctx, species, t, cx, footY, s, o)`(靜態一張圖)與 `PLS_ACTOR.create(species)`→`actor.act()/update()/render()`(房間裡活的)。縮圖反推縮放用 `PLS_ACTOR.spanOf(species)`,**不要再寫死 `PET_SPAN = 366`**。房間走位在 `app/room.js` 的 `petAt()`／`wanderStep()`,走多快由 `locomotion.speed` 決定(每隻不同)。
+- **畫寵物的統一入口**:`PLS_ACTOR.drawAt(ctx, species, t, cx, footY, s, o)`(靜態一張圖)與 `PLS_ACTOR.create(species)`→`actor.act()/update()/render()`(房間裡活的)。縮圖反推縮放用 `PLS_ACTOR.spanOf(species)`,**不要再寫死 `PET_SPAN = 366`**。房間走位在 `app/room.js` 的 `petAt()`／`wanderStep()`,走多快由 `locomotion.speed` 決定(每隻不同)。**`quiz.js`/`points.js`/`english.js` 也已經改走 `ACT.drawAt()`**(跟 `room.js`/`dex.js`/`lifecycle.js`/`screens.js` 一致),目前所有畫寵物的地方都統一走 `PLS_ACTOR`,新畫面不要再直接呼叫 `window.PLS_PETS.draw()`。
 - **新舊座標換算常數 `PLS_ACTOR.UNIT = 1.9`**(舊制 366 ÷ 哈士奇 194)。這是**單位換算**不是「把每隻拉成一樣高」——所以小雞就是比哈士奇小一半,體型差異會如實呈現。
-- 預覽頁 `actor-preview.html`(10 個動作 × 走路 × 三階段 × 配件,含 legacy 對照組),跟 `debug.html` 一樣**不進 `sw.js` 的 ASSETS**。
-- 新增一隻物種要動的地方:`app/actors/<species>.js`(新檔)＋ `config.js PLS_CONFIG.pets`(名字/主題色)＋ `index.html` script ＋ `sw.js` ASSETS 與 `VERSION` +1。
+- 預覽頁 `actor-preview.html`(10 個動作 × 走路 × 三階段 × 配件,含 legacy 對照組 + `_template.js` 樣板),跟 `debug.html` 一樣**不進 `sw.js` 的 ASSETS**。
+- **新增一隻物種完整 SOP(欄位表/執行期驗證規則/常見誤區/驗收清單)見 `docs/actor-schema.md`**——之後任何要新增/重做寵物的工作,先看那份文件,不要只憑這裡的摘要動工;起手式是複製 `app/actors/_template.js`。摘要:`app/actors/<species>.js`(新檔,cp `_template.js`)＋ `config.js PLS_CONFIG.pets`(名字/主題色)＋ `index.html` script ＋ `sw.js` ASSETS 與 `VERSION` +1。
 
 ## 視覺 / 美術升級
 - 要外包設計（新寵物、新房間場景、新獎品道具、UI 改版）一律走 **`docs/design-brief.md`** 的 prompt 模板,不要臨時發明說法。裡面有各類資產的座標系、必要變體、回傳格式與驗收清單。

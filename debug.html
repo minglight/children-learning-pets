@@ -260,7 +260,7 @@ function initTool() {
   }
   function allToyKeys() {
     var set = {};
-    (CFG.english || []).forEach(function (lv) { if (lv.toyArtU) set[lv.toyArtU] = 1; });
+    (CFG.english || []).concat(CFG.english2 || []).forEach(function (lv) { if (lv.toyArtU) set[lv.toyArtU] = 1; });
     return Object.keys(set).sort();
   }
 
@@ -436,10 +436,10 @@ function initTool() {
   });
   $('levels-set-cleared-btn').addEventListener('click', function () {
     var d = ST.load(slot);
-    (CFG.math || []).concat(CFG.english || []).forEach(function (lv) {
+    (CFG.math || []).concat(CFG.math2 || []).concat(CFG.english || []).concat(CFG.english2 || []).forEach(function (lv) {
       d.levels[lv.id] = { attempts: 10, bestRate: 1, cleared: true, plays: 1, clears: 1, lastClearDate: null };
     });
-    ST.save(d); msg('misc-msg', '全部數學/英文關卡已設為已通關。', true); refresh();
+    ST.save(d); msg('misc-msg', '全部數學/英文關卡(含各自的二年級)已設為已通關。', true); refresh();
   });
   $('levels-clear-btn').addEventListener('click', function () {
     var d = ST.load(slot); d.levels = {}; ST.save(d);

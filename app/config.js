@@ -115,6 +115,33 @@ window.PLS_CONFIG = {
       bite: 'pizza', feast: { name: '乘法派對餐', basicName: '一份派對美食', deluxeName: '乘法派對豪華全餐', items: ['pizza', 'burger', 'sushi', 'fries', 'bao'] } }
   ],
 
+  // ── 二年級上學期課本(獨立關卡池,見「分級挑戰」章節)──────
+  // 跟 math 是完全分開的陣列,不影響 math 原本的解鎖鏈;第一關(idx 0)照 levelState 規則永遠開放,
+  // 不需要先破完 math 才能玩。房間「數學餐廳」卡進 tierPick 畫面選要玩哪一池,再進同一套 map/quiz 畫面
+  // (map/quiz 用 params.tier 決定讀 CFG.math 還是 CFG.math2)。
+  math2: [
+    { id: 'g2c1', name: '課1 200以內的數', sub: '跳數‧位值‧付錢‧比大小', gen: 'hundredsTo200', icon: 'coin',
+      bite: 'bao', feast: { name: '銅板點心籃', basicName: '一份銅板點心', deluxeName: '銅板點心豪華籃', items: ['bao', 'eggcake', 'bao', 'eggcake', 'bao'] } },
+    { id: 'g2c2', name: '課2 二位數的加減法', sub: '進位加法‧退位減法‧比大小', gen: 'addSubCompare200', icon: 'plus',
+      bite: 'sundae', feast: { name: '聖代甜點塔', basicName: '一球聖代', deluxeName: '聖代甜點豪華塔', items: ['sundae', 'scoop', 'sundae', 'scoop', 'sundae'] } },
+    { id: 'g2c3', name: '課3 認識公分', sub: '讀尺‧長度比較‧公分加減', gen: 'cmLength200', icon: 'shape',
+      bite: 'cake', feast: { name: '長條蛋糕捲', basicName: '一片蛋糕捲', deluxeName: '蛋糕捲豪華全條', items: ['cake', 'boba', 'cake', 'boba', 'cake'] } },
+    { id: 'g2c4', name: '課4 加減應用', sub: '加減互逆‧應用題‧驗算', gen: 'addSubApply200', icon: 'plus',
+      bite: 'burger', feast: { name: '早餐店大集合', basicName: '一份輕食', deluxeName: '早餐店豪華全餐', items: ['burger', 'fries', 'burger', 'fries', 'burger'] } },
+    { id: 'g2c5', name: '課5 容量', sub: '容器容量比較‧裝水杯數比較', gen: 'capacity200', icon: 'shape',
+      bite: 'boba', feast: { name: '手搖飲特調', basicName: '一杯手搖飲', deluxeName: '手搖飲豪華特調', items: ['boba', 'eggcake', 'boba', 'eggcake', 'boba'] } },
+    { id: 'g2c6', name: '課6 加減的商店', sub: '三數相加‧兩步驟減法‧加減兩步驟', gen: 'shopTwoStep200', icon: 'coin',
+      bite: 'sushi', feast: { name: '商店街小吃拼盤', basicName: '一份小吃', deluxeName: '商店街豪華拼盤', items: ['sushi', 'bao', 'sushi', 'bao', 'sushi'] } },
+    { id: 'g2c7', name: '課7 乘法(一)', sub: '幾的幾倍‧2‧4‧5‧8的乘法', gen: 'mult200', icon: 'times',
+      bite: 'strawberry', feast: { name: '草莓千層派對', basicName: '一份草莓甜點', deluxeName: '草莓千層豪華全份', items: ['strawberry', 'cake', 'strawberry', 'cake', 'strawberry'] } },
+    { id: 'g2c8', name: '課8 時間', sub: '認識鐘面‧幾時幾分‧經過的時間', gen: 'clockTime200', icon: 'calendar',
+      bite: 'cake', feast: { name: '下午茶時光', basicName: '一份下午茶', deluxeName: '下午茶豪華全套', items: ['cake', 'boba', 'fries', 'cake', 'boba'] } },
+    { id: 'g2c9', name: '課9 乘法(二)', sub: '3‧6‧7‧9的乘法‧乘法應用', gen: 'mult2_200', icon: 'times',
+      bite: 'orange', feast: { name: '市場鮮蔬果籃', basicName: '一份新鮮蔬果', deluxeName: '市場鮮蔬果豪華籃', items: ['orange', 'apple', 'orange', 'banana', 'orange'] } },
+    { id: 'g2c10', name: '課10 面的大小比較', sub: '直接比較‧方格法間接比較', gen: 'areaCompare200', icon: 'shape',
+      bite: 'pizza', feast: { name: '披薩方格派對', basicName: '一片披薩', deluxeName: '披薩方格豪華全份', items: ['pizza', 'fries', 'pizza', 'fries', 'pizza'] } }
+  ],
+
   // ── 英文關卡(階梯,難度非常緩慢遞增)──────────────────
   // 英文獎勵是「玩具」。v9:全物種共用一套玩具(toyU / toyArtU),不再分寵物;
   //   舊欄位 toy/toyArt(rabbit/hamster)保留純為顯示舊背包裡既有的玩具名稱。
@@ -152,6 +179,177 @@ window.PLS_CONFIG = {
     { id: 'e9', name: '單字手寫', sub: '寫出單字', play: 'wword', cs: 'lower', count: 5,
       toyU: '旋轉木馬', toyArtU: 'carousel',
       toy: { rabbit: '旋轉木馬', hamster: '大機器人' }, toyArt: { rabbit: 'carousel', hamster: 'bigrobot' } }
+  ],
+
+  // ── 英文 · 二年級上學期(獨立關卡池,對照課本 Starter/Unit1-4/My School Bag/Halloween)────
+  // 跟 english 是完全分開的陣列,不影響 english 原本的解鎖鏈(字母拼讀是通用讀寫能力,
+  // 跟課本進度是兩件事);房間「英文遊戲間」卡進 tierPick 畫面選要玩哪一池。
+  // play:'qa'(句型/單字問答)— eplay 依 bank 隨機挑一筆,方向 hear(聽英文選中文)或
+  // say(看中文選英文,選對後複誦英文加深印象),干擾選項從同一 bank 其他筆抽,見 english.js next()。
+  // bank 每筆 {en, zh, color?} — color 是選填的色塊提示(目前只有 Unit4 顏色單字用到)。
+  // v14:每課 count 盡量貼齊 bank 大小,避免同一輪就強迫重複(見 e2c1_出題樣本 的討論)。
+  // 用故事裡本來就有的多個角色(Abu/Edison/Rocky/Amber/Mia)代入同一句型,或把該課已教過的
+  // 數字/顏色/文具單字套進已教過的句型,是課本原本就有的操練方式(仿寫/代換),不算超出範圍。
+  english2: [
+    { id: 'e2c1', name: 'Starter 打招呼', sub: 'Hi/Hello‧數字1-5', play: 'qa', count: 10,
+      toyU: '小娃娃', toyArtU: 'doll',
+      bank: [
+        { en: 'Hi!', zh: '嗨!' },
+        { en: 'Hello!', zh: '你好!' },
+        { en: "Hi, I'm Abu.", zh: '嗨,我是Abu。' },
+        { en: "Hi, I'm Amber.", zh: '嗨,我是Amber。' },
+        { en: "Hi, I'm Edison.", zh: '嗨,我是Edison。' },
+        { en: "Hi, I'm Mia.", zh: '嗨,我是Mia。' },
+        { en: "Hi, I'm Rocky.", zh: '嗨,我是Rocky。' },
+        { en: "Hi, I'm Teddy.", zh: '嗨,我是Teddy。' },
+        { en: 'one', zh: '1' },
+        { en: 'two', zh: '2' },
+        { en: 'three', zh: '3' },
+        { en: 'four', zh: '4' },
+        { en: 'five', zh: '5' }
+      ] },
+    { id: 'e2c2', name: 'Unit1 你叫什麼名字?', sub: "What's Your Name?", play: 'qa', count: 10,
+      toyU: '茶具組', toyArtU: 'teaset',
+      // 句子題之外,額外補 6 個「單字題」(裸名字,zh 跟 en 同形)——純考「聽音辨字」
+      // (聽到 Edison 要能認出 Edison,不是跟其他名字搞混),跟基礎挑戰 pick 模式練字母是同一種能力。
+      bank: [
+        { en: "What's your name?", zh: '你叫什麼名字?' },
+        { en: 'My name is Abu.', zh: '我的名字是Abu。' },
+        { en: 'My name is Amber.', zh: '我的名字是Amber。' },
+        { en: 'My name is Edison.', zh: '我的名字是Edison。' },
+        { en: 'My name is Mia.', zh: '我的名字是Mia。' },
+        { en: 'My name is Rocky.', zh: '我的名字是Rocky。' },
+        { en: 'My name is Teddy.', zh: '我的名字是Teddy。' },
+        { en: 'Are you OK?', zh: '你還好嗎?' },
+        { en: 'How are you?', zh: '你好嗎?' },
+        { en: 'Fine, thank you.', zh: '很好,謝謝。' },
+        { en: "I'm fine, thank you.", zh: '我很好,謝謝。' },
+        { en: 'Abu', zh: 'Abu' },
+        { en: 'Amber', zh: 'Amber' },
+        { en: 'Edison', zh: 'Edison' },
+        { en: 'Mia', zh: 'Mia' },
+        { en: 'Rocky', zh: 'Rocky' },
+        { en: 'Teddy', zh: 'Teddy' }
+      ] },
+    { id: 'e2c3', name: 'Unit2 你幾歲?', sub: 'How Old Are You?‧數字6-10', play: 'qa', count: 10,
+      toyU: '娃娃床', toyArtU: 'dollbed',
+      bank: [
+        { en: 'How old are you?', zh: '你幾歲?' },
+        { en: "I'm six years old.", zh: '我六歲。' },
+        { en: "I'm seven years old.", zh: '我七歲。' },
+        { en: "I'm eight years old.", zh: '我八歲。' },
+        { en: "I'm nine years old.", zh: '我九歲。' },
+        { en: "I'm ten years old.", zh: '我十歲。' },
+        { en: 'Thank you.', zh: '謝謝你。' },
+        { en: "You're welcome.", zh: '不客氣。' },
+        { en: 'six', zh: '6' },
+        { en: 'seven', zh: '7' },
+        { en: 'eight', zh: '8' },
+        { en: 'nine', zh: '9' },
+        { en: 'ten', zh: '10' }
+      ] },
+    { id: 'e2c4', name: 'Unit3 這是什麼?', sub: "What's This?‧文具", play: 'qa', count: 10,
+      toyU: '野餐籃', toyArtU: 'basket',
+      // 這課本身的新單字(文具)只有 6 個,課本就是教這 6 個,不再多加;
+      // 「It's a/an ___.」句型不變,xxx 額外代入英文遊戲間「基礎挑戰」CVC 單字庫裡已經教過的
+      // 動物+物品單字(app/english.js WORDS_CVC)當延伸練習,維持同一個句型,只換名詞。
+      bank: [
+        { en: "What's this?", zh: '這是什麼?' },
+        { en: "What's that?", zh: '那是什麼?' },
+        { en: "It's a book.", zh: '這是一本書。' },
+        { en: "It's a pen.", zh: '這是一枝筆。' },
+        { en: "It's a pencil.", zh: '這是一枝鉛筆。' },
+        { en: "It's an eraser.", zh: '這是一個橡皮擦。' },
+        { en: "It's a ruler.", zh: '這是一把尺。' },
+        { en: "It's a marker.", zh: '這是一枝彩色筆。' },
+        { en: 'book', zh: '書' },
+        { en: 'pen', zh: '筆' },
+        { en: 'pencil', zh: '鉛筆' },
+        { en: 'eraser', zh: '橡皮擦' },
+        { en: 'ruler', zh: '尺' },
+        { en: 'marker', zh: '彩色筆' },
+        { en: "It's a cat.", zh: '這是一隻貓。' },
+        { en: "It's a dog.", zh: '這是一隻狗。' },
+        { en: "It's a pig.", zh: '這是一隻豬。' },
+        { en: "It's a fox.", zh: '這是一隻狐狸。' },
+        { en: "It's a hen.", zh: '這是一隻母雞。' },
+        { en: "It's a cow.", zh: '這是一隻牛。' },
+        { en: "It's an owl.", zh: '這是一隻貓頭鷹。' },
+        { en: "It's a bee.", zh: '這是一隻蜜蜂。' },
+        { en: "It's a hat.", zh: '這是一頂帽子。' },
+        { en: "It's a cup.", zh: '這是一個杯子。' },
+        { en: "It's a bus.", zh: '這是一輛公車。' },
+        { en: "It's a bed.", zh: '這是一張床。' },
+        { en: "It's a box.", zh: '這是一個盒子。' },
+        { en: "It's a bag.", zh: '這是一個袋子。' },
+        { en: "It's an egg.", zh: '這是一顆蛋。' },
+        { en: "It's a map.", zh: '這是一張地圖。' },
+        { en: "It's a van.", zh: '這是一輛廂型車。' },
+        { en: "It's a jet.", zh: '這是一架噴射機。' }
+      ] },
+    { id: 'e2c5', name: 'Unit4 這是什麼顏色?', sub: 'What Color Is It?‧顏色', play: 'qa', count: 10,
+      toyU: '挖土機', toyArtU: 'digger',
+      // 這課本身的新顏色單字只有 6 個(課本就是教這 6 個,不再多加);
+      // 額外用「My School Bag」已經用過的同一種句型「[名詞] is [顏色].」(例如
+      // My school bag is red.)套進 Unit3 教過的文具名詞,同句型換名詞,呼應同一個文法概念。
+      bank: [
+        { en: 'What color is it?', zh: '這是什麼顏色?' },
+        { en: "It's red.", zh: '是紅色。', color: '#E4574B' },
+        { en: "It's blue.", zh: '是藍色。', color: '#4A7FC1' },
+        { en: "It's green.", zh: '是綠色。', color: '#4F9E5C' },
+        { en: "It's yellow.", zh: '是黃色。', color: '#E8C13B' },
+        { en: "It's black.", zh: '是黑色。', color: '#3A3A3A' },
+        { en: "It's white.", zh: '是白色。', color: '#F2F2ED' },
+        { en: 'red', zh: '紅色', color: '#E4574B' },
+        { en: 'blue', zh: '藍色', color: '#4A7FC1' },
+        { en: 'green', zh: '綠色', color: '#4F9E5C' },
+        { en: 'yellow', zh: '黃色', color: '#E8C13B' },
+        { en: 'black', zh: '黑色', color: '#3A3A3A' },
+        { en: 'white', zh: '白色', color: '#F2F2ED' },
+        { en: 'Good morning.', zh: '早安。' },
+        { en: 'Good afternoon.', zh: '午安。' },
+        { en: 'The pencil is red.', zh: '鉛筆是紅色的。', color: '#E4574B' },
+        { en: 'The eraser is blue.', zh: '橡皮擦是藍色的。', color: '#4A7FC1' },
+        { en: 'The ruler is green.', zh: '尺是綠色的。', color: '#4F9E5C' },
+        { en: 'The book is yellow.', zh: '書是黃色的。', color: '#E8C13B' },
+        { en: 'The pen is black.', zh: '筆是黑色的。', color: '#3A3A3A' },
+        { en: 'The marker is white.', zh: '彩色筆是白色的。', color: '#F2F2ED' }
+      ] },
+    { id: 'e2c6', name: 'My School Bag 我的書包', sub: '介紹書包裡的文具', play: 'qa', count: 10,
+      toyU: '公主裙', toyArtU: 'dress',
+      bank: [
+        { en: 'This is my school bag.', zh: '這是我的書包。' },
+        { en: 'My school bag is red.', zh: '我的書包是紅色的。', color: '#E4574B' },
+        { en: 'My school bag is blue.', zh: '我的書包是藍色的。', color: '#4A7FC1' },
+        { en: 'My school bag is green.', zh: '我的書包是綠色的。', color: '#4F9E5C' },
+        { en: 'My school bag is yellow.', zh: '我的書包是黃色的。', color: '#E8C13B' },
+        { en: "It's red and blue.", zh: '它是紅色和藍色。' },
+        { en: "It's green and yellow.", zh: '它是綠色和黃色。' },
+        { en: 'I have a book.', zh: '我有一本書。' },
+        { en: 'I have a pen.', zh: '我有一枝筆。' },
+        { en: 'I have a pencil.', zh: '我有一枝鉛筆。' },
+        { en: 'I have an eraser.', zh: '我有一個橡皮擦。' },
+        { en: 'I have a ruler.', zh: '我有一把尺。' },
+        { en: 'I have a marker.', zh: '我有一枝彩色筆。' }
+      ] },
+    { id: 'e2c7', name: 'Halloween 萬聖節', sub: '萬聖節單字‧不給糖就搗蛋', play: 'qa', count: 10,
+      toyU: '魔法棒', toyArtU: 'wand',
+      bank: [
+        { en: 'Happy Halloween!', zh: '萬聖節快樂!' },
+        { en: 'Trick or treat!', zh: '不給糖就搗蛋!' },
+        { en: "I'm a bat.", zh: '我是一隻蝙蝠。' },
+        { en: "I'm a ghost.", zh: '我是一個幽靈。' },
+        { en: "I'm a pumpkin.", zh: '我是一個南瓜。' },
+        { en: "I'm a spider.", zh: '我是一隻蜘蛛。' },
+        { en: "I'm a vampire.", zh: '我是一個吸血鬼。' },
+        { en: "I'm a witch.", zh: '我是一個女巫。' },
+        { en: 'bat', zh: '蝙蝠' },
+        { en: 'ghost', zh: '幽靈' },
+        { en: 'pumpkin', zh: '南瓜' },
+        { en: 'spider', zh: '蜘蛛' },
+        { en: 'vampire', zh: '吸血鬼' },
+        { en: 'witch', zh: '女巫' }
+      ] }
   ],
 
   // 寵物的話(對話泡泡,安靜不出聲)

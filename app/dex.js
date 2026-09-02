@@ -12,11 +12,11 @@
   var FONT = A.FONT;
 
   // ── 建立穩定排序的全集目錄 ──────────────────────────────
-  // 食物:依 CFG.math 關卡順序,先收 lv.bite,再收 lv.feast.items,去重。
+  // 食物:依 CFG.math + CFG.math2 關卡順序,先收 lv.bite,再收 lv.feast.items,去重。
   function buildFoodCatalog() {
     var seen = {};
     var list = [];
-    var math = CFG.math || [];
+    var math = (CFG.math || []).concat(CFG.math2 || []);
     math.forEach(function (lv) {
       function add(k) {
         if (k && !seen[k]) { seen[k] = true; list.push(k); }
@@ -29,12 +29,12 @@
     return list;
   }
 
-  // 玩具:依 CFG.english 關卡順序,取全物種共用玩具 lv.toyArtU,去重。
+  // 玩具:依 CFG.english + CFG.english2 關卡順序,取全物種共用玩具 lv.toyArtU,去重。
   // v9:玩具改共用一套,不再分寵物;參數保留相容,實際不使用。
   function buildToyCatalog(petId) {
     var seen = {};
     var list = [];
-    var english = CFG.english || [];
+    var english = (CFG.english || []).concat(CFG.english2 || []);
     english.forEach(function (lv) {
       var k = lv.toyArtU;
       if (k && !seen[k]) { seen[k] = true; list.push(k); }
@@ -47,7 +47,7 @@
   function levelLabel(lv) { return lv.name + (lv.sub ? '·' + lv.sub : ''); }
   function buildFoodSourceMap() {
     var map = {};
-    (CFG.math || []).forEach(function (lv) {
+    (CFG.math || []).concat(CFG.math2 || []).forEach(function (lv) {
       function claim(k) { if (k && !map[k]) map[k] = levelLabel(lv); }
       if (lv.bite) claim(lv.bite);
       if (lv.feast && Array.isArray(lv.feast.items)) lv.feast.items.forEach(claim);
@@ -56,7 +56,7 @@
   }
   function buildToySourceMap() {
     var map = {};
-    (CFG.english || []).forEach(function (lv) {
+    (CFG.english || []).concat(CFG.english2 || []).forEach(function (lv) {
       if (lv.toyArtU && !map[lv.toyArtU]) map[lv.toyArtU] = levelLabel(lv);
     });
     return map;

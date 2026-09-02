@@ -1,6 +1,6 @@
 // quiz.js — 答題流程(10 題)、結果、吃大餐 — 寬版(平板橫向)
 (function () {
-  const PLS = window.PLS, A = window.PLS_ART, P = window.PLS_PETS;
+  const PLS = window.PLS, A = window.PLS_ART, ACT = window.PLS_ACTOR;
   const CFG = window.PLS_CONFIG, ST = window.PLS_STORE, G = window.PLS_GEN;
   const VIS = window.PLS_VIS;
   const W = PLS.W, H = PLS.H, FONT = A.FONT;
@@ -36,7 +36,8 @@
       this.petId = params.pet;
       this.levelIdx = params.levelIdx;
       this.practice = !!params.practice;
-      this.lv = CFG.math[this.levelIdx];
+      this.tier = params.tier === 'math2' ? 'math2' : 'math';
+      this.lv = CFG[this.tier][this.levelIdx];
       this.qIndex = 0;
       this.firstTryCount = 0;
       this.streak = 0;
@@ -60,7 +61,7 @@
           ctx.fillStyle = 'rgba(255,255,255,0.9)'; A.rr(ctx, 30, 30, 84, 84, 26); ctx.fill();
           A.drawIcon(ctx, 'back', 72, 72, 1.1, '#9A7B5C');
         },
-        onTap: function () { PLS.go('map', { pet: self.petId }); }
+        onTap: function () { PLS.go('map', { pet: self.petId, tier: self.tier }); }
       });
       // 喇叭(再聽一次)
       PLS.addButton({
@@ -263,10 +264,10 @@
           // v7:神秘金色食物 — 1/10 機率整份獎勵變金色(餵食成長值 ×2)
           const golden = Math.random() < 0.1;
           ST.addFoods(d, picks, golden);
-          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks, golden: golden });
+          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, tier: this.tier, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks, golden: golden });
         } else {
           PLS.go('result', {
-            pet: this.petId, levelIdx: this.levelIdx,
+            pet: this.petId, levelIdx: this.levelIdx, tier: this.tier,
             correct: this.firstTryCount, practice: this.practice
           });
         }
@@ -405,10 +406,8 @@
 
       this.drawQuestion(ctx, t);
 
-      // 寵物 + 盤子 / 星星(左側)
-      ctx.save(); ctx.translate(PET.x, PET.y); ctx.scale(PET.s, PET.s);
-      P.draw(this.species, ctx, t, { mode: this.petMode, stage: this.stage });
-      ctx.restore();
+      // 寵物 + 盤子 / 星星(左側) —— v13:走 PLS_ACTOR.drawAt,新制物種(husky/chick)在這裡也會用新造型
+      ACT.drawAt(ctx, this.species, t, PET.x, PET.y + 146 * PET.s, PET.s, { mode: this.petMode, stage: this.stage });
 
       if (this.practice) {
         A.pill(ctx, PET.x, PLATE.y - 4, '練習中,不吃東西喔', '#A09182', 'rgba(255,255,255,0.85)', 21);
@@ -458,6 +457,7 @@
       const self = this;
       this.petId = params.pet;
       this.levelIdx = params.levelIdx;
+      this.tier = params.tier === 'math2' ? 'math2' : 'math';
       this.correct = params.correct;
       this.practice = params.practice;
       this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
@@ -476,12 +476,12 @@
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('回關卡地圖', W / 2, 772);
         },
-        onTap: function () { PLS.go('map', { pet: self.petId }); }
+        onTap: function () { PLS.go('map', { pet: self.petId, tier: self.tier }); }
       });
     },
     draw: function (ctx, t) {
       drawQuizWall(ctx);
-      const lv = CFG.math[this.levelIdx];
+      const lv = CFG[this.tier][this.levelIdx];
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT; ctx.fillStyle = '#8A6242';
       ctx.fillText(this.practice ? '練習結束' : '這一關結束了', W / 2, 116);
@@ -494,9 +494,7 @@
       ctx.font = '60px ' + FONT; ctx.fillStyle = '#5E4A36';
       ctx.fillText('答對 ' + this.correct + ' / ' + CFG.questionsPerLevel + ' 題', W / 2, 332);
 
-      ctx.save(); ctx.translate(W / 2, 590); ctx.scale(0.7, 0.7);
-      P.draw(this.species, ctx, t, { stage: this.stage });
-      ctx.restore();
+      ACT.drawAt(ctx, this.species, t, W / 2, 590 + 146 * 0.7, 0.7, { stage: this.stage });
       A.bubble(ctx, W / 2, 430, this.msg, { size: 26 });
     }
   };
@@ -508,7 +506,8 @@
     enter: function (params) {
       const self = this;
       this.petId = params.pet;
-      this.lv = CFG.math[params.levelIdx];
+      this.tier = params.tier === 'math2' ? 'math2' : 'math';
+      this.lv = CFG[this.tier][params.levelIdx];
       this.deluxe = !!params.deluxe;
       this.perfect = !!params.perfect;
       this.golden = !!params.golden;   // v7:金色食物開獎
@@ -546,7 +545,7 @@
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('收進背包!', W / 2, 758);
         },
-        onTap: function () { PLS.go('map', { pet: self.petId }); }
+        onTap: function () { PLS.go('map', { pet: self.petId, tier: self.tier }); }
       });
     },
 
@@ -759,9 +758,7 @@
       // 豪華版:寵物頭上的金皇冠(畫在寵物之後)
 
       // v4:寵物模式改 'happy'(食物收進背包,牠很開心但沒在吃)
-      ctx.save(); ctx.translate(W / 2, 410);
-      P.draw(this.species, ctx, t, { mode: 'happy', stage: this.stage });
-      ctx.restore();
+      ACT.drawAt(ctx, this.species, t, W / 2, 410 + 146, 1, { mode: 'happy', stage: this.stage });
       if (this.deluxe) window.PLS_CROWN(ctx, W / 2, 322, 2.1, '#F6C44A');
       // v4:對話泡泡改用 harvest / harvestDeluxe
       const talkList = this.deluxe ? CFG.talk.harvestDeluxe : CFG.talk.harvest;

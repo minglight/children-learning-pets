@@ -31,6 +31,28 @@
     ctx.restore();
   }
 
+  // ── 紙鈔(目前只有 100 元,台幣百元鈔是紅色系)──────────
+  const BILL = {
+    100: { face: '#D6555A', edge: '#B23A40', text: '#FFF3E0', frame: 'rgba(255,255,255,0.55)' }
+  };
+  function drawBill(ctx, denom, x, y, s) {
+    s = s || 1;
+    const st = BILL[denom] || BILL[100];
+    const w = 78 * s, h = 42 * s;
+    ctx.save();
+    ctx.shadowColor = 'rgba(120,40,40,0.28)'; ctx.shadowBlur = 5 * s; ctx.shadowOffsetY = 2.5 * s;
+    ctx.fillStyle = st.edge; rr(ctx, x - w / 2, y - h / 2, w, h, 8 * s); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = st.face; rr(ctx, x - w / 2 + 2 * s, y - h / 2 + 2 * s, w - 4 * s, h - 4 * s, 7 * s); ctx.fill();
+    ctx.strokeStyle = st.frame; ctx.lineWidth = Math.max(1.4, 2.2 * s);
+    rr(ctx, x - w / 2 + 6 * s, y - h / 2 + 6 * s, w - 12 * s, h - 12 * s, 4 * s); ctx.stroke();
+    ctx.fillStyle = st.text;
+    ctx.font = 'bold ' + (h * 0.4) + 'px ' + FONT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(denom), x, y + h * 0.02);
+    ctx.restore();
+  }
+
   // ── 排版小工具:把 n 個項目以每排 perRow 個畫成幾排 ──
   // drawItem(x, y, cell) 每格回呼;回傳所佔排數
   function rows(n, perRow) { return Math.max(1, Math.ceil(n / perRow)); }
@@ -76,21 +98,40 @@
   // 錢(硬幣)
   // ════════════════════════════════════════════════════
   function drawMoney(ctx, v, box) {
-    const coins = (v.coins || []).filter(function (c) { return c.n > 0; })
+    const all = (v.coins || []).filter(function (c) { return c.n > 0; })
       .slice().sort(function (a, b) { return b.d - a.d; });
-    const per = 10;
-    let totalRows = 0;
-    coins.forEach(function (c) { totalRows += rows(c.n, per); });
-    let cell = Math.min(60, (box.w - 16) / per);
-    let contentH = totalRows * cell;
+    const bills = all.filter(function (c) { return !!BILL[c.d]; });
+    const coins = all.filter(function (c) { return !BILL[c.d]; });
+    const perCoin = 10, perBill = 6;
+    let coinRows = 0, billRows = 0;
+    coins.forEach(function (c) { coinRows += rows(c.n, perCoin); });
+    bills.forEach(function (c) { billRows += rows(c.n, perBill); });
+    let cell = Math.min(60, (box.w - 16) / perCoin);
+    let billH = cell * 0.78;
+    let contentH = billRows * billH + coinRows * cell;
     const sc = contentH > box.h ? box.h / contentH : 1;
-    cell *= sc; contentH = totalRows * cell;
+    cell *= sc; billH *= sc; contentH = billRows * billH + coinRows * cell;
     const cx = box.x + box.w / 2;
-    let y = box.y + (box.h - contentH) / 2 + cell / 2;
+    let y = box.y + (box.h - contentH) / 2;
+    if (bills.length) {
+      y += billH / 2;
+      bills.forEach(function (c) {
+        let left = c.n;
+        while (left > 0) {
+          const cnt = Math.min(perBill, left);
+          let x = cx - (cnt * cell) / 2 + cell / 2;
+          for (let k = 0; k < cnt; k++) { drawBill(ctx, c.d, x, y, cell / 60); x += cell; }
+          left -= cnt; y += billH;
+        }
+      });
+      y += cell / 2 - billH / 2;
+    } else {
+      y += cell / 2;
+    }
     coins.forEach(function (c) {
       let left = c.n;
       while (left > 0) {
-        const cnt = Math.min(per, left);
+        const cnt = Math.min(perCoin, left);
         let x = cx - (cnt * cell) / 2 + cell / 2;
         for (let k = 0; k < cnt; k++) { drawCoin(ctx, c.d, x, y, cell / 60); x += cell; }
         left -= cnt; y += cell;
@@ -249,12 +290,177 @@
     });
   }
 
+  // ════════════════════════════════════════════════════
+  // 直尺(公分刻度 + 一條要量的色條,從 0 對齊)
+  // ════════════════════════════════════════════════════
+  function drawRuler(ctx, v, box) {
+    const cm = v.cm || 15;
+    const bar = v.bar;
+    const marginX = 24;
+    const rulerW = Math.min(box.w - marginX * 2, cm * 34);
+    const px = rulerW / cm;
+    const x0 = box.x + (box.w - rulerW) / 2;
+    const rulerY = box.y + box.h * 0.6;
+    if (bar != null) {
+      ctx.fillStyle = '#8FBF8A';
+      rr(ctx, x0, rulerY - px * 0.55 - 22, px * bar, 18, 7);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#FFF7EA';
+    rr(ctx, x0, rulerY, rulerW, 34, 4); ctx.fill();
+    ctx.strokeStyle = '#C9A06A'; ctx.lineWidth = 2;
+    rr(ctx, x0, rulerY, rulerW, 34, 4); ctx.stroke();
+    ctx.strokeStyle = '#8A6242'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.font = Math.max(12, Math.min(20, px * 0.5)) + 'px ' + FONT;
+    ctx.fillStyle = '#8A6242'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let i = 0; i <= cm; i++) {
+      const x = x0 + i * px;
+      const tall = i % 5 === 0;
+      ctx.beginPath();
+      ctx.moveTo(x, rulerY); ctx.lineTo(x, rulerY + (tall ? 22 : 12)); ctx.stroke();
+      if (tall) ctx.fillText(String(i), x, rulerY + 26);
+    }
+  }
+
+  // ════════════════════════════════════════════════════
+  // 長度比較(2~3 條不帶刻度的色條,標籤甲/乙/丙)
+  // ════════════════════════════════════════════════════
+  function drawLenCompare(ctx, v, box) {
+    const bars = v.bars || [];
+    const maxCm = Math.max.apply(null, bars.map(function (b) { return b.cm; }).concat([1]));
+    const marginX = 24;
+    const w = box.w - marginX * 2;
+    const px = w / (maxCm + 3);
+    const x0 = box.x + marginX;
+    const rowH = Math.min(50, box.h / bars.length);
+    let y = box.y + (box.h - rowH * bars.length) / 2 + rowH / 2;
+    const colors = ['#8FBF8A', '#7FA8D8', '#E8A85C'];
+    bars.forEach(function (b, i) {
+      ctx.fillStyle = colors[i % colors.length];
+      rr(ctx, x0, y - 13, px * b.cm, 26, 9); ctx.fill();
+      ctx.fillStyle = '#5E4A36'; ctx.font = 'bold 24px ' + FONT;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(b.label || '', x0 + px * b.cm + 12, y);
+      y += rowH;
+    });
+  }
+
+  // ════════════════════════════════════════════════════
+  // 容量比較(2~3 個梯形容器,高度∝容量,底部對齊,標籤甲/乙/丙)
+  // ════════════════════════════════════════════════════
+  function drawCapCompare(ctx, v, box) {
+    const containers = v.containers || [];
+    const n = containers.length || 1;
+    const maxVol = Math.max.apply(null, containers.map(function (c) { return c.vol; }).concat([1]));
+    const gap = 28;
+    const cellW = Math.min(76, (box.w - gap * (n - 1)) / n);
+    const totalW = cellW * n + gap * (n - 1);
+    const x0 = box.x + (box.w - totalW) / 2;
+    const baseY = box.y + box.h - 34;
+    const maxH = box.h - 60;
+    const colors = ['#7FA8D8', '#8FBF8A', '#E8A85C'];
+    containers.forEach(function (c, i) {
+      const h = Math.max(22, (c.vol / maxVol) * maxH);
+      const x = x0 + i * (cellW + gap);
+      const w = cellW * 0.82;
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.beginPath();
+      ctx.moveTo(x + w * 0.08, baseY - h);
+      ctx.lineTo(x + w * 0.92, baseY - h);
+      ctx.lineTo(x + w, baseY);
+      ctx.lineTo(x, baseY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#5E4A36'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.fillStyle = '#5E4A36'; ctx.font = 'bold 24px ' + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(c.label || '', x + w / 2, baseY + 8);
+    });
+  }
+
+  // ════════════════════════════════════════════════════
+  // 時鐘(圓形錶面 + 12 時標 + 時針分針)
+  // ════════════════════════════════════════════════════
+  function drawClock(ctx, v, box) {
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+    const r = Math.min(box.w, box.h) / 2 - 10;
+    ctx.fillStyle = '#FFF7EA';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#C9A06A'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.fillStyle = '#5E4A36';
+    ctx.font = 'bold ' + Math.max(14, r * 0.17) + 'px ' + FONT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = 1; i <= 12; i++) {
+      const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+      ctx.strokeStyle = '#C9A06A'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * (r - 10), cy + Math.sin(a) * (r - 10));
+      ctx.lineTo(cx + Math.cos(a) * (r - 3), cy + Math.sin(a) * (r - 3));
+      ctx.stroke();
+      ctx.fillText(String(i), cx + Math.cos(a) * (r - 26), cy + Math.sin(a) * (r - 26));
+    }
+    const hour = (v.hour || 12) % 12, minute = v.minute || 0;
+    const hourAngle = ((hour + minute / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+    const minAngle = (minute / 60) * Math.PI * 2 - Math.PI / 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#5E4A36'; ctx.lineWidth = Math.max(4, r * 0.07);
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(hourAngle) * r * 0.5, cy + Math.sin(hourAngle) * r * 0.5); ctx.stroke();
+    ctx.strokeStyle = '#D79B53'; ctx.lineWidth = Math.max(3, r * 0.045);
+    ctx.beginPath(); ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(minAngle) * r * 0.75, cy + Math.sin(minAngle) * r * 0.75); ctx.stroke();
+    ctx.fillStyle = '#5E4A36';
+    ctx.beginPath(); ctx.arc(cx, cy, Math.max(3, r * 0.05), 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ════════════════════════════════════════════════════
+  // 方格面積(2~3 個方格圖形,rows×cols 決定面積,標籤甲/乙/丙)
+  // ════════════════════════════════════════════════════
+  function drawGridArea(ctx, v, box) {
+    const shapes = v.shapes || [];
+    const n = shapes.length || 1;
+    const gap = 30;
+    let cell = 24;
+    shapes.forEach(function (s) {
+      cell = Math.min(cell, (box.w - gap * (n - 1)) / n / s.cols, (box.h - 44) / s.rows);
+    });
+    cell = Math.max(cell, 8);
+    const totalW = shapes.reduce(function (sum, s) { return sum + s.cols * cell; }, 0) + gap * (n - 1);
+    let x = box.x + (box.w - totalW) / 2;
+    const colors = ['#7FA8D8', '#8FBF8A', '#E8A85C'];
+    shapes.forEach(function (s, i) {
+      const w = s.cols * cell, h = s.rows * cell;
+      const y = box.y + (box.h - h) / 2 - 14;
+      for (let r = 0; r < s.rows; r++) {
+        for (let c = 0; c < s.cols; c++) {
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = colors[i % colors.length];
+          rr(ctx, x + c * cell + 1, y + r * cell + 1, cell - 2, cell - 2, 3); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = '#5E4A36'; ctx.lineWidth = 1;
+          rr(ctx, x + c * cell + 1, y + r * cell + 1, cell - 2, cell - 2, 3); ctx.stroke();
+        }
+      }
+      if (s.label) {
+        ctx.fillStyle = '#5E4A36'; ctx.font = 'bold 22px ' + FONT;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillText(s.label, x + w / 2, y + h + 8);
+      }
+      x += w + gap;
+    });
+  }
+
   // ── 派發 ──────────────────────────────────────────────
   function draw(ctx, v, box) {
     if (!v) return;
     ctx.save();
     if (v.kind === 'count') drawCount(ctx, v, box);
     else if (v.kind === 'money') drawMoney(ctx, v, box);
+    else if (v.kind === 'capCompare') drawCapCompare(ctx, v, box);
+    else if (v.kind === 'ruler') drawRuler(ctx, v, box);
+    else if (v.kind === 'lenCompare') drawLenCompare(ctx, v, box);
+    else if (v.kind === 'clock') drawClock(ctx, v, box);
+    else if (v.kind === 'gridArea') drawGridArea(ctx, v, box);
     else if (v.kind === 'calendar') drawCalendar(ctx, v, box);
     else if (v.kind === 'vertical') drawVertical(ctx, v, box);
     else if (v.kind === 'groups') drawGroups(ctx, v, box);
@@ -277,5 +483,5 @@
     return out;
   }
 
-  window.PLS_VIS = { draw: draw, instantiate: instantiate, drawCoin: drawCoin };
+  window.PLS_VIS = { draw: draw, instantiate: instantiate, drawCoin: drawCoin, drawBill: drawBill };
 })();

@@ -468,16 +468,17 @@
   }
 
   // ── 文字排版(題庫文字、答案卡)──────────────────────
-  // 中文無空格,以字元為單位斷行
+  // 中文無空格,以字元為單位斷行;英數字則整串當一個詞元,不從單字中間斷行
+  // (例如「嗨,我是Abu。」的 Abu 不會被拆成 Ab / u 兩行)
   function wrapLines(ctx, text, maxW) {
     const out = [];
     let line = '';
-    const chars = Array.from(text);
-    for (let i = 0; i < chars.length; i++) {
-      const ch = chars[i];
-      if (ch === '\n') { out.push(line); line = ''; continue; }
-      const test = line + ch;
-      if (line && ctx.measureText(test).width > maxW) { out.push(line); line = ch; }
+    const tokens = text.match(/[A-Za-z0-9']+|[^A-Za-z0-9']/g) || [];
+    for (let i = 0; i < tokens.length; i++) {
+      const tk = tokens[i];
+      if (tk === '\n') { out.push(line); line = ''; continue; }
+      const test = line + tk;
+      if (line && ctx.measureText(test).width > maxW) { out.push(line); line = tk; }
       else line = test;
     }
     if (line) out.push(line);

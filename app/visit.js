@@ -11,6 +11,7 @@
 
   function speciesOf(id) { return (id && CFG.pets[id]) ? id : 'rabbit'; }
   function itemLabel(key, type) { return window.PLS_TREASURE ? window.PLS_TREASURE.label(key, type) : key; }
+  function pickTalk(list) { return list[Math.floor(Math.random() * list.length)]; }
 
   const visit = {
     petId: 'kidL',
@@ -46,6 +47,8 @@
       this.note = ''; this.noteT = -10;
       this._friendWander = null;
       this._mine = null;         // 自己寵物的走位狀態(從畫面外走進來)
+      this.fBubble = null;       // 摸摸朋友寵物的反應泡泡
+      this._down = null;
 
       PLS.addButton({
         x: 30, y: 30, w: 240, h: 66,
@@ -133,6 +136,29 @@
       });
     },
 
+    // 點朋友的寵物:摸摸牠(純互動,不寫回任何資料,不算「拜訪分享」——避免小孩覺得
+    // 逛朋友房間除了發呆跟送一次東西之外沒別的事可做)
+    pointer: function (phase, x, y) {
+      if (phase === 'down') { this._down = { x: x, y: y }; return; }
+      if (phase !== 'up' || !this._down) return;
+      const dx = x - this._down.x, dy = y - this._down.y;
+      this._down = null;
+      if (dx * dx + dy * dy > 20 * 20) return;   // 拖曳不算點擊
+      this.tap(x, y);
+    },
+    tap: function (x, y) {
+      if (this.mode === 'confirm') return;       // 分享確認彈窗開著時不摸寵物
+      const s = this._fPS || 0.42;
+      if (this._fPX != null &&
+          Math.abs(x - this._fPX) < 190 * s &&
+          y > (this._fPY || 0) - 400 * s && y < (this._fPY || 0) + 16) {
+        this._friendWander.pat = PLS.t;
+        PLS.burst(this._fPX, (this._fPY || 0) - 280 * s, 'small');
+        PLS.sfx.tap();
+        this.fBubble = { text: pickTalk(CFG.talkCare.visitPat || ['嘿嘿~']), until: PLS.t + 2.4 };
+      }
+    },
+
     // ── 房間幾何(全寬,沒有左側設定欄)──
     layout: function () {
       const fx = 60, fy = 158, fw = W - 120, fh = H - 158 - 34;
@@ -170,6 +196,10 @@
         };
       }
       const fw2 = R2.wanderStep(t, geo, this._friendWander);
+      // 被摸摸:開心一下(跟自己房間裡摸訪客同一招,見 room.js updateVisit)
+      if (this._friendWander.pat && t - this._friendWander.pat < 1.0) {
+        fw2.mode = 'happy'; fw2.dir = 'front'; fw2.act = 'greet';
+      }
 
       // 自己的寵物:從畫面左緣走進來,站定後保持待機
       if (!this._mine) {
@@ -201,8 +231,16 @@
           act: it.pose.act, mode: it.pose.mode, stage: it.stage, deco: it.deco,
           face: it.pose.face, dir: it.pose.dir
         });
+        if (!it.mine) { self._fPX = it.pose.x; self._fPY = gy; self._fPS = s; }
       });
       ctx.restore();
+
+      // 摸摸朋友寵物的反應泡泡(跟著牠的位置飄)
+      if (this.fBubble && t < this.fBubble.until && this._fPX != null) {
+        const bx = Math.min(W - 190, Math.max(190, this._fPX));
+        const by = Math.max(200, this._fPY - 460 * (this._fPS || 0.42));
+        A.bubble(ctx, bx, by, this.fBubble.text, { size: 22 });
+      }
 
       // 左上:訪客身份標籤(小朋友暱稱 + 物種,不是可改的寵物名字)
       ctx.save();

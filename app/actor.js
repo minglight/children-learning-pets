@@ -63,27 +63,54 @@
   // spec = {
   //   draw(ctx, t, st)          必填,唯一的造型入口
   //   bounds  {top,bottom,halfWidth}
-  //   stages  {baby:{scale,...}, kid:{...}, grown:{...}}   物種自己決定三階段怎麼變,
-  //                                                        不再是全域 ×0.85/×1.12
   //   locomotion / ambient / holds                          覆寫上面的預設
   // }
+  // 注意:沒有 `stages` 欄位。三個成長階段(baby/kid/grown)怎麼變是每個物種自己的事——
+  // 引擎完全不讀這個欄位,不要學 husky.js/chick.js 早期版本傳 `stages: STAGES` 進來,
+  // 那只是誤會了介面,實際上是各檔案自己在 draw() 裡讀局部的 STAGES 常數 + st.stage。
+  // 詳見 docs/actor-schema.md。
+  function warn(species, msg) { console.error('[PLS_ACTOR] ' + species + ': ' + msg); }
+
+  function checkSpec(species, spec) {
+    const b = spec.bounds;
+    if (typeof b.top !== 'number' || typeof b.bottom !== 'number' || typeof b.halfWidth !== 'number') {
+      warn(species, 'bounds.top/bottom/halfWidth 都要是數字(目前用預設值頂著,縮圖/框選都會不準)');
+    } else if (b.top >= b.bottom) {
+      warn(species, 'bounds.top(' + b.top + ') 應該小於 bounds.bottom(' + b.bottom + ')——原點在腳底、y 向上為負,top 是最高點');
+    }
+    if (b.halfWidth <= 0) warn(species, 'bounds.halfWidth 應該是正數(目前 ' + b.halfWidth + ')');
+
+    const holds = spec.holds;
+    Object.keys(holds).forEach(function (k) {
+      if (ACTIONS.indexOf(k) < 0) warn(species, 'holds.' + k + ' 不是引擎認得的語意動作,打錯字了嗎?(合法值:' + ACTIONS.join('/') + ')');
+    });
+    const pool = spec.ambient.pool || [];
+    pool.forEach(function (p) {
+      if (ACTIONS.indexOf(p.action) < 0) warn(species, 'ambient.pool 裡的 "' + p.action + '" 不是引擎認得的語意動作');
+    });
+    if (spec.stages) warn(species, '傳了 stages 欄位,但引擎不讀這個——三階段比例請在 draw() 內部自己定義 STAGES 常數並讀 st.stage(參考 docs/actor-schema.md)');
+  }
+
   function define(species, spec) {
     if (!spec || typeof spec.draw !== 'function') {
       throw new Error('PLS_ACTOR.define: ' + species + ' 缺少 draw(ctx,t,st)');
     }
-    REG[species] = {
+    const entry = {
       species: species,
       draw: spec.draw,
       // mirror:true = 這隻是「有方向的側身造型」,朝左時由引擎整隻鏡射。
       // 正面造型的物種不要開(會變成左右翻的娃娃),牠們自己用五官視差偏移表達方向。
       mirror: !!spec.mirror,
       bounds: Object.assign({}, DEF_BOUNDS, spec.bounds || {}),
-      stages: spec.stages || null,
       locomotion: Object.assign({}, DEF_LOCO, spec.locomotion || {}),
       ambient: Object.assign({}, DEF_AMBIENT, spec.ambient || {}),
       holds: Object.assign({}, DEF_HOLDS, spec.holds || {}),
       legacy: false
     };
+    // 只警告不中斷:這裡是 <script> 載入期,對正式環境的所有玩家執行——
+    // 一隻新物種寫錯一個欄位就整包 throw 會讓 App 白屏,跟本專案 fail-soft 的慣例不符。
+    checkSpec(species, Object.assign({}, entry, { stages: spec.stages }));
+    REG[species] = entry;
     return REG[species];
   }
 

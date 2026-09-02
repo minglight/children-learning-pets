@@ -342,7 +342,10 @@
     save(d);
   }
   // 某關對這個小孩來說是「入門」還是「進階」(依 config.js math 陣列的序列位置比對 advancedFrom)
+  // math2(二年級上學期,獨立關卡池)不在這條序列裡,一律當「進階」(用 clearCapAdvanced,比較寬鬆的獎勵次數)。
   function levelTier(d, levelId) {
+    const math2 = (window.PLS_CONFIG && window.PLS_CONFIG.math2) || [];
+    if (math2.some(function (lv) { return lv.id === levelId; })) return 'advanced';
     const math = (window.PLS_CONFIG && window.PLS_CONFIG.math) || [];
     const advIdx = math.findIndex(function (lv) { return lv.id === (d.advancedFrom || 'm8'); });
     const lvIdx = math.findIndex(function (lv) { return lv.id === levelId; });
@@ -365,8 +368,16 @@
     }
     return n;
   }
-  function trophyNumber(d) { return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.math) || []); }
-  function trophyNumberEnglish(d) { return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.english) || []); }
+  // v14:math2/english2(二年級上學期,獨立關卡池)加進來後,獎盃數字改成「兩個池子的破關數相加」——
+  //     否則已經破完基礎 10 關、正在玩二上的小孩,獎盃會卡在 10 不再往上動,好友也看不到二上的進度。
+  function trophyNumber(d) {
+    return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.math) || [])
+      + trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.math2) || []);
+  }
+  function trophyNumberEnglish(d) {
+    return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.english) || [])
+      + trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.english2) || []);
+  }
 
   // 記錄一次完整關卡結果
   function recordRun(d, subject, levelId, firstTryCorrect, total, practice) {
@@ -554,9 +565,11 @@
     if (prev !== today()) { d.lastSeen = today(); save(d); }
     return gap;
   }
-  // 關卡短名(記憶用;數學/英文共用)
+  // 關卡短名(記憶用;數學/英文共用;數學要 math + math2 兩個池都找一次)
   function levelLabel(subject, levelId) {
-    var list = (window.PLS_CONFIG && window.PLS_CONFIG[subject === 'english' ? 'english' : 'math']) || [];
+    var list = subject === 'english'
+      ? ((window.PLS_CONFIG && window.PLS_CONFIG.english) || []).concat((window.PLS_CONFIG && window.PLS_CONFIG.english2) || [])
+      : ((window.PLS_CONFIG && window.PLS_CONFIG.math) || []).concat((window.PLS_CONFIG && window.PLS_CONFIG.math2) || []);
     for (var i = 0; i < list.length; i++) if (list[i].id === levelId) return list[i].name;
     return null;
   }
@@ -712,7 +725,8 @@
   // 回 { key, date, done, levelName }(levelName = 可以賺到這個食物的關卡,給小朋友提示)。
   function wishPool(d) {
     var pool = {};
-    var math = (window.PLS_CONFIG && window.PLS_CONFIG.math) || [];
+    var math = ((window.PLS_CONFIG && window.PLS_CONFIG.math) || [])
+      .concat((window.PLS_CONFIG && window.PLS_CONFIG.math2) || []);
     math.forEach(function (lv, i) {
       if (!lv.feast || !lv.feast.items) return;
       var r = d.levels[lv.id];
@@ -828,6 +842,7 @@
     getClearCapAdvanced: getClearCapAdvanced, setClearCapAdvanced: setClearCapAdvanced,
     getAdvancedFrom: getAdvancedFrom, setAdvancedFrom: setAdvancedFrom,
     levelTier: levelTier, clearCapFor: clearCapFor, trophyNumber: trophyNumber, trophyNumberEnglish: trophyNumberEnglish,
+    trophyNumberFor: trophyNumberFor,
     getPoints: getPoints, awardHandwriting: awardHandwriting, hwDailyLeft: hwDailyLeft,
     hwRoundProgress: hwRoundProgress, submitHwLetter: submitHwLetter,
     getPrizes: getPrizes, setPrizes: setPrizes, redeem: redeem,

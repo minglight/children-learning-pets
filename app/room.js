@@ -39,15 +39,34 @@
       .replace(/\{n\}/g, m.n == null ? '' : m.n);
   }
   // 記憶裡那一關現在還能不能去?能的話回 PLS.go 需要的參數(跟 screens.js tapNode 同一套規則)
+  // 數學要 math / math2 兩個獨立關卡池都找一次(不知道當初是哪一池給的回憶),找到哪池就連 tier 一起回。
   function levelJump(d, slot, m) {
     if (!m.lv || !CFG) return null;
     var eng = m.sub === 'english';
-    var list = (eng ? CFG.english : CFG.math) || [];
-    var idx = -1;
-    for (var i = 0; i < list.length; i++) if (list[i].id === m.lv) { idx = i; break; }
-    if (idx < 0 || ST.levelState(d, list, idx) === 'locked') return null;
-    var practice = ST.clearedToday(d, m.lv) || ST.remainToday(d, eng ? 'english' : 'math') <= 0;
-    return { screen: eng ? 'eplay' : 'quiz', params: { pet: slot, levelIdx: idx, practice: practice } };
+    if (eng) {
+      var etiers = ['english', 'english2'];
+      for (var ei = 0; ei < etiers.length; ei++) {
+        var elist = CFG[etiers[ei]] || [];
+        var eidx = -1;
+        for (var i = 0; i < elist.length; i++) if (elist[i].id === m.lv) { eidx = i; break; }
+        if (eidx < 0) continue;
+        if (ST.levelState(d, elist, eidx) === 'locked') return null;
+        var epractice = ST.clearedToday(d, m.lv) || ST.remainToday(d, 'english') <= 0;
+        return { screen: 'eplay', params: { pet: slot, levelIdx: eidx, practice: epractice, tier: etiers[ei] } };
+      }
+      return null;
+    }
+    var tiers = ['math', 'math2'];
+    for (var ti = 0; ti < tiers.length; ti++) {
+      var tlist = CFG[tiers[ti]] || [];
+      var tidx = -1;
+      for (var j = 0; j < tlist.length; j++) if (tlist[j].id === m.lv) { tidx = j; break; }
+      if (tidx < 0) continue;
+      if (ST.levelState(d, tlist, tidx) === 'locked') return null;
+      var practice = ST.clearedToday(d, m.lv) || ST.remainToday(d, 'math') <= 0;
+      return { screen: 'quiz', params: { pet: slot, levelIdx: tidx, practice: practice, tier: tiers[ti] } };
+    }
+    return null;
   }
   // 從記憶抽一筆講出來。回 { text, ask }(ask = 回答選項,例如「再去解一次」的邀請)
   function memoLine(d, slot) {
@@ -318,12 +337,14 @@
     const m = 22;
     return { ix: fx + m, iy: fy + m, iw: fw - m * 2, ih: fh - m * 2 };
   }
-  // v12:獎盃徽章(「目前破到第幾關」,自己房間 / 好友拜訪畫面共用同一個繪製,確保視覺一致)。
+  // v12:獎盃徽章(自己房間 / 好友拜訪畫面共用同一個繪製,確保視覺一致)。
   // n=0(還沒破第一關)不畫。沿用既有的皇冠圖示(window.PLS_CROWN,關卡圖 mastered 徽章同一款)當獎盃視覺。
-  // v13:多接一個 icon 參數區分數學/英文(兩個科目各自的「第幾關」)。
+  // v13:多接一個 icon 參數區分數學/英文(兩個科目各自的破關數)。
+  // v14:n 改成「基礎 + 二年級上學期」兩個獨立關卡池的破關數相加,不再是單一池子裡的「第幾關」,
+  //     所以文案改成「已破 N 關」(總數),不用「第 N 關」(暗示單一序列位置)。
   function trophyBadge(ctx, cx, cy, n, icon) {
     if (!n) return;
-    const label = (icon ? icon + ' ' : '') + '第 ' + n + ' 關';
+    const label = (icon ? icon + ' ' : '') + '已破 ' + n + ' 關';
     ctx.save();
     ctx.font = '700 20px ' + FONT;
     const tw = ctx.measureText(label).width;
@@ -479,10 +500,11 @@
       });
       // 主選單卡片(資料驅動;隱藏獎品功能時自動少一張並上移)
       const NAV = [
-        { go: 'map',  bg: '#FCEED6', line: '#C2791E', icon: ICON.eat,  title: '數學餐廳',
+        { go: 'tierPick',  bg: '#FCEED6', line: '#C2791E', icon: ICON.eat,  title: '數學餐廳',
           sub: function () { const r = ST.remainToday(ST.load(pid), 'math'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以賺 ' + r + ' 次食物' : '今天賺夠了,可以練習'; } },
-        { go: 'emap', bg: '#E9F4E3', line: '#4E8A5A', icon: ICON.play, title: '英文遊戲間',
-          sub: function () { const r = ST.remainToday(ST.load(pid), 'english'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以拿 ' + r + ' 個玩具' : '今天玩具拿夠了,可以練習'; } }
+        { go: 'tierPick', bg: '#E9F4E3', line: '#4E8A5A', icon: ICON.play, title: '英文遊戲間',
+          sub: function () { const r = ST.remainToday(ST.load(pid), 'english'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以拿 ' + r + ' 個玩具' : '今天玩具拿夠了,可以練習'; },
+          action: function () { PLS.go('tierPick', { pet: pid, subject: 'english' }); } }
       ];
       NAV.push({ go: 'emenu', bg: '#E5F0EF', line: '#3F8A84', icon: ICON.abc,   title: '字母手寫練習', sub: function () { return '選字母 · 描字母 · 看筆順'; } });
       // v11:好友雲端同步(選用附加功能)— cloud.js 沒載入/未設定時 PLS_FRIENDS 不存在,這張卡不會被加進去。

@@ -1,7 +1,7 @@
 // english.js — 英文遊戲間 — 寬版(平板橫向)
 // 玩法 play: pick(聽音選字母) | match(大小寫配對) | trace(描寫) | write(自己寫)
 (function () {
-  const PLS = window.PLS, A = window.PLS_ART, P = window.PLS_PETS, TOY = window.PLS_TOY;
+  const PLS = window.PLS, A = window.PLS_ART, ACT = window.PLS_ACTOR, TOY = window.PLS_TOY;
   const CFG = window.PLS_CONFIG, ST = window.PLS_STORE;
   const W = PLS.W, H = PLS.H, FONT = A.FONT;
 
@@ -61,34 +61,40 @@
     ctx.fillStyle = rg; ctx.fillRect(0, 0, W, 700);
   }
 
-  function backButton(toScreen, petId) {
+  function backButton(toScreen, petId, extra) {
     PLS.addButton({
       x: 30, y: 30, w: 84, h: 84,
       draw: function (ctx) {
         ctx.fillStyle = 'rgba(255,255,255,0.92)'; A.rr(ctx, 30, 30, 84, 84, 26); ctx.fill();
         A.drawIcon(ctx, 'back', 72, 72, 1.1, '#6E8B72');
       },
-      onTap: function () { PLS.go(toScreen, { pet: petId }); }
+      onTap: function () {
+        var p = { pet: petId };
+        if (extra) for (var k in extra) p[k] = extra[k];
+        PLS.go(toScreen, p);
+      }
     });
   }
+  function sayEN(s) { if (s) PLS.say(s, 'en-US'); }
 
   // ════════════════════════════════════════════════════
   // 英文遊戲間:關卡圖
   // ════════════════════════════════════════════════════
   const emap = {
-    petId: 'kidL', nodes: [], note: '',
+    petId: 'kidL', tier: 'english', nodes: [], note: '',
     enter: function (params) {
       this.petId = params.pet || 'kidL';           // v9:petId = 儲存 slot(kidL/kidR)
+      this.tier = params.tier === 'english2' ? 'english2' : 'english';
       this.species = ST.load(this.petId).species || 'rabbit';
       this.note = '';
       this.scrollY = 0; this._pdown = false; this._drag = false; this._sbdrag = false;
       this._enteredAt = Date.now(); // 防止切換畫面時誤觸節點
-      this.nodes = CFG.english.map(function (lv, i) {
+      this.nodes = (CFG[this.tier] || []).map(function (lv, i) {
         return { lv: lv, i: i, x: MAP_XS[i % 4], y: MAP_Y0 + i * MAP_STEP };
       });
       const lastY = this.nodes.length ? this.nodes[this.nodes.length - 1].y : MAP_Y0;
       this.maxScroll = Math.max(0, (lastY + 150) - (H - 70));
-      backButton('room', this.petId);
+      backButton('tierPick', this.petId, { subject: 'english' });
     },
     pointer: function (phase, x, y) {
       if (phase === 'down') {
@@ -129,18 +135,18 @@
     },
     tapNode: function (n) {
       const d = ST.load(this.petId);
-      const state = ST.levelState(d, CFG.english, n.i);
+      const state = ST.levelState(d, CFG[this.tier], n.i);
       if (state === 'locked' || !n.lv.play) {
         this.note = n.lv.soon ? '這個玩具還在做喔,等一下下!' : '先把上一關玩完,就會開門囉';
         PLS.sfx.wrong(); return;
       }
       const remain = ST.remainToday(d, 'english');
       const practice = ST.clearedToday(d, n.lv.id) || remain <= 0;
-      PLS.go('eplay', { pet: this.petId, levelIdx: n.i, practice: practice });
+      PLS.go('eplay', { pet: this.petId, levelIdx: n.i, practice: practice, tier: this.tier });
     },
     drawNode: function (ctx, t, n) {
       const d = ST.load(this.petId);
-      const state = ST.levelState(d, CFG.english, n.i);
+      const state = ST.levelState(d, CFG[this.tier], n.i);
       const x = n.x, y = n.y;
       ctx.save();
       if (state === 'locked') ctx.globalAlpha = 0.7;
@@ -197,8 +203,9 @@
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT;
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('英文遊戲間', W / 2, 74);
-      ctx.fillStyle = '#5E7A56'; ctx.fillText('英文遊戲間', W / 2, 70);
+      const title = this.tier === 'english2' ? '英文遊戲間 · 二年級上學期' : '英文遊戲間';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(title, W / 2, 74);
+      ctx.fillStyle = '#5E7A56'; ctx.fillText(title, W / 2, 70);
       A.pill(ctx, W / 2, 134,
         ST.isTest() ? '測試版 · 所有關卡已解鎖'
           : remain > 0 ? '今天還可以拿 ' + remain + ' 個玩具' : '今天玩具拿夠了!其他關可以練習',
@@ -230,20 +237,37 @@
   BANK.x0 = (W - (6 * BANK.w + 5 * BANK.gap)) / 2;
   // 單字手寫(wword):每個字母一格
   const WB = { w: 200, h: 240, gap: 30, y: 296 };
+  // qa 模式混的「單字聽寫描寫」子題:跟 wword 同一個 y,但格子寬度依單字長度動態縮放,
+  // 免得長一點的字(例如 pumpkin、eraser)爆版。
+  const TWORD = { y: 296, h: 300, gap: 16, availW: 1000, maxW: 170, minW: 92 };
+  function buildTraceBoxes(word) {
+    const n = word.length;
+    const w = Math.max(TWORD.minW, Math.min(TWORD.maxW, (TWORD.availW - (n - 1) * TWORD.gap) / n));
+    const totalW = n * w + (n - 1) * TWORD.gap;
+    const x0 = (W - totalW) / 2;
+    return word.split('').map(function (ch, i) {
+      return { letter: ch, x: x0 + i * (w + TWORD.gap), y: TWORD.y, w: w, h: TWORD.h, strokes: [], len: 0 };
+    });
+  }
 
   // 把大寫字母唸出來(用小寫,語音才不會多唸 "Capital")
   function sayLetter(ch) { if (ch) PLS.say(ch.toLowerCase(), 'en-US'); }
 
   // 共用:描寫卡(白卡 + 四線格 + 筆順骨架/示範 + 玩家筆畫)。reveal=null 不示範。
   // 給「描寫關卡」與「字母手寫練習」共用,字形/版面才一致。
-  function renderTraceCard(ctx, letter, strokes, accent, reveal) {
+  // rect 選填:{x,y,w,h},省略時用單字母描寫關卡的 TCARD(維持原本呼叫端不用改)。
+  // 「單字聽寫描寫」(qa 模式裡混的 trace 子題)會傳較窄的 rect,一格一個字母。
+  function renderTraceCard(ctx, letter, strokes, accent, reveal, rect) {
+    const R = rect || TCARD;
     ctx.save();
     ctx.shadowColor = 'rgba(110,140,115,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
-    ctx.fillStyle = '#FFFFFF'; A.rr(ctx, TCARD.x, TCARD.y, TCARD.w, TCARD.h, 30); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; A.rr(ctx, R.x, R.y, R.w, R.h, 30); ctx.fill();
     ctx.restore();
-    const cardCx = TCARD.x + TCARD.w / 2, cardCy = TCARD.y + TCARD.h / 2;
-    const LcY = cardCy + 4, Lh = 230;
-    const gx0 = TCARD.x + 44, gx1 = TCARD.x + TCARD.w - 44;
+    const cardCx = R.x + R.w / 2, cardCy = R.y + R.h / 2;
+    const Lh = Math.min(230, R.h * 0.6, R.w * 1.5);
+    const LcY = cardCy + Lh * 0.017;
+    const inset = Math.min(44, R.w * 0.12);
+    const gx0 = R.x + inset, gx1 = R.x + R.w - inset;
     const lnTop = LcY - Lh / 2, lnBase = LcY + Lh / 2, lnDesc = LcY + Lh * 0.78;
     ctx.lineCap = 'butt';
     ctx.strokeStyle = 'rgba(150,180,150,0.45)'; ctx.lineWidth = 2;
@@ -257,14 +281,15 @@
         L.draw(ctx, letter, { cx: cardCx, cy: LcY, h: Lh, color: '#E7E0CF', showOrder: true, badgeColor: '#7FB08E', arrowColor: '#C9BC9C', reveal: reveal, penColor: accent });
       } else {
         ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-        ctx.font = '700 270px ' + FONT;
+        ctx.font = '700 ' + Math.round(Lh * 1.17) + 'px ' + FONT;
         ctx.fillStyle = '#ECE7DA'; ctx.fillText(letter, cardCx, lnBase);
         ctx.strokeStyle = '#CFC4AC'; ctx.lineWidth = 3; ctx.setLineDash([4, 14]);
         ctx.strokeText(letter, cardCx, lnBase); ctx.setLineDash([]);
       }
     }
     // 玩家筆畫
-    ctx.strokeStyle = accent; ctx.lineWidth = 16; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const penW = Math.max(6, Math.min(16, R.w / 12));
+    ctx.strokeStyle = accent; ctx.lineWidth = penW; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     strokes.forEach(function (s) {
       if (s.length < 2) { if (s.length === 1) { ctx.fillStyle = accent; A.el(ctx, s[0].x, s[0].y, 8, 8); ctx.fill(); } return; }
       ctx.beginPath(); ctx.moveTo(s[0].x, s[0].y);
@@ -288,7 +313,8 @@
       this.petId = params.pet;
       this.levelIdx = params.levelIdx;
       this.practice = !!params.practice;
-      this.lv = CFG.english[this.levelIdx];
+      this.tier = params.tier === 'english2' ? 'english2' : 'english';
+      this.lv = CFG[this.tier][this.levelIdx];
       this.mode = this.lv.play;
       this.count = this.lv.count || 10;
       this.qIndex = 0;
@@ -302,6 +328,7 @@
       this.bubbleText = pickTalk(CFG.talkEng.welcome);
       this.bubbleUntil = PLS.t + 2.6;
       this.locked = false;
+      this.qKind = null;
       this.tiles = [];
       this.strokes = []; this.cur = null; this.drawnLen = 0;
       this.boxes = []; this.curBox = null;
@@ -317,8 +344,9 @@
       }
       this.wordDeck = shuffle(wordPool.slice());
       this.slots = ['', '', '']; this.slotFrom = [null, null, null]; this.bank = [];
+      this.qaDeck = shuffle((this.lv.bank || []).map(function (_, i) { return i; }));
 
-      backButton('emap', this.petId);
+      backButton('emap', this.petId, { tier: this.tier });
       // 喇叭(再聽一次)
       PLS.addButton({
         x: W - 114, y: 30, w: 84, h: 84,
@@ -329,18 +357,54 @@
         onTap: function () { self.replay(); }
       });
 
-      if (this.mode === 'pick' || this.mode === 'match' || this.mode === 'wpick') {
+      if (this.mode === 'pick' || this.mode === 'match' || this.mode === 'wpick' || this.mode === 'qa') {
         const x0 = (PC.x + PC.w / 2) - (TILE.w * 3 + TILE.gap * 2) / 2;
         for (let i = 0; i < 3; i++) (function (i) {
           const bx = x0 + i * (TILE.w + TILE.gap);
           const b = PLS.addButton({
             x: bx, y: TILE.y, w: TILE.w, h: TILE.h,
             draw: function (ctx, t) { self.drawTile(ctx, t, i, bx, TILE.y, TILE.w, TILE.h); },
+            hidden: function () { return self.mode === 'qa' && self.qKind === 'trace'; },
             disabled: function () { return self.locked || !self.q || (self.wrong && self.wrong.has(i)); },
             onTap: function () { self.answer(i); }
           });
           self.tiles.push(b);
         })(i);
+        // qa 模式裡混的「單字聽寫描寫」子題(見 next() 的 qKind 判斷):跟 write/wword 共用清除+完成鈕的版面,
+        // 只在 qKind==='trace' 時顯示。
+        if (this.mode === 'qa') {
+          const tby = 622;
+          PLS.addButton({
+            x: W / 2 - 260, y: tby, w: 240, h: 96,
+            hidden: function () { return self.qKind !== 'trace'; },
+            draw: function (ctx) {
+              ctx.fillStyle = '#FFFFFF'; A.rr(ctx, W / 2 - 260, tby, 240, 96, 28); ctx.fill();
+              ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 3; A.rr(ctx, W / 2 - 260, tby, 240, 96, 28); ctx.stroke();
+              ctx.font = '34px ' + FONT; ctx.fillStyle = '#8AA08A';
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.fillText('清除', W / 2 - 140, tby + 48);
+            },
+            onTap: function () { self.clearStrokes(); }
+          });
+          PLS.addButton({
+            x: W / 2 + 20, y: tby, w: 240, h: 96,
+            hidden: function () { return self.qKind !== 'trace'; },
+            draw: function (ctx, t) {
+              const ready = self.hasEnough();
+              ctx.save();
+              ctx.shadowColor = 'rgba(120,150,110,0.28)'; ctx.shadowBlur = 14; ctx.shadowOffsetY = 6;
+              ctx.fillStyle = ready ? '#8FC9A8' : '#CDE0D2';
+              const p = ready ? 1 + Math.sin(t * 3) * 0.02 : 1;
+              ctx.translate(W / 2 + 140, tby + 48); ctx.scale(p, p); ctx.translate(-(W / 2 + 140), -(tby + 48));
+              A.rr(ctx, W / 2 + 20, tby, 240, 96, 28); ctx.fill();
+              ctx.restore();
+              ctx.font = '36px ' + FONT; ctx.fillStyle = '#FFFFFF';
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.fillText('完成', W / 2 + 140, tby + 48);
+            },
+            onTap: function () { self.finishStroke(); }
+          });
+        }
       } else if (this.mode === 'spell') {
         for (let i = 0; i < 3; i++) (function (i) {
           const bx = SLOT.x0 + i * (SLOT.w + SLOT.gap);
@@ -418,7 +482,7 @@
         const tb = this.boxes.find(function (b) { return b.letter === this.target; }, this);
         return tb && tb.len > 60;
       }
-      if (this.mode === 'wword') {
+      if (this.mode === 'wword' || (this.mode === 'qa' && this.qKind === 'trace')) {
         return this.boxes.length > 0 && this.boxes.every(function (b) { return b.len > 60; });
       }
       return this.drawnLen > 60;
@@ -468,6 +532,44 @@
         this.bubbleText = pickTalk(CFG.talkEng.welcome);
         this.bubbleUntil = PLS.t + 2.2;
         setTimeout(function () { sayWord(target); }, 350);
+      } else if (this.mode === 'qa') {
+        const qbank = this.lv.bank || [];
+        const idx = this.qaDeck[this.qIndex % this.qaDeck.length];
+        const target = qbank[idx];
+        // 混題:單字(en 沒有空格)有 35% 機率變成「聽寫描寫」子題,句子一律照舊走選擇題。
+        const isWord = target.en.indexOf(' ') < 0;
+        this.qKind = (isWord && Math.random() < 0.35) ? 'trace' : 'mc';
+        if (this.qKind === 'trace') {
+          this.q = null;
+          this.traceWord = target.en;
+          this.boxes = buildTraceBoxes(target.en);
+          this.bubbleText = '聽發音,照筆順寫出來';
+          this.bubbleUntil = PLS.t + 2.6;
+          setTimeout(function () { sayEN(target.en); }, 350);
+        } else {
+          const others = shuffle(qbank.filter(function (_, bi) { return bi !== idx; })).slice(0, 2);
+          const dir = Math.random() < 0.5 ? 'hear' : 'say';
+          const pool = shuffle([target].concat(others));
+          if (dir === 'hear') {
+            this.q = {
+              dir: dir, prompt: target.en,
+              options: pool.map(function (o) { return o.zh; }),
+              optColors: pool.map(function (o) { return o.color || null; }),
+              answer: target.zh
+            };
+            setTimeout(function () { sayEN(target.en); }, 350);
+          } else {
+            this.q = {
+              dir: dir, prompt: target.zh,
+              options: pool.map(function (o) { return o.en; }),
+              optColors: pool.map(function (o) { return o.color || null; }),
+              answer: target.en
+            };
+            setTimeout(function () { PLS.say(target.zh); }, 350);
+          }
+          this.bubbleText = pickTalk(CFG.talkEng.welcome);
+          this.bubbleUntil = PLS.t + 2.2;
+        }
       } else if (this.mode === 'spell') {
         const target = this.wordDeck[this.qIndex % this.wordDeck.length];
         this.word = target;
@@ -515,6 +617,12 @@
       if (this.mode === 'write') { sayLetter(this.targetBase); return; }
       if (this.mode === 'spell' || this.mode === 'wword') { sayWord(this.word); return; }
       if (this.mode === 'wpick') { if (this.q) sayWord(this.q.word); return; }
+      if (this.mode === 'qa') {
+        if (this.qKind === 'trace') { sayEN(this.traceWord); return; }
+        if (!this.q) return;
+        if (this.q.dir === 'hear') sayEN(this.q.prompt); else PLS.say(this.q.prompt);
+        return;
+      }
       if (!this.q) return;
       if (this.mode === 'match') sayLetter(this.q.letter);
       else sayLetter(this.q.base || this.q.letter);
@@ -547,7 +655,10 @@
           this.bubbleText = pickTalk(CFG.talkEng.correct);
           this.bubbleUntil = PLS.t + 1.6;
         }
-        setTimeout(function () { self.advance(); }, 1000);
+        // qa · say 方向:答對後複誦一次正確的英文說法加深印象
+        const qaSayBonus = (this.mode === 'qa' && this.q.dir === 'say');
+        if (qaSayBonus) setTimeout(function () { sayEN(opt); }, 150);
+        setTimeout(function () { self.advance(); }, qaSayBonus ? 1500 : 1000);
       } else {
         this.wrong.add(i);
         this.firstTry = false;
@@ -630,7 +741,7 @@
         } else if (phase === 'up') { this.cur = null; }
         return;
       }
-      if (this.mode === 'write' || this.mode === 'wword') {
+      if (this.mode === 'write' || this.mode === 'wword' || (this.mode === 'qa' && this.qKind === 'trace')) {
         if (phase === 'down') {
           this.curBox = null;
           for (let i = 0; i < this.boxes.length; i++) {
@@ -654,6 +765,25 @@
     finishStroke: function () {
       const self = this;
       if (this.locked) return;
+      if (this.mode === 'qa' && this.qKind === 'trace') {
+        const unfinished = this.boxes.filter(function (b) { return b.len <= 60; });
+        if (unfinished.length) {
+          this.bubbleText = '每一格都要描寫喔'; this.bubbleUntil = PLS.t + 2.2; PLS.sfx.wrong(); return;
+        }
+        this.locked = true;
+        this.firstTryCount++;
+        this.streak++;
+        PLS.sfx.correct();
+        this.boxes.forEach(function (b) { PLS.burst(b.x + b.w / 2, b.y + b.h / 2, 'small'); });
+        const isLast = (this.qIndex + 1 >= this.count);
+        if (isLast) {
+          const pp = this._petPos || { x: 150, y: 742 };
+          PLS.burst(W / 2, TWORD.y + TWORD.h / 2, 'feast'); PLS.burst(pp.x, pp.y - 60, 'feast');
+          this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3;
+        } else { this.bubbleText = pickTalk(CFG.talkEng.nice); this.bubbleUntil = PLS.t + 1.6; }
+        setTimeout(function () { self.advance(); }, 1100);
+        return;
+      }
       if (this.mode === 'wword') {
         const unfinished = this.boxes.filter(function (b) { return b.len <= 60; });
         if (unfinished.length) {
@@ -735,9 +865,9 @@
           // v4:玩具收進玩具箱(豪華版給 2 個)
           const toyKey = this.lv.toyArtU;
           ST.addToy(d, toyKey, res.deluxe ? 2 : 1);
-          PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears });
+          PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears, tier: this.tier });
         } else {
-          PLS.go('eresult', { pet: this.petId, levelIdx: this.levelIdx, practice: this.practice });
+          PLS.go('eresult', { pet: this.petId, levelIdx: this.levelIdx, practice: this.practice, tier: this.tier });
         }
       } else { this.next(); }
     },
@@ -753,9 +883,21 @@
       A.rr(ctx, x, y, w, h, 28); ctx.fill();
       ctx.restore();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = this.mode === 'wpick' ? '700 64px ' + FONT : '700 120px ' + FONT;
-      ctx.fillStyle = this.deep;
-      ctx.fillText(q.options[i], x + w / 2, y + h / 2 + 6);
+      if (this.mode === 'qa') {
+        const swatch = q.optColors && q.optColors[i];
+        const cx = x + w / 2;
+        if (swatch) {
+          ctx.fillStyle = swatch; ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 2;
+          A.el(ctx, cx, y + 46, 26, 26); ctx.fill(); ctx.stroke();
+        }
+        const textCy = swatch ? y + h / 2 + 24 : y + h / 2;
+        const fit = A.fitText(ctx, String(q.options[i]), w - 34, swatch ? h - 108 : h - 44, 40, 20);
+        A.drawLines(ctx, fit.lines, fit.size, cx, textCy, this.deep);
+      } else {
+        ctx.font = this.mode === 'wpick' ? '700 64px ' + FONT : '700 120px ' + FONT;
+        ctx.fillStyle = this.deep;
+        ctx.fillText(q.options[i], x + w / 2, y + h / 2 + 6);
+      }
       ctx.restore();
     },
 
@@ -797,19 +939,18 @@
 
       if (this.mode === 'pick' || this.mode === 'match') this.drawPick(ctx, t);
       else if (this.mode === 'wpick') this.drawWordPick(ctx, t);
+      else if (this.mode === 'qa') { if (this.qKind === 'trace') this.drawTraceWord(ctx, t); else this.drawQA(ctx, t); }
       else if (this.mode === 'spell') this.drawSpell(ctx, t);
       else if (this.mode === 'write') this.drawWrite(ctx, t);
       else if (this.mode === 'wword') this.drawWword(ctx, t);
       else this.drawTrace(ctx, t);
 
       // 寵物
-      const petPos = (this.mode === 'pick' || this.mode === 'match' || this.mode === 'wpick') ? { x: 150, y: 742, s: 0.5 }
+      const petPos = (this.mode === 'pick' || this.mode === 'match' || this.mode === 'wpick' || this.mode === 'qa') ? { x: 150, y: 742, s: 0.5 }
         : (this.mode === 'write' || this.mode === 'wword') ? { x: 104, y: 740, s: 0.4 }
           : this.mode === 'spell' ? { x: 96, y: 744, s: 0.4 }
             : { x: 160, y: 660, s: 0.55 };
-      ctx.save(); ctx.translate(petPos.x, petPos.y); ctx.scale(petPos.s, petPos.s);
-      P.draw(this.species, ctx, t, { stage: this.stage });
-      ctx.restore();
+      ACT.drawAt(ctx, this.species, t, petPos.x, petPos.y + 146 * petPos.s, petPos.s, { stage: this.stage });
       this._petPos = petPos;
     },
 
@@ -852,6 +993,44 @@
       ctx.fillText('聽聽看,是哪個單字?', cx, cy + 78);
       ctx.font = '24px ' + FONT; ctx.fillStyle = '#9AB09A';
       ctx.fillText('點喇叭再聽一次', cx, cy + 124);
+    },
+
+    drawQA: function (ctx, t) {
+      const q = this.q;
+      const cx = PC.x + PC.w / 2, cy = PC.y + PC.h / 2;
+      ctx.save();
+      ctx.shadowColor = 'rgba(110,140,115,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+      ctx.fillStyle = '#FFFFFF'; A.rr(ctx, PC.x, PC.y, PC.w, PC.h, 34); ctx.fill();
+      ctx.restore();
+      if (!q) return;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (q.dir === 'hear') {
+        ctx.fillStyle = '#EAF3EC'; A.el(ctx, cx, cy - 70, 72, 72); ctx.fill();
+        A.drawIcon(ctx, 'speaker', cx, cy - 70, 1.7, '#6E9A6E');
+        const fit = A.fitText(ctx, q.prompt, PC.w - 160, 92, 46, 26);
+        A.drawLines(ctx, fit.lines, fit.size, cx, cy + 32, this.deep);
+        ctx.font = '24px ' + FONT; ctx.fillStyle = '#9AB09A';
+        ctx.fillText('聽聽看,這句話是什麼意思?', cx, cy + 110);
+      } else {
+        const fit = A.fitText(ctx, q.prompt, PC.w - 160, 130, 54, 28);
+        A.drawLines(ctx, fit.lines, fit.size, cx, cy - 16, this.deep);
+        ctx.font = '24px ' + FONT; ctx.fillStyle = '#9AB09A';
+        ctx.fillText('選出正確的英文說法', cx, cy + 100);
+      }
+    },
+
+    // qa 模式混的「單字聽寫描寫」子題:聽發音,依筆順把單字每個字母描出來(跟課本無關,
+    // 是額外的聽寫練習)。跟 drawWword 版面類似,但每格用 renderTraceCard 畫骨架引導。
+    drawTraceWord: function (ctx, t) {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '30px ' + FONT; ctx.fillStyle = '#5E7A56';
+      ctx.fillText('聽發音,照筆順把單字描出來', W / 2, 178);
+      ctx.font = '22px ' + FONT; ctx.fillStyle = '#9AB09A';
+      ctx.fillText('點右上角喇叭可以再聽一次', W / 2, 216);
+      const self = this;
+      this.boxes.forEach(function (b) {
+        renderTraceCard(ctx, b.letter, b.strokes, self.accent, null, b);
+      });
     },
 
     drawSpell: function (ctx, t) {
@@ -986,7 +1165,8 @@
       const self = this;
       this.petId = params.pet;
       this.species = ST.load(this.petId).species || 'rabbit';
-      this.lv = CFG.english[params.levelIdx];
+      this.tier = params.tier === 'english2' ? 'english2' : 'english';
+      this.lv = CFG[this.tier][params.levelIdx];
       this.toyKey = this.lv.toyArtU;
       this.toyName = this.lv.toyU;
       this.deluxe = !!params.deluxe;
@@ -1008,7 +1188,7 @@
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('收進玩具箱!', W / 2, 758);
         },
-        onTap: function () { PLS.go('emap', { pet: self.petId }); }
+        onTap: function () { PLS.go('emap', { pet: self.petId, tier: self.tier }); }
       });
     },
     draw: function (ctx, t) {
@@ -1046,7 +1226,7 @@
       A.pill(ctx, W / 2, this.deluxe ? 272 : 240, '回房間陪牠玩吧!', '#5E7A56', 'rgba(220,240,220,0.90)', 21);
 
       // 寵物(左)+ 展示台(右)
-      ctx.save(); ctx.translate(360, 480); P.draw(this.species, ctx, t, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
+      ACT.drawAt(ctx, this.species, t, 360, 480 + 146, 1, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage });
       const talk = this.deluxe ? CFG.talkEng.rewardDeluxe : CFG.talkEng.reward;
       A.bubble(ctx, 360, 300, k < 3.4 ? talk[0] : talk[1], { size: 27 });
 
@@ -1085,6 +1265,7 @@
     enter: function (params) {
       const self = this;
       this.petId = params.pet; this.levelIdx = params.levelIdx; this.practice = params.practice;
+      this.tier = params.tier === 'english2' ? 'english2' : 'english';
       var _md = ST.load(this.petId); this.species = _md.species || 'rabbit';
       this.stage = ST.growthInfo(_md).stage;
       this.msg = this.practice ? '練習完成!明天再來拿新玩具喔' : pickTalk(CFG.talkEng.full);
@@ -1099,12 +1280,12 @@
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
           ctx.fillText('回遊戲間', W / 2, 770);
         },
-        onTap: function () { PLS.go('emap', { pet: self.petId }); }
+        onTap: function () { PLS.go('emap', { pet: self.petId, tier: self.tier }); }
       });
     },
     draw: function (ctx, t) {
       drawRoom(ctx);
-      const lv = CFG.english[this.levelIdx];
+      const lv = CFG[this.tier][this.levelIdx];
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT; ctx.fillStyle = '#5E7A56';
       ctx.fillText(this.practice ? '練習結束' : '今天玩夠囉', W / 2, 116);
@@ -1117,7 +1298,7 @@
       const tk = lv.toyArtU;
       if (tk) TOY.drawToy(ctx, tk, W / 2, 318, 1.2);
 
-      ctx.save(); ctx.translate(W / 2, 600); ctx.scale(0.72, 0.72); P.draw(this.species, ctx, t, { stage: this.stage }); ctx.restore();
+      ACT.drawAt(ctx, this.species, t, W / 2, 600 + 146 * 0.72, 0.72, { stage: this.stage });
       A.bubble(ctx, W / 2, 440, this.msg, { size: 26 });
     }
   };
@@ -1318,7 +1499,7 @@
         ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
         ctx.beginPath(); ctx.moveTo(cx - 10, cy + 1); ctx.lineTo(cx - 2, cy + 9); ctx.lineTo(cx + 11, cy - 8); ctx.stroke();
       }
-      ctx.save(); ctx.translate(170, 700); ctx.scale(0.5, 0.5); P.draw(this.species, ctx, t, { stage: this.stage }); ctx.restore();
+      ACT.drawAt(ctx, this.species, t, 170, 700 + 146 * 0.5, 0.5, { stage: this.stage });
       if (this.hint && t - this.hintT < 1.8) A.bubble(ctx, W / 2, 150, this.hint, { size: 23 });
     }
   };
@@ -1395,7 +1576,7 @@
         A.pill(ctx, W / 2, 116, '本輪已完成 ' + this.doneSet.size + ' / 52 個 · 寫滿整輪 +1 分',
           '#C2851E', 'rgba(255,255,255,0.92)', 21);
       }
-      ctx.save(); ctx.translate(120, 720); ctx.scale(0.42, 0.42); P.draw(this.species, ctx, t, { stage: this.stage }); ctx.restore();
+      ACT.drawAt(ctx, this.species, t, 120, 720 + 146 * 0.42, 0.42, { stage: this.stage });
     }
   };
 

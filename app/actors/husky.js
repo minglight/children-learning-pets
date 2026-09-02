@@ -667,7 +667,6 @@
     draw: draw,
     mirror: true,
     bounds: { top: -210, bottom: 6, halfWidth: 120 },
-    stages: STAGES,
     locomotion: { speed: 62, legFreq: 5.2, tailFreq: 2.4, lean: 0.06, gait: 'trot' },
     holds: { happy: 2.6, eat: 2.8, play: 2.8, rest: 3.4, sleep: 5.0, stretch: 1.8, greet: 2.0 },
     ambient: {

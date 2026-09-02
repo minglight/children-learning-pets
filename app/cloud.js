@@ -91,8 +91,8 @@
       stage: gi.stage,
       growDeco: typeof gi.deco === 'number' ? gi.deco : 0,
       points: petData.points || 0,
-      trophy: ST.trophyNumber(petData),           // v12:數學破到第幾關(獎盃數字),自己房間與拜訪畫面顯示一致
-      trophyEn: ST.trophyNumberEnglish(petData),  // v13:英文破到第幾關,同一顆獎盃元件疊在數學獎盃上方
+      trophy: ST.trophyNumber(petData),           // v12:數學獎盃數字(v14 起=基礎+二上兩池破關數相加),自己房間與拜訪畫面顯示一致
+      trophyEn: ST.trophyNumberEnglish(petData),  // v13:英文獎盃數字(同上,v14 起含二上),同一顆獎盃元件疊在數學獎盃上方
       dex: {                              // v13:收集圖鑑(吃過的食物/玩過的玩具 key,不含背包目前庫存數量)
         foods: Array.isArray(dex.foods) ? dex.foods.slice(0, 60) : [],
         toys: Array.isArray(dex.toys) ? dex.toys.slice(0, 60) : []

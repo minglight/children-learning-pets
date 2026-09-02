@@ -99,7 +99,7 @@
     list: function (petId) {
       const d = ST.load(petId), test = ST.isTest();
       const seen = {}, out = [];
-      CFG.math.forEach(function (lv) {
+      (CFG.math || []).concat(CFG.math2 || []).forEach(function (lv) {
         const rec = d.levels[lv.id];
         if (!(rec && rec.cleared) && !test) return;
         const clears = ST.clearCount(d, lv.id);
@@ -488,26 +488,94 @@
   const TOP_BAND = 184;
 
   // ════════════════════════════════════════════════════
+  // 分級挑戰:選要玩「基礎階梯」還是「二年級上學期課本」,數學/英文共用同一套畫面。
+  // 兩個是完全獨立的關卡池/解鎖鏈,選哪個都從第一關開始,不會被另一池的進度卡住。
+  // ════════════════════════════════════════════════════
+  const TIER_GROUPS = {
+    math: [
+      { id: 'math', title: '基礎挑戰', sub: '數字‧加減法‧乘法啟蒙', color: '#C2791E', bg: '#FCEED6' },
+      { id: 'math2', title: '二年級上學期', sub: '課本 10 課,獨立進度', color: '#3F8A6E', bg: '#E5F3EC' }
+    ],
+    english: [
+      { id: 'english', title: '基礎挑戰', sub: '字母‧拼讀‧單字書寫', color: '#4E8A5A', bg: '#E9F4E3' },
+      { id: 'english2', title: '二年級上學期', sub: '課本 7 課,獨立進度', color: '#B15A8A', bg: '#F5E6EF' }
+    ]
+  };
+  const tierPick = {
+    petId: 'kidL',
+    subject: 'math',
+    enter: function (params) {
+      const self = this;
+      this.petId = params.pet || 'kidL';
+      this.subject = params.subject === 'english' ? 'english' : 'math';
+      backBtn('room', { pet: this.petId });
+      const tiers = TIER_GROUPS[this.subject];
+      const mapScreen = this.subject === 'english' ? 'emap' : 'map';
+      const CW = 480, CH = 240, GAP = 32;
+      const totalW = CW * 2 + GAP;
+      const x0 = (W - totalW) / 2;
+      const y0 = (H - CH) / 2 + 20;
+      tiers.forEach(function (tr) {
+        const x = x0 + tiers.indexOf(tr) * (CW + GAP);
+        PLS.addButton({
+          x: x, y: y0, w: CW, h: CH,
+          draw: function (ctx) {
+            const d = ST.load(self.petId);
+            const list = CFG[tr.id] || [];
+            const n = ST.trophyNumberFor(d, list);
+            ctx.save();
+            ctx.shadowColor = 'rgba(150,100,60,0.18)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+            ctx.fillStyle = tr.bg; A.rr(ctx, x, y0, CW, CH, 30); ctx.fill();
+            ctx.restore();
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = '800 40px ' + FONT; ctx.fillStyle = tr.color;
+            ctx.fillText(tr.title, x + CW / 2, y0 + CH / 2 - 36);
+            ctx.font = '22px ' + FONT; ctx.fillStyle = '#A8927A';
+            ctx.fillText(tr.sub, x + CW / 2, y0 + CH / 2 + 6);
+            A.pill(ctx, x + CW / 2, y0 + CH - 36, '已破 ' + n + ' / ' + list.length + ' 關', tr.color, 'rgba(255,255,255,0.92)', 20);
+          },
+          onTap: function () { PLS.go(mapScreen, { pet: self.petId, tier: tr.id }); }
+        });
+      });
+    },
+    draw: function (ctx, t) {
+      const isEng = this.subject === 'english';
+      if (isEng) drawWall(ctx, '#EEF2EA', 'rgba(150,190,165,0.14)');
+      else drawWall(ctx, '#FBF1E2', 'rgba(214,178,146,0.14)');
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '50px ' + FONT;
+      const title = (isEng ? '英文遊戲間' : '數學餐廳') + ' · 選挑戰';
+      const glow = isEng ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.85)';
+      const fg = isEng ? '#4E8A5A' : '#8A6242';
+      ctx.fillStyle = glow; ctx.fillText(title, W / 2, 100);
+      ctx.fillStyle = fg; ctx.fillText(title, W / 2, 96);
+      A.pill(ctx, W / 2, 156, '兩個挑戰進度分開算,想玩哪個都可以', isEng ? '#4E8A5A' : '#B98A4F', 'rgba(255,255,255,0.9)', 22);
+    }
+  };
+
+  // ════════════════════════════════════════════════════
   // 數學餐廳:關卡圖
   // ════════════════════════════════════════════════════
   const map = {
     petId: 'kidL',
+    tier: 'math',
     nodes: [],
     note: '',
     enter: function (params) {
       const self = this;
       this.petId = params.pet || 'kidL';
+      this.tier = params.tier === 'math2' ? 'math2' : 'math';
       this.note = '';
       this.scrollY = 0;
       this._pdown = false;
       this._drag = false;
       this._enteredAt = Date.now(); // 防止切換畫面時誤觸節點
-      this.nodes = CFG.math.map(function (lv, i) {
+      this.nodes = (CFG[this.tier] || []).map(function (lv, i) {
         return { lv: lv, i: i, x: MAP_XS[i % 4], y: MAP_Y0 + i * MAP_STEP };
       });
       const lastY = this.nodes.length ? this.nodes[this.nodes.length - 1].y : MAP_Y0;
       this.maxScroll = Math.max(0, (lastY + 150) - (H - 70));
-      backBtn('room', { pet: this.petId });
+      backBtn('tierPick', { pet: this.petId });
     },
     pointer: function (phase, x, y) {
       if (phase === 'down') {
@@ -551,7 +619,7 @@
     },
     tapNode: function (n) {
       const d = ST.load(this.petId);
-      const state = ST.levelState(d, CFG.math, n.i);
+      const state = ST.levelState(d, CFG[this.tier], n.i);
       if (state === 'locked') {
         this.note = n.lv.locked ? '這一關還沒開放喔' : '先把上一關過關,就會開門囉';
         PLS.sfx.wrong();
@@ -559,11 +627,11 @@
       }
       const remain = ST.remainToday(d, 'math');
       const practice = ST.clearedToday(d, n.lv.id) || remain <= 0;
-      PLS.go('quiz', { pet: this.petId, levelIdx: n.i, practice: practice });
+      PLS.go('quiz', { pet: this.petId, levelIdx: n.i, practice: practice, tier: this.tier });
     },
     drawNode: function (ctx, t, n) {
       const d = ST.load(this.petId);
-      const state = ST.levelState(d, CFG.math, n.i);
+      const state = ST.levelState(d, CFG[this.tier], n.i);
       const x = n.x, y = n.y;
       ctx.save();
       if (state === 'locked') ctx.globalAlpha = 0.7;
@@ -627,10 +695,11 @@
       this.nodes.forEach(function (n) { self.drawNode(ctx, t, n); });
       ctx.restore();
 
+      const title = this.tier === 'math2' ? '數學餐廳 · 二年級上學期' : '數學餐廳';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT;
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('數學餐廳', W / 2, 74);
-      ctx.fillStyle = '#8A6242'; ctx.fillText('數學餐廳', W / 2, 70);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(title, W / 2, 74);
+      ctx.fillStyle = '#8A6242'; ctx.fillText(title, W / 2, 70);
       A.pill(ctx, W / 2, 134,
         ST.isTest() ? '測試版 · 所有關卡已解鎖'
           : remain > 0 ? '今天還可以賺 ' + remain + ' 次食物' : '今天賺夠了!其他關卡可以練習',
@@ -1084,6 +1153,7 @@
 
   PLS.register('home', home);
   PLS.register('room', room);
+  PLS.register('tierPick', tierPick);
   PLS.register('map', map);
   PLS.register('shelf', shelf);
   PLS.register('rewardPreview', rewardPreview);

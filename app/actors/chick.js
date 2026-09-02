@@ -234,7 +234,6 @@
   A.define('chick', {
     draw: draw,
     bounds: { top: -100, bottom: 8, halfWidth: 52 },
-    stages: STAGES,
     // 小雞的個性:碎步快、完全不前傾(靠身體左右滾)
     locomotion: { speed: 74, legFreq: 9, tailFreq: 1, lean: 0, gait: 'waddle' },
     holds: { happy: 2.2, eat: 2.2, play: 2.0, rest: 2.8, sleep: 4.2, stretch: 1.6, greet: 1.6 },

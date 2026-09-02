@@ -1,7 +1,7 @@
 // points.js — 積分系統:全域積分 HUD + 獎品商店(shop)+ 手寫練習過關畫面(hwpass)
 // 積分本寵物獨立(存在 pet.points);獎品目錄與「隱藏功能」開關是全域(見 store.js)。
 (function () {
-  const PLS = window.PLS, A = window.PLS_ART, ST = window.PLS_STORE, CFG = window.PLS_CONFIG, P = window.PLS_PETS;
+  const PLS = window.PLS, A = window.PLS_ART, ST = window.PLS_STORE, CFG = window.PLS_CONFIG, ACT = window.PLS_ACTOR;
   const W = PLS.W, H = PLS.H, FONT = A.FONT;
 
   // ── 小金幣 ──
@@ -341,8 +341,7 @@
       else if (this.capped) msg = '手寫積分已達上限 100 分囉!';
       else msg = '今天的手寫積分拿完了,明天再來!';
       A.pill(ctx, W / 2, 198, msg, this.awarded ? '#C2591E' : '#7A6450', 'rgba(255,255,255,0.95)', 26);
-      ctx.save(); ctx.translate(W / 2, 560); ctx.scale(1.15, 1.15);
-      P.draw(this.species, ctx, t, { mode: k < 5 ? 'happy' : 'idle', stage: this.stage }); ctx.restore();
+      ACT.drawAt(ctx, this.species, t, W / 2, 560 + 146 * 1.15, 1.15, { mode: k < 5 ? 'happy' : 'idle', stage: this.stage });
       if (this.awarded) {
         this.heartTimer -= 1 / 60;
         if (this.heartTimer <= 0 && k < 5) { this.heartTimer = 0.4; PLS.burst(W / 2 + (Math.random() - 0.5) * 240, 360, 'small'); }
