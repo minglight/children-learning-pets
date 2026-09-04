@@ -7,8 +7,9 @@
 
   function pickTalk(list) { return list[Math.floor(Math.random() * list.length)]; }
   const SLOT_ZH = { kidL: '左邊', kidR: '右邊' };
-  // 10 種可選物種(順序 = 選單排列)
-  const SPECIES = ['rabbit', 'hamster', 'tabby', 'meerkat', 'capybara', 'husky', 'elephant', 'xmascat', 'chick', 'owl'];
+  // 可選物種清單,順序 = config.js PLS_CONFIG.pets 的宣告順序(自動推導,不要手動維護第二份清單 —
+  // 新增物種只要進了 config.js,這裡就會自動出現在選寵物畫面)
+  const SPECIES = Object.keys(CFG.pets);
 
   function backButton(to, params) {
     PLS.addButton({
@@ -29,32 +30,57 @@
   }
 
   // ════════════════════════════════════════════════════
-  // pickpet — 從 8 種挑一隻,開始(或畢業後重新)養
+  // pickpet — 從所有可選物種挑一隻,開始(或畢業後重新)養
   // ════════════════════════════════════════════════════
-  // v14:10 種物種維持 4 欄,改 3 排;卡片高度縮小(292→196)才裝得下,寵物幼幼縮放跟著等比例縮小(見 drawCard)
+  // v15:物種數不再手動卡死,grid 改可捲動(照抄 dex.js 的 scroll/maxScroll/onWheel/拖曳/捲軸拉桿),
+  // 裝不下畫面時自動往下捲,不會再有新物種被排到螢幕外點不到的問題。
   const COLS = 4, CW = 250, CH = 196, GAP = 26;
   const GRID_X = (W - (COLS * CW + (COLS - 1) * GAP)) / 2;   // 置中
-  const GRID_Y = 168, ROW_STEP = CH + 26;
+  const GRID_Y = 168, ROW_STEP = CH + 26, CLIP_TOP = 155;
 
   const pickpet = {
+    scroll: 0, maxScroll: 0, _pdown: false, _drag: false, _py: 0, _ps: 0,
     enter: function (params) {
-      const self = this;
       this.slot = (params && params.pet) || 'kidL';
       this.first = !ST.collectionOf(this.slot).length;   // 第一次養 vs 畢業後重選
+      this.scroll = 0; this._pdown = false; this._drag = false;
+      // 從首頁「＋選寵物」點進來時,同一個 pointerup 事件會在 PLS.go 切換畫面後立刻
+      // 對這個畫面重放一次 'up'——跟 english.js emap 同一個坑,用同樣的短暫防呆擋掉
+      this._enteredAt = Date.now();
+      const rows = Math.ceil(SPECIES.length / COLS);
+      const contentBottom = GRID_Y + (rows - 1) * ROW_STEP + CH;
+      this.maxScroll = Math.max(0, contentBottom + 24 - H);
       backButton('home', {});
-      SPECIES.forEach(function (sp, i) {
-        const col = i % COLS, row = Math.floor(i / COLS);
-        const x = GRID_X + col * (CW + GAP), y = GRID_Y + row * ROW_STEP;
-        PLS.addButton({
-          x: x, y: y, w: CW, h: CH,
-          draw: function (ctx, t) { self.drawCard(ctx, t, sp, x, y); },
-          onTap: function () {
-            ST.chooseSpecies(self.slot, sp);
+    },
+    cardRect: function (i) {
+      const col = i % COLS, row = Math.floor(i / COLS);
+      return { x: GRID_X + col * (CW + GAP), y: GRID_Y + row * ROW_STEP - this.scroll, w: CW, h: CH };
+    },
+    onWheel: function (dy) { this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll + dy)); },
+    pointer: function (phase, x, y) {
+      if (phase === 'down') {
+        this._py = y; this._ps = this.scroll; this._drag = false; this._pdown = true;
+      } else if (phase === 'move') {
+        if (!this._pdown) return;
+        const dy = y - this._py;
+        if (Math.abs(dy) > 6) this._drag = true;
+        this.scroll = Math.max(0, Math.min(this.maxScroll, this._ps - dy));
+      } else if (phase === 'up') {
+        this._pdown = false;
+        if (this._drag) { this._drag = false; return; }
+        if (y < CLIP_TOP) return;
+        if (Date.now() - (this._enteredAt || 0) < 350) return;
+        for (let i = 0; i < SPECIES.length; i++) {
+          const r = this.cardRect(i);
+          if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+            const sp = SPECIES[i];
+            ST.chooseSpecies(this.slot, sp);
             PLS.sfx && PLS.sfx.tap && PLS.sfx.tap();
-            PLS.go('room', { pet: self.slot });
+            PLS.go('room', { pet: this.slot });
+            return;
           }
-        });
-      });
+        }
+      }
     },
     drawCard: function (ctx, t, sp, x, y) {
       const th = CFG.pets[sp].theme;
@@ -80,6 +106,27 @@
       A.pill(ctx, W / 2, 74, zh + '小孩 · ' + (this.first ? '選一隻寵物開始養' : '選一隻新寵物,從幼幼養起'),
         '#8A6242', 'rgba(255,255,255,0.9)', 30);
       A.pill(ctx, W / 2, 126, '養到大寶、陪牠 3 天,就能畢業進珍藏館', '#A07B58', 'rgba(255,255,255,0.8)', 20);
+
+      const self = this;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, CLIP_TOP, W, H - CLIP_TOP); ctx.clip();
+      SPECIES.forEach(function (sp, i) {
+        const r = self.cardRect(i);
+        if (r.y + r.h < CLIP_TOP - 10 || r.y > H + 10) return;   // 畫面外的卡片不畫,省效能
+        self.drawCard(ctx, t, sp, r.x, r.y);
+      });
+      ctx.restore();
+
+      // 捲軸拉桿(視覺提示,同 dex.js;捲動靠拖曳內容或滾輪,不做拉桿本身的拖曳)
+      if (this.maxScroll > 4) {
+        const trackH = H - CLIP_TOP;
+        const th = Math.max(40, trackH * trackH / (trackH + this.maxScroll));
+        const ty = CLIP_TOP + (trackH - th) * (this.scroll / this.maxScroll);
+        ctx.fillStyle = 'rgba(150,120,80,0.22)';
+        A.rr(ctx, W - 14, ty, 6, th, 3); ctx.fill();
+        if (this.scroll < this.maxScroll - 2)
+          A.pill(ctx, W / 2, H - 30, '往下滑,還有更多寵物 ↓', '#A07B58', 'rgba(255,255,255,0.9)', 20);
+      }
     }
   };
 

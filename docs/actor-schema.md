@@ -22,9 +22,12 @@
    **不要抽共用造型函式出去**——重複的程式碼是刻意的,哈士奇的腿跟小雞的腿本來就不該是同一段程式(見 `app/actor.js` 開頭的架構說明)。
 2. **接進 `index.html`**:在 `<script>` 清單裡加一行 `<script src="app/actors/<species>.js"></script>`,位置放在 `app/actor.js` 之後。
 3. **接進 `sw.js` 的 `ASSETS`**,並把 `VERSION` +1(否則玩家吃舊快取看不到新檔案)。
-4. **加進 `config.js` 的 `PLS_CONFIG.pets`**:名字、主題色、幼幼選寵物格會用到。
-5. **(選用)接進 `actor-preview.html`**:加一行 `<script src="app/actors/<species>.js"></script>` + 一個 `panel('<species>', ...)` 呼叫,方便單獨盯著這隻動物調整,不用整個 App 一起跑。
-6. **對照下面的「驗收清單」跑一遍**,再合併。
+4. **加進 `config.js` 的 `PLS_CONFIG.pets`**:名字、主題色。這裡的 key 順序就是選寵物畫面(`pickpet`)的排列順序——`app/lifecycle.js` 的 `SPECIES` 是從 `Object.keys(CFG.pets)` 自動推導的,不用另外維護第二份清單。
+5. **房間場景背景(`SCENE_ROOM`)是必做項,不是選用**:新物種要有符合牠主題元素的專屬房間背景,不可 fallback 通用壁紙房間。外包時 C1(寵物)+ C2(房間場景)一起委託,見 `docs/design-brief.md`;程式接線在 `app/screens.js` 的 `PLS_SCENE_ROOM`,格式比照既有的 `elephant`/`xmascat`/`chick`/`owl`。（既有 6 隻沒有專屬場景的維持原狀,不用回頭補。）
+6. **(選用)接進 `actor-preview.html`**:加一行 `<script src="app/actors/<species>.js"></script>` + 一個 `panel('<species>', ...)` 呼叫,方便單獨盯著這隻動物調整,不用整個 App 一起跑。
+7. **對照下面的「驗收清單」跑一遍**,再合併。
+
+**選寵物畫面(`pickpet`)版面注意**:目前是 4 欄可捲動 grid(`app/lifecycle.js`,照抄 `app/dex.js` 的 `scroll`/`maxScroll`/`onWheel`/拖曳/捲軸拉桿),裝不下會自動往下捲,新增物種不需要額外處理版面。
 
 ---
 
@@ -79,4 +82,5 @@
 - [ ] 大寶配件 5 款都畫出來、掛載座標沒有跑位或被身體擋住。
 - [ ] `index.html` 的 `<script>` 清單、`sw.js` 的 `ASSETS` 都加了這個新檔案,`sw.js` 的 `VERSION` +1。
 - [ ] `config.js` 的 `PLS_CONFIG.pets` 加了這隻物種的名字與主題色。
-- [ ] 縮圖/圖鑑(`dex.js`)、選寵物格(`screens.js`)、房間(`room.js`)、畢業/答題/積分/英文各畫面(`lifecycle.js`/`quiz.js`/`points.js`/`english.js`)實機點過一輪,沒有裁切或比例跑掉。
+- [ ] 房間場景背景(`SCENE_ROOM`)已委託並接進 `app/screens.js` 的 `PLS_SCENE_ROOM`,符合這隻動物的主題元素——**不是選用項**,見上方第五步。
+- [ ] 縮圖/圖鑑(`dex.js`)、選寵物格(`lifecycle.js` 的 `pickpet`,含往下捲動)、房間(`room.js`)、畢業/答題/積分/英文各畫面(`lifecycle.js`/`quiz.js`/`points.js`/`english.js`)實機點過一輪,沒有裁切或比例跑掉。

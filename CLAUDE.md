@@ -121,7 +121,8 @@
 - **畫寵物的統一入口**:`PLS_ACTOR.drawAt(ctx, species, t, cx, footY, s, o)`(靜態一張圖)與 `PLS_ACTOR.create(species)`→`actor.act()/update()/render()`(房間裡活的)。縮圖反推縮放用 `PLS_ACTOR.spanOf(species)`,**不要再寫死 `PET_SPAN = 366`**。房間走位在 `app/room.js` 的 `petAt()`／`wanderStep()`,走多快由 `locomotion.speed` 決定(每隻不同)。**`quiz.js`/`points.js`/`english.js` 也已經改走 `ACT.drawAt()`**(跟 `room.js`/`dex.js`/`lifecycle.js`/`screens.js` 一致),目前所有畫寵物的地方都統一走 `PLS_ACTOR`,新畫面不要再直接呼叫 `window.PLS_PETS.draw()`。
 - **新舊座標換算常數 `PLS_ACTOR.UNIT = 1.9`**(舊制 366 ÷ 哈士奇 194)。這是**單位換算**不是「把每隻拉成一樣高」——所以小雞就是比哈士奇小一半,體型差異會如實呈現。
 - 預覽頁 `actor-preview.html`(10 個動作 × 走路 × 三階段 × 配件,含 legacy 對照組 + `_template.js` 樣板),跟 `debug.html` 一樣**不進 `sw.js` 的 ASSETS**。
-- **新增一隻物種完整 SOP(欄位表/執行期驗證規則/常見誤區/驗收清單)見 `docs/actor-schema.md`**——之後任何要新增/重做寵物的工作,先看那份文件,不要只憑這裡的摘要動工;起手式是複製 `app/actors/_template.js`。摘要:`app/actors/<species>.js`(新檔,cp `_template.js`)＋ `config.js PLS_CONFIG.pets`(名字/主題色)＋ `index.html` script ＋ `sw.js` ASSETS 與 `VERSION` +1。
+- **新增一隻物種完整 SOP(欄位表/執行期驗證規則/常見誤區/驗收清單)見 `docs/actor-schema.md`**——之後任何要新增/重做寵物的工作,先看那份文件,不要只憑這裡的摘要動工;起手式是複製 `app/actors/_template.js`。摘要:`app/actors/<species>.js`(新檔,cp `_template.js`)＋ `config.js PLS_CONFIG.pets`(名字/主題色)＋ `index.html` script ＋ `sw.js` ASSETS 與 `VERSION` +1 ＋ **`SCENE_ROOM` 專屬房間場景(必做,不是選用;`app/screens.js` 的 `PLS_SCENE_ROOM`,外包走 `docs/design-brief.md` C1+C2 一起委託)**。
+- **`app/lifecycle.js` 的選寵物物種清單是自動推導的**(`SPECIES = Object.keys(CFG.pets)`),新物種只要進了 `config.js` 就會自動出現在 `pickpet` 畫面,不用另外維護清單;`pickpet` grid 也已改成可捲動(照抄 `app/dex.js` 的 scroll 元件),裝不下畫面會自動往下捲,不會有新物種被排到螢幕外點不到的問題。
 
 ## 視覺 / 美術升級
 - 要外包設計（新寵物、新房間場景、新獎品道具、UI 改版）一律走 **`docs/design-brief.md`** 的 prompt 模板,不要臨時發明說法。裡面有各類資產的座標系、必要變體、回傳格式與驗收清單。
