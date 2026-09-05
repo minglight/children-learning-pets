@@ -134,8 +134,12 @@
 - **身份錨點是「小孩存檔 slot」（`kidL`/`kidR`），不是物種**:物種(`species`)是小孩底下會換的屬性(換寵物/畢業都會變),雲端好友代碼/還原碼/暱稱一律跟著 slot 走,不跟著物種走。所有 `app/cloud.js` 的方法第一個參數都是 `slot`。
 - **小朋友暱稱**:`pet.childNickname`(schema v11,好友辨識用,獨立於寵物名字/種類;換寵物/畢業都不變)是本機 schema 的正式欄位,會隨「匯出進度」/「匯入進度」/還原碼一起搬家。`pet.giftsGiven` 是拜訪分享次數的小統計,不影響經驗值/點數。
 - **Firestore 集合**(`players`/`friendCodes`/`friends`/`visits`/`visitLog`/`backups`)的完整結構、權限規則、節流節奏見 **`docs/cloud-friends-schema.md`**(權威規格)與 `firestore.rules`。**Firestore 端不是進度的權威來源**,只是鏡射備份 + 唯讀拜訪快照,本機 `localStorage` 才是。
-- **拜訪好友是互動式的**(`app/room.js` 房間左欄「好友」卡 → `window.PLS_FRIENDS.open(slot)` → `app/visit.js`):帶著自己的寵物走進朋友房間(重用 `app/room.js` 匯出的 `window.PLS_ROOM2` 共用繪製元件,不另外重畫一套房間美術),可以從自己背包(`inv.foods`/`inv.gold`/`inv.toys`)挑一項分享給朋友,**一次拜訪限分享一次**。分享寫入只會落在朋友的 `visitLog` 子集合,結構上(Firestore 規則層級)就不可能碰到朋友的 `status`/`points`/成長進度。
-- **主人端通知**:小孩下次打開房間(`room.js enter()`)會呼叫 `PLS_CLOUD.checkVisitLog(slot)`,把新的分享紀錄疊成可點掉的橫幅「🎁 OO的OO 拜訪過你,分享了『XX』」。已讀游標純本機判斷,不寫回 Firestore。
+- **拜訪好友是互動式的**(`app/room.js` 房間左欄「好友」卡 → `window.PLS_FRIENDS.open(slot)` → `app/visit.js`):帶著自己的寵物走進朋友房間(重用 `app/room.js` 匯出的 `window.PLS_ROOM2` 共用繪製元件,不另外重畫一套房間美術),可以從自己背包(`inv.foods`/`inv.gold`/`inv.toys`)挑一項給朋友的寵物,**一次拜訪限一次**。寫入只會落在朋友的 `visitLog` 子集合,結構上(Firestore 規則層級)就不可能碰到朋友的 `status`/`points`/成長進度。
+- ⚠ **「給朋友的寵物吃/玩」不是「送禮物」**(v14 澄清,小朋友的原始設計意圖):挑的那樣東西是**當場給對方的寵物吃掉 / 陪牠玩**(所以 `visit.js` 有走過來吃三口 / 玩玩具的演出),**不會進到對方背包,也不從自己背包扣**。動到這塊時文案一律用「給牠吃 / 陪牠玩」,不要再寫成送禮/收禮。
+- **朋友家要看起來不一樣**:`visit.js` 跟 `room.js` 一樣查 `window.PLS_SCENE_ROOM[species]`,朋友養的物種有專屬場景就畫牠的;挑東西的介面就是自己房間那套背包托盤(食物/玩具兩個入口、7×2 格、數量徽章、金色食物金框)——**不要再退回「只放得下幾格」的排排站清單**,那會讓玩具永遠被食物擠掉。
+- **主人端通知**:小孩下次打開房間(`room.js enter()`)會呼叫 `PLS_CLOUD.checkVisitLog(slot)`,把新的紀錄疊成可點掉的橫幅「🐾 OO家的XX 來過我們家 / 給小白吃了『YY』」(左邊畫來訪的寵物、右邊畫那樣道具)。已讀游標純本機判斷,不寫回 Firestore。**真正的回饋是寵物自己記得**:同一批紀錄會寫成 `giftGot` 回憶(帶 `pet` 物種名 + `act` = eat/play),之後閒聊就會講「小宇家的哈哈給我吃鯛魚燒!」。
+- **好友來我家作客時,寵物會講出朋友的近況**(`room.js friendNewsLines()` + `config.js talkCare.friendNews`):「聽說阿翔破到第 9 關了!」素材**全部**來自該好友的 `status` 快照,快照沒有的欄位就不生成那句 —— **寧可少講,也不要讓寵物講出沒發生過的事**。
+- **好友清單(`index.html`)每列要畫出朋友的寵物**(縮圖 + 成長階段 + 兩科獎盃 + 珍藏數):這些資料 `status` 快照本來就有,不露出來等於白同步。
 - **維運後台**(`admin.html`+`app/admin.js`,Email/Password 登入,跟小孩的匿名登入是不同帳號系統):**只有 `firestore.rules` 裡 `isAdmin()` 寫死的單一 email 能登入看到資料**,不是「每個家長都有 admin 權限」;一般家長全程匿名登入,不會意外拿到後台存取權。`admin.html`/`app/admin.js` 刻意不進 `sw.js` 的 `ASSETS`(不支援離線,後台本來就要即時連網)。
 - **改動這組功能的檢查清單**:動到 Firestore 欄位/集合 → 同步更新 `docs/cloud-friends-schema.md` 與 `firestore.rules`;動到本機 `childNickname`/`giftsGiven` 欄位結構 → 照最上面「向前/向後相容」章節走 `store.js` migration + `docs/export-import-schema.md`。
 

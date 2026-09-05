@@ -61,9 +61,9 @@ pet.memo = [
 
 | `k` | 寫入點 | 記錄欄位 | mood |
 |---|---|---|---|
-| `visitOut` 我去朋友家玩 | `app/visit.js` 拜訪結束 | `who` 朋友暱稱、`pet` 朋友寵物名、`gift` 分享了什麼 | happy / proud |
-| `visitIn` 朋友來我家 | `room.js updateVisit()` leave | `who`、`ate` 有沒有一起吃、`played` | happy / fun |
-| `giftGot` 收到別人的分享 | `PLS_CLOUD.checkVisitLog()` | `who`、`item` | touched |
+| `visitOut` 我去朋友家玩 | `app/visit.js` `enter()` / 給東西後 | `who` 朋友暱稱、`pet` 朋友的物種名、`act` eat/play、`item` 給了什麼 | happy / proud |
+| `visitIn` 朋友來我家 | `room.js updateVisit()` leave | `who`、`pet`、`ate` 有沒有一起吃 | happy / fun |
+| `giftGot` 朋友的寵物來給我吃/陪我玩 | `PLS_CLOUD.checkVisitLog()` | `who`、`pet`、`act` eat/play、`item` | touched |
 | `clear` 過關 | `store.recordRun()` | `sub`(math/eng)、`lv`、`name` 關名、`perfect` 滿分 | proud / excited |
 | `favFood` 最常吃的 | `store.feed()` 統計 | `key` 食物 | happy |
 | `goldFood` 吃到金色食物 | `store.feed(gold)` | `key` | excited |
@@ -77,10 +77,10 @@ pet.memo = [
 
 閒聊時抽一筆 `memo`,套模板。`{}` 代換。
 
-**去朋友家玩 `visitOut`**
+**去朋友家玩 `visitOut`**(v14:不是送禮,是當場給對方的寵物吃/玩)
 - 「上次我們去{who}家,好好玩喔!」
-- 「我送{who}那個{gift},他超開心的!」
-- 「{pet}的房間好漂亮,你記得嗎?」
+- 「我請{pet}吃{item}耶!」/「我跟{pet}玩{item}!」
+- 「{who}家好漂亮,你記得嗎?」
 - 「我還想再去找{who}玩~」
 
 **朋友來我家 `visitIn`**
@@ -89,9 +89,12 @@ pet.memo = [
 - 「{who}什麼時候會再來呀?」
 - 「我有點想{who}了…」
 
-**收到分享 `giftGot`**
-- 「{who}偷偷留了{item}給我!」
-- 「我把{who}送的收好了,捨不得吃」
+**朋友的寵物來給我吃/陪我玩 `giftGot`**(v14:東西不會進背包,是牠當場餵了我)
+- 「{who}家的{pet}給我吃{item}!」
+- 「{pet}帶{item}來陪我玩耶!」
+
+> **舊回憶的相容**:v14 之前記的 `visitOut` / `giftGot` 沒有 `pet` / `act` 兩欄。`memoLine()` 在
+> `m.pet` 不存在時會**優先挑用不到 `{pet}` 的句子**(所以每組模板都留了一句),不會講出半截的話。
 
 **過關 `clear`** ← 使用者點名要的:誇獎 + 邀請再去一次
 - 「你上次{name}全對耶!好厲害!」

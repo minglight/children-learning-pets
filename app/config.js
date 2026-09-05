@@ -414,6 +414,16 @@ window.PLS_CONFIG = {
     visitThanks: ['謝謝招待,好好吃~', '跟你們一起吃最幸福了!'],
     visitPat: ['嘿嘿,你好呀~', '我也好喜歡摸摸!'],
     visitLeave: ['我要回家囉,下次見~', '今天玩得好開心,掰掰!'],
+    // v14:來作客的是「雲端好友的寵物」時,主人的寵物會講出朋友的近況(資料來自好友 status 快照)。
+    // {who}=小朋友暱稱 {pet}=牠的物種名 {n}=數字。泡泡單行不換行 → 代換後盡量壓在 16 字內。
+    friendNews: {
+      trophy: ['{pet}已經破到第{n}關了耶!', '聽說{who}破到第{n}關了!'],
+      trophyEn: ['{pet}的英文破到第{n}關!', '{who}英文破到第{n}關耶!'],
+      points: ['{who}存了{n}個金幣耶!', '{who}家有{n}個金幣!'],
+      dexFoods: ['{pet}吃過{n}種東西了!', '{who}的圖鑑有{n}種食物!'],
+      grown: ['{pet}已經是大寶了耶!', '{pet}長得好大隻喔!'],
+      collection: ['{who}已經養大{n}隻了!', '{pet}家的珍藏館有{n}隻!']
+    },
 
     // ── v13:聊天系統 ──────────────────────────────────
     // 進房打招呼(room.js enter() 挑一句;久沒來優先用 greetBack,其餘依時段)
@@ -479,11 +489,20 @@ window.PLS_CONFIG = {
     memo: {
       visitOut: ['上次我們去{who}家,好好玩!', '{who}家好漂亮,你記得嗎?',
         '我還想再去找{who}玩~', '去{who}家那天我好開心'],
-      visitOutGift: ['我送{who}{item},他超開心!', '送{who}{item},我好得意~'],
+      // v14:去朋友家不是「送禮」,是當場拿東西給朋友的寵物吃 / 陪牠玩({pet}=朋友的物種名)
+      // 每一組都留一句不含 {pet} 的,v14 之前的舊回憶(只記了暱稱)才有通順的話可以講
+      visitOutFeed: ['我請{pet}吃{item}耶!', '{pet}把{item}吃光光了!',
+        '{who}家的{pet}好愛{item}~', '我有給{who}帶{item}去喔!'],
+      visitOutPlay: ['我跟{pet}玩{item}!', '{pet}玩{item}玩得好開心!',
+        '我陪{who}家的{pet}玩了~', '我有帶{item}去{who}家玩!'],
       visitIn: ['{who}上次來我們家耶!', '{who}什麼時候會再來呀?',
         '我有點想{who}了…', '上次{who}來,好熱鬧喔'],
       visitInAte: ['我跟{who}一起吃點心,好幸福~', '{who}上次跟我搶點心,好好笑'],
-      giftGot: ['{who}偷偷留了{item}給我!', '我把{who}送的收好了,捨不得吃', '{who}對我好好喔~'],
+      // v14:朋友的寵物來過、給我吃東西 / 陪我玩(不是收禮物,東西不會進背包)
+      giftGot: ['{who}家的{pet}給我吃{item}!', '{pet}帶{item}來給我吃耶!',
+        '{item}是{pet}給我吃的~', '{who}上次給我吃{item}耶!'],
+      giftGotPlay: ['{who}家的{pet}陪我玩{item}!', '{pet}帶{item}來陪我玩耶!',
+        '我跟{pet}玩了{item}~', '{who}上次陪我玩{item}!'],
       clear: ['你上次{name}全對耶!好厲害!', '{name}那關你好快,我看呆了',
         '我還想看你解{name}!', '你{name}破關的時候好帥'],
       clearAsk: ['要不要再去{name}玩一次?', '我們再去{name}一次好不好?', '好想再看你解{name}一次!'],

@@ -117,7 +117,11 @@
     apple: '蘋果', strawberry: '草莓', orange: '橘子', banana: '香蕉',
     eggcake: '雞蛋糕', boba: '珍珠奶茶', sushi: '壽司', pizza: '披薩',
     bao: '小籠包', burger: '漢堡', fries: '薯條', scoop: '冰淇淋',
-    sundae: '聖代', cake: '蛋糕'
+    sundae: '聖代', cake: '蛋糕',
+    // v14:二上關卡的 10 種新食物。沒有名字的 key 會一路變成「寶物」——寵物的許願泡泡、
+    // 記憶台詞、拿去朋友家分享的 label 全都會顯示成「寶物」,新增食物一定要補這裡。
+    onigiri: '飯糰', mango: '芒果', taiyaki: '鯛魚燒', hotdog: '熱狗', watermelon: '西瓜',
+    donut: '甜甜圈', popcorn: '爆米花', macaron: '馬卡龍', mochi: '大福', potsticker: '煎餃'
   };
   // 布置小窩:基礎版(解 1 次) / 豪華版(解 10 次)名稱
   const FOOD_BASIC_NAMES = {

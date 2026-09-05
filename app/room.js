@@ -25,18 +25,46 @@
   function itemName(key, type) {
     return window.PLS_TREASURE ? window.PLS_TREASURE.label(key, type) : key;
   }
-  // 代換模板裡的 {who} / {item} / {name} / {n}
+  // 代換模板裡的 {who} / {pet} / {item} / {name} / {n}
+  // {pet} = 朋友那隻寵物的物種名(v14 新增);舊記憶沒存這欄 → 退回「牠」,句子照樣通順。
   function fill(tpl, m) {
     if (!tpl) return '';
     m = m || {};
     var item = m.item;
-    // favFood / goldFood 存的是食物 key,要翻成中文;其餘(朋友送的、換到的獎品)本來就存中文
+    // favFood / goldFood 存的是食物 key,要翻成中文;其餘(朋友給的、換到的獎品)本來就存中文
     if (item && (m.k === 'favFood' || m.k === 'goldFood')) item = itemName(item, 'food');
     return String(tpl)
       .replace(/\{who\}/g, m.who || '朋友')
+      .replace(/\{pet\}/g, m.pet || '寵物')
       .replace(/\{item\}/g, item || '那個')
       .replace(/\{name\}/g, m.name || '那一關')
       .replace(/\{n\}/g, m.n == null ? '' : m.n);
+  }
+  // 物種 id → 中文名(給記憶/通知的 {pet} 用;沒對到的物種退回空字串,由 fill 補預設)
+  function speciesName(id) { return (id && CFG.pets[id] && CFG.pets[id].name) || ''; }
+  // v14:好友來作客時,主人的寵物講得出朋友的近況 —— 素材全部來自這位好友的 status 快照
+  // (listFriends 拿回來的那份),沒有的欄位就不生成那句,寧可少講也不要講出假的事。
+  function friendNewsLines(f) {
+    var N = (CFG.talkCare && CFG.talkCare.friendNews) || {};
+    var st = (f && f.status) || {}, out = [];
+    var m = { who: f.childNickname || '朋友', pet: speciesName(f.species) };
+    function add(pool, n) {
+      if (!pool || !pool.length) return;
+      var e = { who: m.who, pet: m.pet, n: n };
+      out.push(fill(pickTalk(pool), e));
+    }
+    if (st.trophy > 0) add(N.trophy, st.trophy);
+    if (st.trophyEn > 0) add(N.trophyEn, st.trophyEn);
+    if (st.points >= 5) add(N.points, st.points);
+    if (st.dex && st.dex.foods && st.dex.foods.length >= 3) add(N.dexFoods, st.dex.foods.length);
+    if (st.stage === 'grown') add(N.grown);
+    if (st.collection && st.collection.length) add(N.collection, st.collection.length);
+    return out;
+  }
+  // 靜態縮圖:整隻剛好 h 像素高,腳底落在 footY(縮放一律用 spanOf 反推,不要寫死 366)
+  function petThumb(ctx, species, t, cx, footY, h, o) {
+    if (!ACT || !ACT.drawAt) return;
+    ACT.drawAt(ctx, species, t, cx, footY, h / ACT.spanOf(species), o || { action: 'idle' });
   }
   // 記憶裡那一關現在還能不能去?能的話回 PLS.go 需要的參數(跟 screens.js tapNode 同一套規則)
   // 數學要 math / math2 兩個獨立關卡池都找一次(不知道當初是哪一池給的回憶),找到哪池就連 tier 一起回。
@@ -76,8 +104,14 @@
     var m = list[Math.floor(Math.random() * list.length)];
     if (!m || !m.k) return null;
     var pool = L[m.k], out = {};
-    if (m.k === 'visitOut' && m.item && L.visitOutGift) pool = L.visitOutGift.concat(L.visitOut || []);
+    // v14:去朋友家給牠吃/陪牠玩(m.act = 'eat' | 'play';舊記憶只有 item 沒有 act → 當成餵食)
+    if (m.k === 'visitOut' && m.item) {
+      var outPool = m.act === 'play' ? L.visitOutPlay : L.visitOutFeed;
+      if (outPool) pool = outPool.concat(L.visitOut || []);
+    }
     if (m.k === 'visitIn' && m.ate && L.visitInAte) pool = L.visitInAte.concat(L.visitIn || []);
+    // v14:朋友的寵物來給我吃東西 / 陪我玩(同上,舊記憶預設當成餵食)
+    if (m.k === 'giftGot' && m.act === 'play' && L.giftGotPlay) pool = L.giftGotPlay;
     if (m.k === 'clear') {
       // 一半機率不是誇獎,而是真的邀主人再去一次 —— 選「走!」直接跳進那一關
       var jump = levelJump(d, slot, m);
@@ -90,6 +124,12 @@
       } else pool = L.clear;
     }
     if (!pool || !pool.length) return null;
+    // v14 之前記下的舊回憶沒有 {pet}(那時只記了小朋友暱稱)——優先挑用不到 {pet} 的句子,
+    // 免得講出「阿翔家的寵物…」這種空一格的話;真的沒有替代句才退回 fill 的預設字。
+    if (!m.pet) {
+      var noPet = pool.filter(function (s) { return s.indexOf('{pet}') < 0; });
+      if (noPet.length) pool = noPet;
+    }
     out.text = fill(pickTalk(pool), m);
     return out;
   }
@@ -456,7 +496,10 @@
           self._visit = {
             id: f.species, name: f.childNickname || '朋友', deco: f.status.growDeco || 0, phase: 'wait',
             at: PLS.t + (ST.isTest() ? 3 : 6 + Math.random() * 8),
-            stage: f.status.stage || 'baby'
+            stage: f.status.stage || 'baby',
+            // v14:主人的寵物會講出這位朋友的近況(資料就是上次同步到的 status 快照)。
+            // 「牠怎麼會知道小宇破到第 9 關」——這種說得出具體數字的話最有驚喜感。
+            news: friendNewsLines(f)
           };
         });
       }
@@ -467,18 +510,22 @@
         window.PLS_CLOUD.checkVisitLog(pid).then(function (list) {
           if (self.petId !== pid || !list.length) return;
           self.visitNotices = list.slice().reverse();   // 舊的先顯示,依序點掉
-          // v13:誰來過、送了什麼,記進寵物的回憶(之後閒聊會提起「{who}偷偷留了…給我」)
+          // v13:誰來過、給了什麼,記進寵物的回憶;v14 起連「哪一家的哪種寵物、是給我吃還是陪我玩」
+          // 都記下來 —— 這不是收禮物(東西不會進背包),而是朋友的寵物當場餵過我 / 陪我玩過。
           const dg = ST.load(pid);
           list.forEach(function (n) {
             if (!n || !n.gift) return;
             ST.pushMemo(dg, {
               k: 'giftGot', mood: 'touched',
-              who: n.fromNickname || '朋友', item: n.gift.label || '好東西'
+              who: n.fromNickname || '朋友',
+              pet: speciesName(n.fromSpecies),
+              act: n.gift.type === 'toy' ? 'play' : 'eat',
+              item: n.gift.label || '好東西'
             }, 'who');
           });
           ST.save(dg);
           PLS.addButton({
-            x: PW + 40, y: 30, w: W - PW - 80, h: 104,
+            x: PW + 40, y: 30, w: W - PW - 80 - 160, h: 104,   // 右緣讓給積分 HUD,見 drawNotice
             hidden: function () { return !self.visitNotices.length; },
             draw: function (ctx) { self.drawNotice(ctx); },
             onTap: function () {
@@ -733,22 +780,47 @@
       this._askRects = rects;
     },
 
-    // v11:拜訪分享通知橫幅(疊在房間框上方,點一下關閉、換下一則)
+    // v11:拜訪通知橫幅(疊在房間框上方,點一下關閉、換下一則)
+    // v14:朋友的寵物來過 = 牠當場餵了我的寵物 / 陪牠玩,不是留下禮物(東西不會進背包),
+    //     所以文案講「給…吃了」/「陪…玩了」,並把來訪的那隻寵物跟那樣道具都畫出來 ——
+    //     小朋友一眼就知道「誰來過、牠做了什麼」,不用讀完整行字。
     drawNotice: function (ctx) {
       const n = this.visitNotices[0];
       if (!n) return;
-      const kindLabel = (CFG.pets[n.fromSpecies] && CFG.pets[n.fromSpecies].name) || '';
+      const t = PLS.t;
+      const kindLabel = speciesName(n.fromSpecies);
       const giftLabel = (n.gift && n.gift.label) || '';
-      const bx = PW + 40, by = 30, bw = W - PW - 80, bh = 104;
+      const isToy = !!(n.gift && n.gift.type === 'toy');
+      const myName = ST.load(this.petId).name || CFG.pets[this.species || 'rabbit'].name;
+      // 右上角讓 160px 給全域積分 HUD(points.js 畫在最上層),不然道具圖/字尾會被金幣蓋住
+      const bx = PW + 40, by = 30, bw = W - PW - 80 - 160, bh = 104;
       ctx.save();
       ctx.shadowColor = 'rgba(150,100,60,0.20)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
       ctx.fillStyle = '#FFF7E0'; rr(ctx, bx, by, bw, bh, 24); ctx.fill();
       ctx.restore();
+      // 來訪的那隻寵物(圓形頭像框;物種畫不出來就留空框,不影響通知本身)
+      const av = bx + 26 + 34;
+      ctx.fillStyle = '#FFFFFF'; el(ctx, av, by + bh / 2, 34, 34); ctx.fill();
+      ctx.strokeStyle = '#F0DBAB'; ctx.lineWidth = 2.5; el(ctx, av, by + bh / 2, 34, 34); ctx.stroke();
+      if (n.fromSpecies && CFG.pets[n.fromSpecies]) {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(av, by + bh / 2, 33, 0, Math.PI * 2); ctx.clip();
+        petThumb(ctx, n.fromSpecies, t, av, by + bh / 2 + 30, 60);
+        ctx.restore();
+      }
+      const tx = av + 52;
       ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.font = '24px ' + FONT; ctx.fillStyle = '#C2791E';
-      ctx.fillText('🎁 ' + (n.fromNickname || '朋友') + '的' + kindLabel + ' 拜訪過你', bx + 28, by + 38);
+      ctx.fillText('🐾 ' + (n.fromNickname || '朋友') + '家的' + kindLabel + ' 來過我們家!', tx, by + 38);
       ctx.font = '20px ' + FONT; ctx.fillStyle = '#8A6242';
-      ctx.fillText('分享了「' + giftLabel + '」!(點一下關閉)', bx + 28, by + 74);
+      ctx.fillText((isToy ? '陪' : '給') + myName + (isToy ? '玩了' : '吃了') + '「' + giftLabel + '」!(點一下關閉)', tx, by + 74);
+      // 右側:牠帶來的那樣東西
+      const ix = bx + bw - 54;
+      ctx.fillStyle = '#FFFFFF'; el(ctx, ix, by + bh / 2, 30, 30); ctx.fill();
+      if (n.gift && n.gift.key) {
+        if (isToy) TOY.drawToy(ctx, n.gift.key, ix, by + bh / 2 - 2, 0.46);
+        else A.drawFood(ctx, n.gift.key, ix, by + bh / 2 - 4, 0.5);
+      }
     },
 
     // ── 餵食 / 陪玩:點托盤的那一刻就先扣資料(store),動畫只是演出來 ──
@@ -906,6 +978,18 @@
         v.hostSayAt = 0;
         this.say(pickTalk(CFG.talkCare.visitHost).replace('{name}', v.name || CFG.pets[v.id].name));
       }
+      // v14:好友來作客時,主人的寵物會提起朋友的近況(每位客人最多兩句,間隔開來慢慢講)。
+      // 手足互訪沒有 news(讀不到雲端快照),這段自然跳過。
+      if (v.news && v.news.length && v.phase !== 'wait' && v.phase !== 'leave' &&
+          !this.act && (!this.bubble || t >= this.bubble.until)) {
+        if (v.newsAt == null) v.newsAt = t + 4.5;
+        if (t >= v.newsAt) {
+          this.say(v.news.shift());
+          v.newsSaid = (v.newsSaid || 0) + 1;
+          v.newsAt = v.newsSaid >= 2 ? Infinity : t + 11;
+          this._chatT = t;                 // 讓一般閒聊往後排,兩邊不要搶著講
+        }
+      }
       if (v.phase === 'in') {
         if (walkStep(t, geo, w, w.tx, w.tz)) {
           v.phase = 'stay'; w.state = 'idle'; w.until = t + 1.4; w.hop = 0; w.dir = 'front';
@@ -944,7 +1028,10 @@
           if (!v.remembered && ST.pushMemo) {
             v.remembered = true;
             const dv = ST.load(this.petId);
-            ST.pushMemo(dv, { k: 'visitIn', mood: 'happy', who: v.name || '朋友', ate: !!v.thanked }, 'who');
+            ST.pushMemo(dv, {
+              k: 'visitIn', mood: 'happy', who: v.name || '朋友',
+              pet: speciesName(v.id), ate: !!v.thanked
+            }, 'who');
             ST.save(dv);
           }
           this._visit = null; return null;
@@ -1325,6 +1412,8 @@
     MAT: MAT, el: el, rr: rr, roofFrame: roofFrame, roomInterior: roomInterior, station: station,
     petAt: petAt, xRange: xRange, yAt: yAt, scAt: scAt, dirOf: dirOf,
     wanderStep: wanderStep, walkStep: walkStep, clamp: clamp, smooth: smooth,
-    trophyBadge: trophyBadge   // v12:獎盃徽章,app/visit.js 拜訪畫面重用同一份繪製
+    trophyBadge: trophyBadge,  // v12:獎盃徽章,app/visit.js 拜訪畫面重用同一份繪製
+    petThumb: petThumb,        // v14:靜態縮圖(spanOf 反推縮放)
+    speciesName: speciesName
   };
 })();

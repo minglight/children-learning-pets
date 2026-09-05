@@ -123,10 +123,22 @@
     color: #8A6242; flex: 1;
   }
   .friend-row {
-    display: flex; align-items: center; gap: 10px; justify-content: space-between;
+    display: flex; align-items: center; gap: 12px; justify-content: space-between;
     background: #FBF6EC; border-radius: 16px; padding: 10px 14px; margin-bottom: 10px;
   }
   .friend-row .fname { font-size: 17px; color: #5E4A36; }
+  /* v14:好友清單要看得到「他養什麼、養多大、破到第幾關」——最值得炫耀的資料本來就在 status 快照裡 */
+  .friend-row .fmain { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .friend-row .favatar {
+    width: 52px; height: 52px; border-radius: 50%; background: #FCEFE6;
+    border: 2px solid #F2D8C0; flex: 0 0 auto; display: block;
+  }
+  .friend-row .fmeta { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .friend-row .fchips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .friend-row .fchip {
+    font-size: 12px; color: #8A6242; background: #F4E8D6;
+    border-radius: 9px; padding: 2px 8px; white-space: nowrap;
+  }
   #friends-msg { font-size: 14px; color: #6FA86A; min-height: 20px; margin-top: 8px; }
   #friends-offline { font-size: 15px; color: #B5705E; text-align: center; padding: 30px 10px; display: none; }
 </style>
@@ -709,9 +721,45 @@
     list.forEach(function (f) {
       const row = document.createElement('div');
       row.className = 'friend-row';
+      // v14:每一列畫出朋友那隻寵物 + 牠現在的狀態(資料來自 status 快照,離線時就只會少幾個小標籤)
+      const main = document.createElement('div');
+      main.className = 'fmain';
+      const st = f.status || {};
+      const species = (f.species && CFG.pets[f.species]) ? f.species : null;
+      if (species && window.PLS_ACTOR) {
+        const av = document.createElement('canvas');
+        av.className = 'favatar'; av.width = 104; av.height = 104;   // 2× 供 retina
+        try {
+          const c = av.getContext('2d');
+          const sc = 88 / window.PLS_ACTOR.spanOf(species);
+          window.PLS_ACTOR.drawAt(c, species, 0, 52, 98, sc, {
+            action: 'idle', stage: st.stage || 'baby', deco: st.growDeco || 0
+          });
+        } catch (e) {}
+        main.appendChild(av);
+      }
+      const meta = document.createElement('div');
+      meta.className = 'fmeta';
       const nameEl = document.createElement('span');
       nameEl.className = 'fname';
-      nameEl.textContent = f.childNickname || '朋友';
+      const speciesLabel = species ? CFG.pets[species].name : '';
+      nameEl.textContent = (f.childNickname || '朋友') + (speciesLabel ? ('的' + speciesLabel) : '');
+      meta.appendChild(nameEl);
+      const chips = document.createElement('div');
+      chips.className = 'fchips';
+      const stageZh = st.stage === 'grown' ? '大寶' : st.stage === 'kid' ? '小寶' : '幼幼';
+      [species ? stageZh : null,
+       st.trophy ? ('🧮 破 ' + st.trophy + ' 關') : null,
+       st.trophyEn ? ('🔤 破 ' + st.trophyEn + ' 關') : null,
+       (st.collection && st.collection.length) ? ('🏅 珍藏 ' + st.collection.length) : null
+      ].forEach(function (txt) {
+        if (!txt) return;
+        const chip = document.createElement('span');
+        chip.className = 'fchip'; chip.textContent = txt;
+        chips.appendChild(chip);
+      });
+      if (chips.childNodes.length) meta.appendChild(chips);
+      main.appendChild(meta);
       const btn = document.createElement('button');
       btn.className = 'pbtn ghost';
       btn.textContent = f.visitedToday ? '今天已拜訪' : '拜訪';
@@ -729,7 +777,7 @@
           }
         });
       });
-      row.appendChild(nameEl); row.appendChild(btn);
+      row.appendChild(main); row.appendChild(btn);
       box.appendChild(row);
     });
   }

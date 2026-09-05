@@ -78,8 +78,10 @@
   "memo": [                   // v13:聊天記憶(寵物記得發生過的事;最多 20 筆,房間閒聊時拿出來講)
     { "k": "clear", "d": "2026-8-20", "mood": "proud",
       "sub": "math", "lv": "m3", "name": "加法", "perfect": true },
-    { "k": "visitOut", "d": "2026-8-19", "mood": "proud", "who": "小美", "item": "草莓" },
-    { "k": "giftGot", "d": "2026-8-18", "mood": "touched", "who": "小明", "item": "壽司" }
+    { "k": "visitOut", "d": "2026-8-19", "mood": "proud", "who": "小美",
+      "pet": "貓頭鷹", "act": "eat", "item": "草莓" },
+    { "k": "giftGot", "d": "2026-8-18", "mood": "touched", "who": "小明",
+      "pet": "哈哈", "act": "play", "item": "小火箭" }
   ],
   "lastSeen": "2026-8-20",    // v13:上次進房間的日期(距今 ≥2 天,寵物會說「好久不見」);null = 還沒進過
   "levels": {                 // 關卡進度:levelId -> 紀錄
@@ -229,7 +231,7 @@
 ### v13（2026-08,寵物聊天系統 — 讓寵物會主動聊天、而且記得發生過的事)
 - **小孩**新增欄位:
   - `memo`(陣列,預設 `[]`)— **聊天記憶**。寵物記得發生過的事,房間閒聊時抽一筆講出來,講的內容才會像「認識你」而不是罐頭。每筆 `{ k, d, mood, ...依 kind 的欄位 }`:
-    - `k` 事件種類:`clear`(過關,含 `sub`/`lv`/`name`/`perfect`)、`visitOut`(去朋友家玩,含 `who`,分享過禮物再帶 `item`)、`visitIn`(朋友來作客,含 `who`/`ate`)、`giftGot`(收到朋友分享,含 `who`/`item`)、`favFood` / `goldFood`(吃過的食物,含 `item` = 食物 key)、`grow`(長大,含 `stage`)、`newDeco`(抽到大寶配件,含 `deco`/`species`)、`hwRound`(描滿一輪 A–Z)、`redeem`(換獎品,含 `item` = 獎品名)、`graduate`(有寵物畢業,含 `name`/`species`)。
+    - `k` 事件種類:`clear`(過關,含 `sub`/`lv`/`name`/`perfect`)、`visitOut`(去朋友家玩,含 `who`,有給東西再帶 `pet`/`act`/`item`)、`visitIn`(朋友來作客,含 `who`/`pet`/`ate`)、`giftGot`(朋友的寵物來給我吃/陪我玩,含 `who`/`pet`/`act`/`item`)、`favFood` / `goldFood`(吃過的食物,含 `item` = 食物 key)、`grow`(長大,含 `stage`)、`newDeco`(抽到大寶配件,含 `deco`/`species`)、`hwRound`(描滿一輪 A–Z)、`redeem`(換獎品,含 `item` = 獎品名)、`graduate`(有寵物畢業,含 `name`/`species`)。
     - `d` 事件日期(絕對日期字串,格式同 `store.today()` 的 `YYYY-M-D`);`mood` 當時的感覺(`happy`/`proud`/`excited`/`touched`/`miss`),供台詞語氣使用。
     - **容量規則**:總筆數上限 `MEMO_MAX = 20`;另外每種事件各有上限(`MEMO_KIND_MAX`,例如 `clear` 4 筆、`favFood` 2 筆、`grow` 1 筆),避免餵食這種高頻事件把拜訪 / 過關這種難得的回憶洗掉。超過就丟最舊的。
     - **去重**:`pushMemo(d, ev, dedupeField)` 帶 `dedupeField` 時,同 kind 且該欄位相同的舊紀錄先移除(同一關、同一種食物、同一位朋友只留最新一筆)。
@@ -239,3 +241,13 @@
 - **相關 API**(`store.js`):`pushMemo` / `memoList` / `touchSeen` / `levelLabel`;`redeem(d, cost, name)` 多一個選填的獎品名參數(只用來寫記憶,不影響扣點)。
 - **台詞與排程**:台詞模板全部集中在 `config.js` 的 `talkCare`(新增 `greet*` 進門招呼、`chatIdle` 閒聊、`chatAsk` 會等回答的問句、`memo` 記憶模板、`state` 現況模板);挑選與代換在 `app/room.js` 的聊天引擎,排程在 `room.chatTick()`。**不是**存檔結構的一部分,改台詞不需要動 schema 版本。
 - `migratePet()` 對舊檔補 `memo = []`、`lastSeen = null`;v12(含更舊)備份檔匯入自動補齊,進度不受影響。
+
+### v13.1（2026-09,好友拜訪語意修正 — 「給朋友的寵物吃/玩」不是「送禮物」)
+- **schema 版本不變(仍是 13)**:只有 `memo` 事件內容多了兩個**選填**欄位,沒有新增/改名/刪除任何小孩欄位,
+  舊檔讀進來一切照常,所以 `SCHEMA_VERSION` 不 +1、`migratePet()` 也不需要新的升級階梯。
+  - `pet`(string,選填)— 對方那隻寵物的**物種中文名**(例:`"貓頭鷹"`),寫在 `visitOut` / `visitIn` / `giftGot`。
+  - `act`(`"eat"` | `"play"`,選填)— 那樣東西是**給牠吃**還是**陪牠玩**,寫在 `visitOut` / `giftGot`。
+- **舊回憶(沒有這兩欄)照樣通順**:`app/room.js` 的 `memoLine()` 在 `m.pet` 不存在時,會**優先挑用不到
+  `{pet}` 的台詞**(每組模板都留了一句),真的沒有替代句才由 `fill()` 代換成「寵物」。不會出現半截的句子。
+- **語意澄清**:拜訪時挑的食物/玩具是「當場給朋友的寵物吃掉 / 陪牠玩」,**不是送禮物** ——
+  東西不會進到對方背包,自己的背包也不扣(見 `docs/cloud-friends-schema.md`「拜訪分享」)。
