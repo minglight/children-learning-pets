@@ -3,6 +3,7 @@
 (function () {
   const A = window.PLS_ART;
   const rr = A.rr, el = A.el;
+  const TAU = Math.PI * 2;
 
   const TOYS = {
     // ── 兔兔的玩具(扮家家酒系) ──────────────────────
@@ -249,6 +250,98 @@
       ctx.fillStyle = '#F6C95E'; el(ctx, -14, -48, 3.6, 3.6); ctx.fill(); el(ctx, 14, -48, 3.6, 3.6); ctx.fill();
       ctx.fillStyle = '#7FA8D0'; rr(ctx, -36, -2, 9, 30, 4); ctx.fill(); rr(ctx, 27, -2, 9, 30, 4); ctx.fill(); // 手
       rr(ctx, -16, 36, 12, 10, 3); ctx.fill(); rr(ctx, 4, 36, 12, 10, 3); ctx.fill();  // 腳
+    },
+
+    // ── 動物玩偶類(全物種共用,不分寵物) ──────────────────
+    giraffeplush: function (ctx) { // 長頸鹿玩偶
+      ctx.fillStyle = '#E8C078';
+      rr(ctx, -14, 6, 12, 20, 5); ctx.fill(); rr(ctx, 4, 6, 12, 20, 5); ctx.fill();     // 腿
+      rr(ctx, -20, -14, 40, 26, 13); ctx.fill();                                       // 身體
+      ctx.fillStyle = '#C9853E';
+      [[-10, -6], [8, -2], [-2, 4], [12, -10]].forEach(function (p) { el(ctx, p[0], p[1], 4, 3.4); ctx.fill(); }); // 花紋
+      ctx.fillStyle = '#E8C078'; rr(ctx, 6, -34, 11, 24, 5); ctx.fill();                // 脖子(玩偶簡化版,短短的)
+      ctx.fillStyle = '#F2D89A'; el(ctx, 13, -40, 15, 13); ctx.fill();                  // 頭
+      ctx.fillStyle = '#8A5A34'; rr(ctx, 6, -46, 3.5, 10, 2); ctx.fill(); rr(ctx, 16, -46, 3.5, 10, 2); ctx.fill(); // 骨突
+      ctx.fillStyle = '#E3B370'; el(ctx, 6, -50, 3, 3); ctx.fill(); el(ctx, 16, -50, 3, 3); ctx.fill();
+      ctx.fillStyle = '#5A4636'; el(ctx, 9, -41, 2, 2.4); ctx.fill();                   // 眼
+      ctx.fillStyle = '#C9853E'; el(ctx, 19, -37, 3, 2.2); ctx.fill();                  // 鼻
+      ctx.strokeStyle = '#F2A9B8'; ctx.lineWidth = 3.4; ctx.lineCap = 'round';           // 頸上蝴蝶結(玩偶感)
+      ctx.beginPath(); ctx.moveTo(-1, -30); ctx.quadraticCurveTo(6, -26, 13, -30); ctx.stroke();
+      ctx.fillStyle = '#F2A9B8'; el(ctx, 6, -29, 5, 4); ctx.fill();
+      ctx.fillStyle = '#E0839C'; el(ctx, 6, -29, 2, 2); ctx.fill();
+    },
+
+    // ── 英文二年級上學期新玩具(v14)——照課本每課主題設計,不再從一年級舊玩具池裡借用 ──
+    numberblocks: function (ctx) { // e2c1 Starter‧數字1-5 → 數字積木
+      var cols = ['#F2A9B8', '#8FC9A8', '#F6C95E'];
+      [[-20, 10], [4, 10], [-8, -14]].forEach(function (p, i) {
+        ctx.fillStyle = cols[i]; rr(ctx, p[0], p[1], 24, 24, 5); ctx.fill();
+        ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 16px "Andika","Huninn","Baloo 2",sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(i + 1), p[0] + 12, p[1] + 13);
+      });
+    },
+    nametag: function (ctx) { // e2c2 Unit1 姓名 → 姓名吊牌
+      ctx.strokeStyle = '#C9A06A'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(0, -34); ctx.quadraticCurveTo(10, -30, 4, -22); ctx.stroke();
+      ctx.fillStyle = '#F6E2C4'; rr(ctx, -26, -20, 52, 40, 10); ctx.fill();
+      ctx.strokeStyle = '#D9B87A'; ctx.lineWidth = 2; rr(ctx, -26, -20, 52, 40, 10); ctx.stroke();
+      ctx.fillStyle = '#F2A9B8';
+      for (let k = 0; k < 5; k++) { const a = k / 5 * TAU; el(ctx, Math.cos(a) * 8, 2 + Math.sin(a) * 8, 5, 5); ctx.fill(); }
+      ctx.fillStyle = '#F6C95E'; el(ctx, 0, 2, 4, 4); ctx.fill();
+    },
+    birthdaycake: function (ctx) { // e2c3 Unit2 年齡‧數字6-10 → 生日蛋糕
+      ctx.fillStyle = '#F2B8C6'; rr(ctx, -26, 6, 52, 24, 6); ctx.fill();
+      ctx.fillStyle = '#FFF7EC'; rr(ctx, -20, -12, 40, 20, 6); ctx.fill();
+      ctx.fillStyle = '#F8D8E0'; rr(ctx, -20, -14, 40, 5, 2); ctx.fill();
+      [-10, 0, 10].forEach(function (x) {
+        ctx.fillStyle = '#92B8E0'; rr(ctx, x - 1.5, -26, 3, 14, 1.5); ctx.fill();
+        ctx.fillStyle = '#F6C95E'; el(ctx, x, -28, 2.4, 3); ctx.fill();
+      });
+      ctx.fillStyle = '#E8546B'; [[-14, 16], [0, 18], [14, 16]].forEach(function (p) { el(ctx, p[0], p[1], 3, 3); ctx.fill(); });
+    },
+    pencilcase: function (ctx) { // e2c4 Unit3 文具 → 鉛筆盒
+      ctx.fillStyle = '#8FC9A8'; rr(ctx, -32, -8, 64, 26, 10); ctx.fill();
+      ctx.fillStyle = '#7AB894'; rr(ctx, -32, -8, 64, 8, 6); ctx.fill();
+      ctx.save(); ctx.translate(-8, -8); ctx.rotate(-0.25);
+      ctx.fillStyle = '#F6C95E'; rr(ctx, -4, -30, 8, 26, 2); ctx.fill();
+      ctx.fillStyle = '#F2D9A0'; ctx.beginPath(); ctx.moveTo(-4, -30); ctx.lineTo(4, -30); ctx.lineTo(0, -38); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.translate(10, -6); ctx.rotate(0.15);
+      ctx.fillStyle = '#F2A9B8'; rr(ctx, -3, -24, 6, 20, 2); ctx.fill();
+      ctx.restore();
+    },
+    crayonbox: function (ctx) { // e2c5 Unit4 顏色 → 蠟筆盒
+      ctx.fillStyle = '#E0A050'; rr(ctx, -30, 4, 60, 22, 6); ctx.fill();
+      ctx.fillStyle = '#F2C277'; rr(ctx, -30, 4, 60, 6, 3); ctx.fill();
+      ['#E4574B', '#E8C13B', '#4F9E5C', '#4A7FC1', '#C77DD2'].forEach(function (c, i) {
+        ctx.fillStyle = c;
+        ctx.save(); ctx.translate(-24 + i * 12, 2);
+        rr(ctx, -4, -20, 8, 22, 2); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-4, -20); ctx.lineTo(4, -20); ctx.lineTo(0, -30); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      });
+    },
+    backpack: function (ctx) { // e2c6 My School Bag → 書包
+      ctx.fillStyle = '#4A7FC1'; rr(ctx, -24, -14, 48, 46, 14); ctx.fill();
+      ctx.fillStyle = '#5E8FCE'; rr(ctx, -16, -26, 32, 18, 10); ctx.fill();
+      ctx.fillStyle = '#F6C95E'; rr(ctx, -10, -2, 20, 16, 5); ctx.fill();
+      ctx.strokeStyle = '#3A5F94'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-14, -14); ctx.quadraticCurveTo(-18, -30, -8, -34);
+      ctx.moveTo(14, -14); ctx.quadraticCurveTo(18, -30, 8, -34); ctx.stroke();
+    },
+    pumpkinlamp: function (ctx) { // e2c7 Halloween → 南瓜燈籠
+      ctx.fillStyle = '#6FA86A'; rr(ctx, -3, -32, 6, 10, 2); ctx.fill();
+      ctx.fillStyle = '#F2924A';
+      [-20, 0, 20].forEach(function (x) { el(ctx, x, 4, 16, 22); ctx.fill(); });
+      ctx.strokeStyle = '#D9722E'; ctx.lineWidth = 2;
+      [-20, 0, 20].forEach(function (x) { ctx.beginPath(); ctx.ellipse(x, 4, 16, 22, 0, 0, TAU); ctx.stroke(); });
+      ctx.fillStyle = '#5A3420';
+      ctx.beginPath(); ctx.moveTo(-10, -2); ctx.lineTo(-2, -8); ctx.lineTo(4, -2); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(6, -2); ctx.lineTo(14, -8); ctx.lineTo(20, -2); ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-12, 14); ctx.lineTo(-4, 8); ctx.lineTo(2, 14); ctx.lineTo(10, 8); ctx.lineTo(18, 14); ctx.lineTo(10, 20); ctx.lineTo(2, 16); ctx.lineTo(-4, 20);
+      ctx.closePath(); ctx.fill();
     }
   };
 

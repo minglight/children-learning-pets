@@ -23,8 +23,9 @@
 
 | 檔案 | 用途 |
 |---|---|
-| `docs/prompt-pet-husky.md` | 哈士奇 3 個精緻度方案（Track A 起手） |
+| `docs/prompt-pet-husky.md` | 哈士奇 3 個精緻度方案（Track A 起手；**沿用舊制座標系,還沒改成 actor 架構的新格式,拿來當範本前先注意這點**） |
 | `docs/prompt-ui-style.md` | 3 個 UI 風格方向 × quiz/room 兩畫面（Track B 起手） |
+| `docs/prompt-pet-giraffe.md` | 長頸鹿——C1(寵物本體)+ C2(房間場景)都已直接寫成程式,檔案內容是回填的紀錄,目前沒有真的待發包的部分 |
 
 整份複製貼進 Claude Design 即可，不用自己組裝。之後要新資產時，照上面四塊自己組一份，
 並存成同樣命名慣例的檔案（`docs/prompt-<主題>.md`），下次就不用重寫。

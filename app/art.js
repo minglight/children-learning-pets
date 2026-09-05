@@ -181,6 +181,89 @@
       ctx.beginPath(); ctx.moveTo(-13, 8); ctx.lineTo(13, 8); ctx.lineTo(17, 16); ctx.lineTo(-17, 16); ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#E8546B'; el(ctx, 0, -22, 8, 9); ctx.fill();
       ctx.fillStyle = '#6FA86A'; el(ctx, 0, -30, 5, 3); ctx.fill();
+    },
+
+    // ── 二年級上學期數學新食物(v14,跟一年級的 14 種區隔開,課本進度用新獎勵) ──
+    onigiri: function (ctx) { // 飯糰
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath(); ctx.moveTo(0, -32); ctx.lineTo(28, 24); ctx.quadraticCurveTo(0, 34, -28, 24); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#3A3A3A'; rr(ctx, -10, -6, 20, 34, 3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'; el(ctx, -10, -14, 6, 8); ctx.fill();
+      ctx.fillStyle = '#F2F2ED'; [[-16, 10], [14, 6], [2, -4]].forEach(function (p) { el(ctx, p[0], p[1], 1.6, 1); ctx.fill(); });
+    },
+    mango: function (ctx) { // 芒果
+      ctx.fillStyle = '#E8A83E'; el(ctx, -4, 2, 26, 30, -0.15); ctx.fill();
+      ctx.fillStyle = '#E85C4A'; el(ctx, -14, -8, 14, 16, -0.3); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)'; el(ctx, -8, -8, 7, 9, -0.2); ctx.fill();
+      ctx.strokeStyle = '#6FA86A'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(10, -24); ctx.quadraticCurveTo(16, -32, 22, -30); ctx.stroke();
+    },
+    taiyaki: function (ctx) { // 鯛魚燒
+      ctx.fillStyle = '#E0A050';
+      ctx.beginPath();
+      ctx.moveTo(-30, 0); ctx.quadraticCurveTo(-20, -22, 6, -20);
+      ctx.lineTo(26, -30); ctx.lineTo(20, 0); ctx.lineTo(26, 30); ctx.lineTo(6, 20);
+      ctx.quadraticCurveTo(-20, 22, -30, 0); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#B87A38'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-16, -14); ctx.lineTo(-16, 14); ctx.moveTo(-2, -18); ctx.lineTo(-2, 18); ctx.stroke();
+      ctx.fillStyle = '#5A4636'; el(ctx, -22, -4, 2.2, 2.2); ctx.fill();
+    },
+    hotdog: function (ctx) { // 熱狗
+      ctx.fillStyle = '#F2C277';
+      ctx.beginPath();
+      ctx.moveTo(-30, -6); ctx.quadraticCurveTo(-30, 14, -20, 16); ctx.lineTo(20, 16);
+      ctx.quadraticCurveTo(30, 14, 30, -6); ctx.quadraticCurveTo(30, -18, 18, -18);
+      ctx.lineTo(-18, -18); ctx.quadraticCurveTo(-30, -18, -30, -6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#C9622E'; el(ctx, 0, -2, 26, 10); ctx.fill();
+      ctx.strokeStyle = '#F2CE5A'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+      for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 9 - 4, -8); ctx.lineTo(i * 9 + 6, 4); ctx.stroke(); }
+    },
+    watermelon: function (ctx) { // 西瓜(切片)
+      ctx.fillStyle = '#4F9E5C';
+      ctx.beginPath(); ctx.moveTo(-30, 20); ctx.quadraticCurveTo(0, -32, 30, 20); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#F2F2ED';
+      ctx.beginPath(); ctx.moveTo(-24, 17); ctx.quadraticCurveTo(0, -24, 24, 17); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#E8546B';
+      ctx.beginPath(); ctx.moveTo(-19, 16); ctx.quadraticCurveTo(0, -16, 19, 16); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#3A3A3A';
+      [[-8, 4], [6, 0], [0, 10], [-2, -6]].forEach(function (p) { el(ctx, p[0], p[1], 1.6, 2.4, 0.3); ctx.fill(); });
+    },
+    donut: function (ctx) { // 甜甜圈
+      ctx.fillStyle = '#E0A050'; el(ctx, 0, 0, 28, 24); ctx.fill();
+      ctx.fillStyle = '#F8B8C4'; el(ctx, 0, -2, 25, 21); ctx.fill();
+      ctx.fillStyle = '#FBF2E0'; el(ctx, 0, -2, 9, 8); ctx.fill();
+      ctx.fillStyle = '#E8546B';
+      [[-14, -8], [10, -10], [16, 4], [-4, 10], [-16, 6], [4, -2]].forEach(function (p) { el(ctx, p[0], p[1], 2.2, 2.2); ctx.fill(); });
+    },
+    popcorn: function (ctx) { // 爆米花
+      ctx.fillStyle = '#E4574B';
+      ctx.beginPath(); ctx.moveTo(-20, -2); ctx.lineTo(20, -2); ctx.lineTo(15, 32); ctx.lineTo(-15, 32); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(-10, -2); ctx.lineTo(-7, 32); ctx.moveTo(10, -2); ctx.lineTo(7, 32); ctx.stroke();
+      ctx.fillStyle = '#FFFFFF'; ctx.strokeStyle = 'rgba(210,150,60,0.4)'; ctx.lineWidth = 1;
+      [[-14, -10], [0, -16], [14, -10], [-6, -18], [7, -19], [-18, -4], [18, -4]].forEach(function (p) { el(ctx, p[0], p[1], 8, 7); ctx.fill(); ctx.stroke(); });
+    },
+    macaron: function (ctx) { // 馬卡龍
+      ctx.fillStyle = '#F2A9B8'; el(ctx, 0, -14, 24, 9); ctx.fill();
+      ctx.fillStyle = '#E88A9E'; rr(ctx, -20, -8, 40, 8, 3); ctx.fill();
+      ctx.fillStyle = '#F2A9B8'; el(ctx, 0, 6, 24, 9); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'; el(ctx, -8, -16, 6, 3); ctx.fill();
+    },
+    mochi: function (ctx) { // 麻糬/大福
+      ctx.fillStyle = '#F6E2EA'; el(ctx, 0, 6, 26, 22); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; el(ctx, -8, -2, 8, 6); ctx.fill();
+      ctx.strokeStyle = 'rgba(220,180,195,0.6)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(0, -14); ctx.quadraticCurveTo(-4, 6, 0, 28); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-20, 6); ctx.quadraticCurveTo(0, -2, 20, 6); ctx.stroke();
+      ctx.fillStyle = '#F8D8DE'; el(ctx, 0, -16, 10, 6); ctx.fill();
+    },
+    potsticker: function (ctx) { // 煎餃
+      ctx.fillStyle = '#E0A050'; el(ctx, 0, 10, 30, 10); ctx.fill();
+      ctx.fillStyle = '#FBF0DE';
+      ctx.beginPath(); ctx.moveTo(-28, 4); ctx.quadraticCurveTo(0, -26, 28, 4); ctx.quadraticCurveTo(0, -4, -28, 4); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#E3CCA8'; ctx.lineWidth = 2;
+      for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(i * 7, -16); ctx.quadraticCurveTo(i * 7 + 3, -8, i * 7, 4); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(180,120,50,0.4)'; el(ctx, -6, 12, 10, 4); ctx.fill(); el(ctx, 10, 13, 8, 3.4); ctx.fill();
     }
   };
 
@@ -321,10 +404,24 @@
     }
   };
 
+  // 豪華版原本只是「同一份圖多畫幾份」，沒有任何發亮處理，跟普通版擺一起分不出差別、
+  // 甚至更雜亂（使用者反饋:看起來像二手貨）。補上柔光暈 + 白/金雙層 sparkle，
+  // 跟 toys.js drawToyDeluxe 的手法一致（白色墊底 + 金色疊上去），讓「豪華」有視覺依據。
   function drawFoodDeluxe(ctx, key, x, y, s) {
+    s = s || 1;
     const fn = FOODS_DELUXE[key] || FOODS[key] || FOODS.apple;
-    ctx.save(); ctx.translate(x, y); ctx.scale(s || 1, s || 1);
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.save();
+    ctx.shadowColor = 'rgba(246,196,74,0.5)'; ctx.shadowBlur = 22;
+    const glow = ctx.createRadialGradient(0, 0, 6, 0, 0, 48);
+    glow.addColorStop(0, 'rgba(255,244,200,0.55)'); glow.addColorStop(1, 'rgba(255,244,200,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, 0, 48, 0, TAU); ctx.fill();
     fn(ctx);
+    ctx.restore();
+    [[-34, -30, 6], [34, -18, 5], [-6, 36, 4]].forEach(function (p) {
+      sparkle(ctx, p[0], p[1], p[2], '#FFFFFF', 0.95);
+      sparkle(ctx, p[0], p[1], p[2] * 0.6, '#F6C44A', 0.95);
+    });
     ctx.restore();
   }
 

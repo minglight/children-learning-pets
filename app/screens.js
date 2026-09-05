@@ -1149,7 +1149,64 @@
     ctx.strokeStyle = '#7A5334'; ctx.lineWidth = 13; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(W2 * 0.16, gy - 4); ctx.quadraticCurveTo(W2 * 0.5, gy - 14, W2 * 0.84, gy - 6); ctx.stroke();
   }
-  window.PLS_SCENE_ROOM = { elephant: sceneElephant, xmascat: sceneXmascat, chick: sceneChick, owl: sceneOwl };
+  // 長頸鹿:白天莎凡納草原。跟象象(向日葵花園)、貓頭鷹(黃昏森林)同一個「自然棲地」系列,
+  // 但走明亮溫暖路線做區隔——這是唯一「白天晴空」的場景。
+  function acaciaDeco(ctx, x, y, s) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.strokeStyle = '#6B4A2E'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-2, -34); ctx.stroke();
+    ctx.fillStyle = '#5E7A3E';
+    ctx.beginPath(); ctx.ellipse(-2, -46, 46, 13, 0, 0, TAU2); ctx.fill();
+    ctx.fillStyle = '#6E8C48';
+    ctx.beginPath(); ctx.ellipse(-14, -52, 22, 8, -0.1, 0, TAU2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(18, -50, 20, 7.5, 0.1, 0, TAU2); ctx.fill();
+    ctx.restore();
+  }
+  function grassTuftDeco(ctx, x, y, s, col) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+    ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    [-10, -3, 4, 11].forEach(function (dx) {
+      ctx.beginPath(); ctx.moveTo(dx * 0.5, 0); ctx.quadraticCurveTo(dx * 0.7, -12, dx, -20); ctx.stroke();
+    });
+    ctx.restore();
+  }
+  function sceneGiraffe(ctx, W2, H2) {
+    const skyH = H2 * 0.47;
+    let g = ctx.createLinearGradient(0, 0, 0, skyH);
+    g.addColorStop(0, '#8FC7E8'); g.addColorStop(0.6, '#CFE4E0'); g.addColorStop(1, '#FCE7A8');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W2, skyH);
+    // 太陽(帶柔光暈)
+    const sx = W2 * 0.14, sy = 46;
+    const glow = ctx.createRadialGradient(sx, sy, 4, sx, sy, 60);
+    glow.addColorStop(0, 'rgba(255,244,200,0.65)'); glow.addColorStop(1, 'rgba(255,244,200,0)');
+    ctx.fillStyle = glow; elS(ctx, sx, sy, 60, 60); ctx.fill();
+    ctx.fillStyle = '#FCEFAE'; elS(ctx, sx, sy, 22, 22); ctx.fill();
+    // 幾朵雲
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    [[W2 * 0.55, 40], [W2 * 0.62, 48], [W2 * 0.86, 66], [W2 * 0.92, 60]].forEach(function (p) { elS(ctx, p[0], p[1], 20, 9); ctx.fill(); });
+    // 遠景山丘(兩層,營造縱深)
+    ctx.fillStyle = '#D9B87A';
+    ctx.beginPath(); ctx.moveTo(0, skyH); ctx.quadraticCurveTo(W2 * 0.25, skyH - 34, W2 * 0.5, skyH - 10);
+    ctx.quadraticCurveTo(W2 * 0.78, skyH + 14, W2, skyH - 20); ctx.lineTo(W2, skyH); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#C9A768';
+    ctx.beginPath(); ctx.moveTo(0, skyH); ctx.quadraticCurveTo(W2 * 0.35, skyH - 18, W2 * 0.7, skyH);
+    ctx.quadraticCurveTo(W2 * 0.85, skyH - 12, W2, skyH - 4); ctx.lineTo(W2, skyH); ctx.closePath(); ctx.fill();
+    // 地面:金黃草地
+    let gg = ctx.createLinearGradient(0, skyH, 0, H2);
+    gg.addColorStop(0, '#E8CC7E'); gg.addColorStop(1, '#D9B764');
+    ctx.fillStyle = gg; ctx.fillRect(0, skyH, W2, H2 - skyH);
+    // 相思樹(避開中央地墊區,靠兩側)
+    acaciaDeco(ctx, W2 * 0.1, skyH + 30, 1.05);
+    acaciaDeco(ctx, W2 * 0.92, skyH + 22, 0.85);
+    // 散佈草叢(避開中央地墊區)
+    [[W2 * 0.06, H2 - 24], [W2 * 0.18, H2 - 14], [W2 * 0.82, H2 - 18], [W2 * 0.94, H2 - 30], [W2 * 0.04, H2 - 44]].forEach(function (p) {
+      grassTuftDeco(ctx, p[0], p[1], 1, '#8FA24E');
+    });
+    ctx.strokeStyle = 'rgba(120,90,40,0.14)'; ctx.lineWidth = 1;
+    for (let x = 8; x < W2; x += 26) { ctx.beginPath(); ctx.moveTo(x, skyH + 6); ctx.lineTo(x - 4, H2 - 4); ctx.stroke(); }
+  }
+
+  window.PLS_SCENE_ROOM = { elephant: sceneElephant, xmascat: sceneXmascat, chick: sceneChick, owl: sceneOwl, giraffe: sceneGiraffe };
 
   PLS.register('home', home);
   PLS.register('room', room);

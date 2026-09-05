@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>新資產預覽 — 寵物 × 場景 × 食物玩具</title>
+<style>
+  :root{ --bg:#EFE3D2; --panel:#FFF9F0; --line:#E0CDB4; --ink:#5E4A36; --dim:#9A7B5C; --accent:#8FC9A8; --warn:#C2694E; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Andika","Huninn","Baloo 2",system-ui,sans-serif;padding:24px}
+  h1{font-size:23px;margin:0 0 6px}
+  h2{font-size:19px;margin:32px 0 4px}
+  p.sub{max-width:960px;margin:0 0 20px;color:var(--dim);font-size:14px;line-height:1.75}
+  code{background:#00000010;padding:1px 6px;border-radius:6px;font-size:13px}
+  .panels{display:flex;gap:22px;flex-wrap:wrap}
+  .panel{background:var(--panel);border:2px solid var(--line);border-radius:20px;padding:16px;
+    box-shadow:0 6px 18px rgba(120,90,50,0.08)}
+  .panel h3{font-size:17px;margin:0 0 2px}
+  .hint{font-size:12px;color:var(--dim);margin:0 0 10px;line-height:1.6;max-width:420px}
+  canvas{display:block;border-radius:14px;background:#EAF2F0}
+  .row{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px;max-width:440px}
+  button{font:inherit;font-size:13.5px;padding:7px 11px;border-radius:11px;
+    border:2px solid var(--line);background:#fff;color:var(--ink);cursor:pointer;line-height:1}
+  button:hover{background:#F6ECD9}
+  button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .lbl{font-size:11.5px;color:var(--dim);width:100%;margin:6px 0 0}
+  .state{margin-top:9px;font-size:12.5px;color:var(--dim)}
+  .warn{color:var(--warn);font-weight:bold}
+  .empty{color:var(--dim);font-size:14px;padding:12px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;max-width:1400px}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;text-align:center}
+  .cell canvas{background:#FBF2E0;border-radius:8px;margin:0 auto}
+  .cell .key{font-size:12px;color:var(--dim);margin-top:4px;word-break:break-all}
+  .cell .variants{display:flex;justify-content:center;gap:4px;margin-top:4px}
+  .cell .vtag{font-size:10px;color:var(--dim);background:#00000008;border-radius:6px;padding:2px 5px}
+</style>
+</head>
+<body>
+
+<h1>新資產預覽 — 寵物 × 場景 × 食物玩具</h1>
+<p class="sub">
+這頁是「新增視覺資產」的統一 trial 頁,不進 <code>sw.js</code> 的 <code>ASSETS</code>(跟 <code>actor-preview.html</code>/<code>debug.html</code> 同一套模式,不支援離線)。
+<b>第一區「新寵物 + 場景」是自動偵測的</b>:凡是已經用 <code>PLS_ACTOR.define()</code> 註冊、但還沒進 <code>config.js</code> <code>PLS_CONFIG.pets</code> 的物種,
+就會自動出現在這裡並帶著牠的房間場景(<code>app/screens.js</code> 的 <code>PLS_SCENE_ROOM</code>)一起看——新增一隻物種不用回來改這個頁面。
+沒有專屬場景的會用紅字提醒,不會偷偷 fallback 讓你以為做完了。
+下面兩區是<b>現有全部食物／玩具的基準對照</b>,新增品項時可以拿來比對風格一不一致。
+</p>
+
+<h2>新寵物 + 場景(自動偵測「還沒進 config.js 的物種」)</h2>
+<div class="panels" id="trial-panels"></div>
+
+<h2>食物圖鑑(基準對照,依 <code>CFG.math</code> / <code>CFG.math2</code> 關卡順序)</h2>
+<div class="grid" id="food-grid"></div>
+
+<h2>玩具圖鑑(基準對照,依 <code>CFG.english</code> / <code>CFG.english2</code> 關卡順序;全物種共用同一套,不分寵物)</h2>
+<div class="grid" id="toy-grid"></div>
+
+<script>
+// 這頁的用途就是頻繁改 app/*.js 重看效果,瀏覽器 HTTP cache 常常讓改完存檔還是看到舊版——
+// 用 timestamp 當 query string 強制每次重整都拿最新檔案,不用一直手動清 cache。
+(function () {
+  var v = Date.now();
+  var files = ['app/config.js', 'app/gen.js', 'app/bank.js', 'app/store.js', 'app/art.js',
+    'app/toys.js', 'app/visuals.js', 'app/pets.js', 'app/actor.js',
+    'app/actors/husky.js', 'app/actors/chick.js', 'app/actors/giraffe.js',
+    'app/main.js', 'app/screens.js'];
+  files.forEach(function (f) { document.write('<script src="' + f + '?v=' + v + '"><\/script>'); });
+})();
+</script>
+<script>
+(function(){
+  const A = window.PLS_ACTOR, CFG = window.PLS_CONFIG, ART = window.PLS_ART, TOY = window.PLS_TOY;
+  const SCENES = window.PLS_SCENE_ROOM || {};
+  const ACTIONS = ['idle','walk','eat','play','happy','sad','sleep','rest','stretch','greet'];
+  const STAGES = ['baby','kid','grown'];
+
+  // ════════════════════════════════════════════════════
+  // 區一:自動抓「已註冊但還沒進 config.js」的物種 = 新寵物 trial
+  // ════════════════════════════════════════════════════
+  const trialSpecies = Object.keys(A._reg).filter(function (id) {
+    return id !== '_template' && A.has(id) && !(CFG.pets && CFG.pets[id]);
+  });
+
+  const wrapEl = document.getElementById('trial-panels');
+  if (!trialSpecies.length) {
+    wrapEl.innerHTML = '<p class="empty">目前沒有「已寫程式但還沒進 config.js」的物種——所有 <code>app/actors/*.js</code> 都已經是正式寵物。新增一隻新物種(cp <code>_template.js</code> + <code>A.define()</code>)存檔重新整理這頁,牠就會自動出現在這裡。</p>';
+  }
+
+  trialSpecies.forEach(function (species) {
+    const wrap = document.createElement('div');
+    wrap.className = 'panel';
+    const hasScene = !!SCENES[species];
+    wrap.innerHTML = '<h3>' + species + ' · 寵物 + 場景 trial</h3>' +
+      '<p class="hint">' + (hasScene
+        ? '已有專屬場景(<code>PLS_SCENE_ROOM.' + species + '</code>),下面是場景 + 寵物疊在一起的即時效果。'
+        : '<span class="warn">⚠️ 還沒有專屬場景</span>——目前疊在通用壁紙房間上(僅這頁的簡化版占位,不是正式 fallback 畫面),照規則新物種的房間場景是必做項,不能一直用這個占位。') + '</p>';
+    const cv = document.createElement('canvas');
+    wrap.appendChild(cv);
+    wrapEl.appendChild(wrap);
+
+    const W = 440, H = 340, dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+
+    const actor = A.create(species, { stage: 'kid' });
+    let x = 0, facing = 1, walking = false, stage = 'kid', deco = 0;
+
+    const rowA = document.createElement('div'); rowA.className = 'row';
+    rowA.innerHTML = '<div class="lbl">語意動作</div>';
+    ACTIONS.forEach(function (a) {
+      if (a === 'walk') return;
+      const b = document.createElement('button'); b.textContent = a; b.dataset.act = a;
+      b.onclick = function () { walking = false; actor.act(a, { stage: stage, deco: deco }); };
+      rowA.appendChild(b);
+    });
+    wrap.appendChild(rowA);
+
+    const rowW = document.createElement('div'); rowW.className = 'row';
+    rowW.innerHTML = '<div class="lbl">走路</div>';
+    [['← 往左', -1], ['往右 →', 1], ['停', 0]].forEach(function (p) {
+      const b = document.createElement('button'); b.textContent = p[0];
+      b.onclick = function () {
+        if (p[1] === 0) { walking = false; actor.setMoving(false); }
+        else { walking = true; facing = p[1]; actor.setMoving(true, { facing: facing, speedRatio: 1 }); }
+      };
+      rowW.appendChild(b);
+    });
+    wrap.appendChild(rowW);
+
+    const rowS = document.createElement('div'); rowS.className = 'row';
+    rowS.innerHTML = '<div class="lbl">成長階段</div>';
+    STAGES.forEach(function (s) {
+      const b = document.createElement('button'); b.textContent = s; b.dataset.stage = s;
+      b.onclick = function () { stage = s; actor.setStage(s, deco); };
+      rowS.appendChild(b);
+    });
+    const bd = document.createElement('button'); bd.textContent = '換配件 ▸';
+    bd.onclick = function () { deco = (deco + 1) % 5; actor.setStage(stage, deco); };
+    rowS.appendChild(bd);
+    wrap.appendChild(rowS);
+
+    const state = document.createElement('div'); state.className = 'state';
+    wrap.appendChild(state);
+
+    const spec = A.spec(species);
+    const groundYFrac = 0.86;               // 站在地面偏下緣(場景切分:上 47% 天空/下 53% 地面)
+    const bnd = A.bounds(species);
+    const groundY = H * groundYFrac;
+    const petScale = Math.min(0.62, (groundY - 20) / Math.max(1, -bnd.top));  // 太高的物種自動縮小,頭才不會被裁掉
+    let last = performance.now() / 1000;
+
+    function loop(now) {
+      const t = now / 1000, dt = Math.min(0.05, t - last); last = t;
+      if (walking) {
+        x += spec.locomotion.speed * facing * dt * 0.6;
+        if (x > 150) { x = 150; facing = -1; actor.setMoving(true, { facing: -1, speedRatio: 1 }); }
+        if (x < -150) { x = -150; facing = 1; actor.setMoving(true, { facing: 1, speedRatio: 1 }); }
+      }
+      actor.update(t, dt);
+
+      ctx.clearRect(0, 0, W, H);
+      if (hasScene) {
+        SCENES[species](ctx, W, H);
+      } else {
+        // 沒有專屬場景時的簡化占位(不是正式 fallback,正式 fallback 見 room.js 的 roomInterior)
+        ctx.fillStyle = '#EFE3D2'; ctx.fillRect(0, 0, W, H * 0.47);
+        ctx.fillStyle = '#F7EEDF'; ctx.fillRect(0, H * 0.47, W, H * 0.53);
+        ctx.strokeStyle = 'rgba(150,120,90,0.3)'; ctx.beginPath();
+        ctx.moveTo(0, H * 0.47); ctx.lineTo(W, H * 0.47); ctx.stroke();
+      }
+      ctx.save();
+      ctx.translate(W / 2 + x, groundY);
+      ctx.scale(petScale, petScale);
+      actor.render(ctx, t);
+      ctx.restore();
+
+      const st = actor.st;
+      state.textContent = 'action: ' + st.action + (st.moving ? (' (走路 facing ' + (st.facing > 0 ? '右' : '左') + ')') : '')
+        + ' · stage: ' + st.stage + ' · deco: ' + st.deco + ' · 場景: ' + (hasScene ? '已有' : '缺');
+      rowA.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', !walking && b.dataset.act === st.action); });
+      rowS.querySelectorAll('button').forEach(function (b) { if (b.dataset.stage) b.classList.toggle('active', b.dataset.stage === stage); });
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  });
+
+  // ════════════════════════════════════════════════════
+  // 區二/三:食物/玩具基準對照(現有全部品項,依關卡出現順序去重)
+  // ════════════════════════════════════════════════════
+  function buildFoodKeys() {
+    const seen = {}, list = [];
+    (CFG.math || []).concat(CFG.math2 || []).forEach(function (lv) {
+      function add(k) { if (k && !seen[k]) { seen[k] = true; list.push(k); } }
+      if (lv.bite) add(lv.bite);
+      if (lv.feast && Array.isArray(lv.feast.items)) lv.feast.items.forEach(add);
+    });
+    return list;
+  }
+  function buildToyKeys() {
+    const seen = {}, list = [];
+    (CFG.english || []).concat(CFG.english2 || []).forEach(function (lv) {
+      if (lv.toyArtU && !seen[lv.toyArtU]) { seen[lv.toyArtU] = true; list.push(lv.toyArtU); }
+    });
+    return list;
+  }
+
+  // 新食物/玩具通常是先畫出來、還沒決定要掛哪個關卡,不會自動出現在上面兩個 build 函式裡
+  // (那兩個是照現有關卡掃出來的)。手動列在這裡,新增/移除品項時記得同步這份清單。
+  const TRIAL_FOOD_KEYS = [];
+  const TRIAL_TOY_KEYS = ['giraffeplush', 'numberblocks', 'nametag', 'birthdaycake', 'pencilcase', 'crayonbox', 'backpack', 'pumpkinlamp'];
+
+  function miniCanvas(cellW) {
+    const cv = document.createElement('canvas');
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = cellW * dpr; cv.height = cellW * dpr;
+    cv.style.width = cellW + 'px'; cv.style.height = cellW + 'px';
+    const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+    return { cv: cv, ctx: ctx };
+  }
+
+  function newBadge() {
+    const b = document.createElement('div');
+    b.textContent = '✨ 還沒掛關卡';
+    b.style.cssText = 'font-size:10px;color:#fff;background:var(--warn);border-radius:6px;padding:1px 6px;margin-bottom:4px;display:inline-block';
+    return b;
+  }
+
+  const foodGrid = document.getElementById('food-grid');
+  const allFoodKeys = buildFoodKeys().concat(TRIAL_FOOD_KEYS.filter(function (k) { return buildFoodKeys().indexOf(k) < 0; }));
+  allFoodKeys.forEach(function (key) {
+    const cell = document.createElement('div'); cell.className = 'cell';
+    const isTrial = TRIAL_FOOD_KEYS.indexOf(key) >= 0;
+    if (isTrial) { cell.style.border = '2px solid var(--warn)'; cell.appendChild(newBadge()); }
+    const row = document.createElement('div'); row.style.display = 'flex'; row.style.gap = '4px'; row.style.justifyContent = 'center';
+    [['basic', ART.drawFood], ['deluxe', ART.drawFoodDeluxe], ['gold', function (ctx, k, x, y, s) { ART.drawFoodGold(ctx, k, x, y, s); }]].forEach(function (v) {
+      const m = miniCanvas(64);
+      m.ctx.save(); m.ctx.translate(32, 32); m.ctx.scale(0.85, 0.85);
+      v[1](m.ctx, key, 0, 0, 1);
+      m.ctx.restore();
+      row.appendChild(m.cv);
+    });
+    cell.appendChild(row);
+    const tags = document.createElement('div'); tags.className = 'variants';
+    ['basic', 'deluxe', 'gold'].forEach(function (t) { const s = document.createElement('span'); s.className = 'vtag'; s.textContent = t; tags.appendChild(s); });
+    cell.appendChild(tags);
+    const k = document.createElement('div'); k.className = 'key'; k.textContent = key; cell.appendChild(k);
+    foodGrid.appendChild(cell);
+  });
+
+  const toyGrid = document.getElementById('toy-grid');
+  const allToyKeys = buildToyKeys().concat(TRIAL_TOY_KEYS.filter(function (k) { return buildToyKeys().indexOf(k) < 0; }));
+  allToyKeys.forEach(function (key) {
+    const cell = document.createElement('div'); cell.className = 'cell';
+    if (TRIAL_TOY_KEYS.indexOf(key) >= 0) { cell.style.border = '2px solid var(--warn)'; cell.appendChild(newBadge()); }
+    const row = document.createElement('div'); row.style.display = 'flex'; row.style.gap = '4px'; row.style.justifyContent = 'center';
+    [['basic', TOY.drawToy], ['deluxe', TOY.drawToyDeluxe]].forEach(function (v) {
+      const m = miniCanvas(64);
+      m.ctx.save(); m.ctx.translate(32, 32); m.ctx.scale(0.85, 0.85);
+      v[1](m.ctx, key, 0, 0, 1);
+      m.ctx.restore();
+      row.appendChild(m.cv);
+    });
+    cell.appendChild(row);
+    const tags = document.createElement('div'); tags.className = 'variants';
+    ['basic', 'deluxe'].forEach(function (t) { const s = document.createElement('span'); s.className = 'vtag'; s.textContent = t; tags.appendChild(s); });
+    cell.appendChild(tags);
+    const k = document.createElement('div'); k.className = 'key'; k.textContent = key; cell.appendChild(k);
+    toyGrid.appendChild(cell);
+  });
+})();
+</script>
+</body>
+</html>

@@ -119,27 +119,29 @@ window.PLS_CONFIG = {
   // 跟 math 是完全分開的陣列,不影響 math 原本的解鎖鏈;第一關(idx 0)照 levelState 規則永遠開放,
   // 不需要先破完 math 才能玩。房間「數學餐廳」卡進 tierPick 畫面選要玩哪一池,再進同一套 map/quiz 畫面
   // (map/quiz 用 params.tier 決定讀 CFG.math 還是 CFG.math2)。
+  // v14:食物全部換成 10 種新設計(onigiri~potsticker),跟一年級的 14 種區隔開,
+  // 課本進度前進了、獎勵也該有新鮮感,不要每次都吃一樣的東西。
   math2: [
     { id: 'g2c1', name: '課1 200以內的數', sub: '跳數‧位值‧付錢‧比大小', gen: 'hundredsTo200', icon: 'coin',
-      bite: 'bao', feast: { name: '銅板點心籃', basicName: '一份銅板點心', deluxeName: '銅板點心豪華籃', items: ['bao', 'eggcake', 'bao', 'eggcake', 'bao'] } },
+      bite: 'onigiri', feast: { name: '飯糰野餐盒', basicName: '一顆飯糰', deluxeName: '飯糰野餐豪華盒', items: ['onigiri', 'onigiri', 'onigiri', 'onigiri', 'onigiri'] } },
     { id: 'g2c2', name: '課2 二位數的加減法', sub: '進位加法‧退位減法‧比大小', gen: 'addSubCompare200', icon: 'plus',
-      bite: 'sundae', feast: { name: '聖代甜點塔', basicName: '一球聖代', deluxeName: '聖代甜點豪華塔', items: ['sundae', 'scoop', 'sundae', 'scoop', 'sundae'] } },
+      bite: 'mango', feast: { name: '芒果冰品攤', basicName: '一顆芒果', deluxeName: '芒果冰品豪華攤', items: ['mango', 'mango', 'mango', 'mango', 'mango'] } },
     { id: 'g2c3', name: '課3 認識公分', sub: '讀尺‧長度比較‧公分加減', gen: 'cmLength200', icon: 'shape',
-      bite: 'cake', feast: { name: '長條蛋糕捲', basicName: '一片蛋糕捲', deluxeName: '蛋糕捲豪華全條', items: ['cake', 'boba', 'cake', 'boba', 'cake'] } },
+      bite: 'taiyaki', feast: { name: '鯛魚燒攤', basicName: '一份鯛魚燒', deluxeName: '鯛魚燒豪華全份', items: ['taiyaki', 'taiyaki', 'taiyaki', 'taiyaki', 'taiyaki'] } },
     { id: 'g2c4', name: '課4 加減應用', sub: '加減互逆‧應用題‧驗算', gen: 'addSubApply200', icon: 'plus',
-      bite: 'burger', feast: { name: '早餐店大集合', basicName: '一份輕食', deluxeName: '早餐店豪華全餐', items: ['burger', 'fries', 'burger', 'fries', 'burger'] } },
+      bite: 'hotdog', feast: { name: '熱狗攤', basicName: '一份熱狗', deluxeName: '熱狗豪華全份', items: ['hotdog', 'hotdog', 'hotdog', 'hotdog', 'hotdog'] } },
     { id: 'g2c5', name: '課5 容量', sub: '容器容量比較‧裝水杯數比較', gen: 'capacity200', icon: 'shape',
-      bite: 'boba', feast: { name: '手搖飲特調', basicName: '一杯手搖飲', deluxeName: '手搖飲豪華特調', items: ['boba', 'eggcake', 'boba', 'eggcake', 'boba'] } },
+      bite: 'watermelon', feast: { name: '消暑西瓜攤', basicName: '一片西瓜', deluxeName: '消暑西瓜豪華攤', items: ['watermelon', 'watermelon', 'watermelon', 'watermelon', 'watermelon'] } },
     { id: 'g2c6', name: '課6 加減的商店', sub: '三數相加‧兩步驟減法‧加減兩步驟', gen: 'shopTwoStep200', icon: 'coin',
-      bite: 'sushi', feast: { name: '商店街小吃拼盤', basicName: '一份小吃', deluxeName: '商店街豪華拼盤', items: ['sushi', 'bao', 'sushi', 'bao', 'sushi'] } },
+      bite: 'donut', feast: { name: '甜甜圈鋪', basicName: '一個甜甜圈', deluxeName: '甜甜圈豪華全盒', items: ['donut', 'donut', 'donut', 'donut', 'donut'] } },
     { id: 'g2c7', name: '課7 乘法(一)', sub: '幾的幾倍‧2‧4‧5‧8的乘法', gen: 'mult200', icon: 'times',
-      bite: 'strawberry', feast: { name: '草莓千層派對', basicName: '一份草莓甜點', deluxeName: '草莓千層豪華全份', items: ['strawberry', 'cake', 'strawberry', 'cake', 'strawberry'] } },
+      bite: 'popcorn', feast: { name: '電影爆米花', basicName: '一桶爆米花', deluxeName: '爆米花豪華加大桶', items: ['popcorn', 'popcorn', 'popcorn', 'popcorn', 'popcorn'] } },
     { id: 'g2c8', name: '課8 時間', sub: '認識鐘面‧幾時幾分‧經過的時間', gen: 'clockTime200', icon: 'calendar',
-      bite: 'cake', feast: { name: '下午茶時光', basicName: '一份下午茶', deluxeName: '下午茶豪華全套', items: ['cake', 'boba', 'fries', 'cake', 'boba'] } },
+      bite: 'macaron', feast: { name: '馬卡龍禮盒', basicName: '一顆馬卡龍', deluxeName: '馬卡龍豪華禮盒', items: ['macaron', 'macaron', 'macaron', 'macaron', 'macaron'] } },
     { id: 'g2c9', name: '課9 乘法(二)', sub: '3‧6‧7‧9的乘法‧乘法應用', gen: 'mult2_200', icon: 'times',
-      bite: 'orange', feast: { name: '市場鮮蔬果籃', basicName: '一份新鮮蔬果', deluxeName: '市場鮮蔬果豪華籃', items: ['orange', 'apple', 'orange', 'banana', 'orange'] } },
+      bite: 'mochi', feast: { name: '大福和菓子', basicName: '一顆大福', deluxeName: '大福和菓子豪華盒', items: ['mochi', 'mochi', 'mochi', 'mochi', 'mochi'] } },
     { id: 'g2c10', name: '課10 面的大小比較', sub: '直接比較‧方格法間接比較', gen: 'areaCompare200', icon: 'shape',
-      bite: 'pizza', feast: { name: '披薩方格派對', basicName: '一片披薩', deluxeName: '披薩方格豪華全份', items: ['pizza', 'fries', 'pizza', 'fries', 'pizza'] } }
+      bite: 'potsticker', feast: { name: '煎餃小吃攤', basicName: '一份煎餃', deluxeName: '煎餃豪華全份', items: ['potsticker', 'potsticker', 'potsticker', 'potsticker', 'potsticker'] } }
   ],
 
   // ── 英文關卡(階梯,難度非常緩慢遞增)──────────────────
@@ -190,6 +192,11 @@ window.PLS_CONFIG = {
   // v14:每課 count 盡量貼齊 bank 大小,避免同一輪就強迫重複(見 e2c1_出題樣本 的討論)。
   // 用故事裡本來就有的多個角色(Abu/Edison/Rocky/Amber/Mia)代入同一句型,或把該課已教過的
   // 數字/顏色/文具單字套進已教過的句型,是課本原本就有的操練方式(仿寫/代換),不算超出範圍。
+  // 玩具沿用 doll/teaset/dollbed/basket/digger/dress/wand(2026-06-14 專案初版就有的舊圖,
+  // 原本是兔兔/倉倉各自專屬玩具,v9 全物種共用一套後就沒關卡在用了,english2 新增時撿回來用)。
+  // 曾經照課本主題重新設計過一批(numberblocks/nametag/birthdaycake/pencilcase/crayonbox/
+  // backpack/pumpkinlamp,見 app/toys.js),討論後決定先不換,新設計保留在 toys.js 沒有刪掉,
+  // 也列在 assets-preview.html 的 TRIAL_TOY_KEYS 裡,之後要用隨時可以把下面 toyArtU 換過去。
   english2: [
     { id: 'e2c1', name: 'Starter 打招呼', sub: 'Hi/Hello‧數字1-5', play: 'qa', count: 10,
       toyU: '小娃娃', toyArtU: 'doll',

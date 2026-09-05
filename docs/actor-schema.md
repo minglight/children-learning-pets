@@ -24,7 +24,7 @@
 3. **接進 `sw.js` 的 `ASSETS`**,並把 `VERSION` +1(否則玩家吃舊快取看不到新檔案)。
 4. **加進 `config.js` 的 `PLS_CONFIG.pets`**:名字、主題色。這裡的 key 順序就是選寵物畫面(`pickpet`)的排列順序——`app/lifecycle.js` 的 `SPECIES` 是從 `Object.keys(CFG.pets)` 自動推導的,不用另外維護第二份清單。
 5. **房間場景背景(`SCENE_ROOM`)是必做項,不是選用**:新物種要有符合牠主題元素的專屬房間背景,不可 fallback 通用壁紙房間。外包時 C1(寵物)+ C2(房間場景)一起委託,見 `docs/design-brief.md`;程式接線在 `app/screens.js` 的 `PLS_SCENE_ROOM`,格式比照既有的 `elephant`/`xmascat`/`chick`/`owl`。（既有 6 隻沒有專屬場景的維持原狀,不用回頭補。）
-6. **(選用)接進 `actor-preview.html`**:加一行 `<script src="app/actors/<species>.js"></script>` + 一個 `panel('<species>', ...)` 呼叫,方便單獨盯著這隻動物調整,不用整個 App 一起跑。
+6. **接進 `actor-preview.html` 是必做項,不是選用**:加一行 `<script src="app/actors/<species>.js"></script>` + 一個 `panel('<species>', ...)` 呼叫,永久留在檔案裡(不是測完就刪)。這是唯一能一次點過 10 個語意動作 + 走路 + 三個成長階段、逐項確認「動起來會不會露餡」的地方——光看靜態一張圖看不出脖子/腿彎起來時接縫還順不順、走路擺動自不自然,一定要點過一輪動畫才算數。
 7. **對照下面的「驗收清單」跑一遍**,再合併。
 
 **選寵物畫面(`pickpet`)版面注意**:目前是 4 欄可捲動 grid(`app/lifecycle.js`,照抄 `app/dex.js` 的 `scroll`/`maxScroll`/`onWheel`/拖曳/捲軸拉桿),裝不下會自動往下捲,新增物種不需要額外處理版面。
@@ -75,8 +75,9 @@
 
 - [ ] `app/actors/<species>.js` 複製自 `_template.js`,沒有共用其他物種的造型函式。
 - [ ] `A.define()` 的 spec 沒有傳 `stages`,成長階段比例在檔案內部自己的 `STAGES` 常數處理。
+- [ ] `actor-preview.html` 已加這隻的 `panel(...)`(必做項,不是測完就刪的暫時程式)。
 - [ ] 載入 `actor-preview.html`(或整個 App)時,console 沒有這隻物種的 `[PLS_ACTOR]` 警告。
-- [ ] 10 個語意動作都在 `actor-preview.html` 點過一輪,沒有動作演出來是空白/報錯。
+- [ ] 10 個語意動作都在 `actor-preview.html` 點過一輪、看它動起來,沒有動作演出來是空白/報錯,彎折處(脖子/長肢)在動態下沒有露出接縫。
 - [ ] 走路(往左/往右)看起來自然,`legFreq`/`tailFreq`/`lean` 的節奏跟這種動物的真實感覺相符。
 - [ ] 幼幼/小寶/大寶三階段比例有明顯差異,不是整隻等比縮放。
 - [ ] 大寶配件 5 款都畫出來、掛載座標沒有跑位或被身體擋住。
