@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v68';
+const VERSION = 'pls-v69';
 const ASSETS = [
   '.',
   'index.html',
@@ -16,6 +16,7 @@ const ASSETS = [
   'app/actor.js',
   'app/actors/husky.js',
   'app/actors/chick.js',
+  'app/actors/giraffe.js',
   'app/toys.js',
   'app/visuals.js',
   'app/main.js',

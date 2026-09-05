@@ -433,7 +433,10 @@
     draw: draw,
     mirror: true,
     // 長頸鹿刻意比其他物種高得多(脖子是賣點),但體型(halfWidth)反而比中型犬窄。
-    bounds: { top: -330, bottom: 8, halfWidth: 78 },
+    // top 留到 -400:大寶(grown)骨突比宣告的 -330 還高(實測到 -370 左右),
+    // 大寶配件 0 號(帽子)更高到 -385——留這個值才不會在用 bounds 精算縮放的畫面
+    // (圖鑑縮圖、選寵物格等)把骨突/帽子切到看不見。
+    bounds: { top: -400, bottom: 8, halfWidth: 78 },
     // 長腿但步頻放慢(悠哉感);真實長頸鹿走路是同側前後腳一起動的「側對步」,
     // 這裡先用一般四足對角步態近似,先求好看,不強求生物力學精確。
     locomotion: { speed: 48, legFreq: 3.4, tailFreq: 1.6, lean: 0.08, gait: 'pace' },

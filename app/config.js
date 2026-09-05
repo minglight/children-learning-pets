@@ -65,6 +65,11 @@ window.PLS_CONFIG = {
     owl: {
       id: 'owl', name: '貓頭鷹',
       theme: { wall: '#E3E1EF', dot: 'rgba(91,107,166,0.18)', accent: '#5B6BA6', deep: '#3E3A66' }
+    },
+    // 長頸鹿 — 莎凡納草原場景(第 11 隻,actor 架構;房間背景見 screens.js SCENE_ROOM.giraffe)
+    giraffe: {
+      id: 'giraffe', name: '長頸鹿',
+      theme: { wall: '#FBEAC8', dot: 'rgba(184,122,62,0.22)', accent: '#C9853E', deep: '#8A5A2E' }
     }
   },
 
