@@ -45,6 +45,56 @@
     ctx.restore();
   };
 
+  // 在 (cx,cy) 置中畫「入門/進階」徽章(關卡圖每個節點都顯示,讓小朋友一眼看出這關是基礎題還是挑戰題;
+  // 永遠顯示,不受 locked 變暗影響,跟 PLS_NUMBADGE 同一套邏輯)。tier: 'basic' | 'advanced'。
+  window.PLS_TIERBADGE = function (ctx, cx, cy, tier) {
+    const adv = tier === 'advanced';
+    const label = adv ? '進階' : '入門';
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.font = '700 20px ' + FONT;
+    const tw = ctx.measureText(label).width;
+    const iconW = 18, padL = 7, padR = 10, gap = 2;
+    const w = padL + iconW + gap + tw + padR, h = 28;
+    const bx = cx - w / 2, by = cy - h / 2;
+    ctx.shadowColor = 'rgba(80,60,40,0.20)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2;
+    ctx.fillStyle = adv ? '#E7DAFB' : '#DCF0E0';
+    A.rr(ctx, bx, by, w, h, h / 2); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = adv ? '#9B7FD4' : '#6FA86A'; ctx.lineWidth = 2;
+    A.rr(ctx, bx, by, w, h, h / 2); ctx.stroke();
+    const ix = bx + padL + iconW / 2;
+    A.drawIcon(ctx, adv ? 'bolt' : 'sprout', ix, cy, 0.55, adv ? '#8C6FD8' : '#4F8F55');
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = adv ? '#6A4FB0' : '#3E7A46';
+    ctx.fillText(label, bx + padL + iconW + gap, cy + 1);
+    ctx.restore();
+  };
+
+  // 在 (cx,cy) 置中畫「沒獎勵了」徽章(這一關過關次數已經超過上限,繼續玩也不會再拿點數/食物;
+  // 只在 state === 'cleared' 時才可能出現,不受 locked 影響所以不用處理 alpha)。
+  window.PLS_CAPBADGE = function (ctx, cx, cy) {
+    const label = '已滿';
+    ctx.save();
+    ctx.font = '700 19px ' + FONT;
+    const tw = ctx.measureText(label).width;
+    const iconW = 18, padL = 7, padR = 10, gap = 2;
+    const w = padL + iconW + gap + tw + padR, h = 28;
+    const bx = cx - w / 2, by = cy - h / 2;
+    ctx.shadowColor = 'rgba(80,60,40,0.18)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2;
+    ctx.fillStyle = '#EAE1D2';
+    A.rr(ctx, bx, by, w, h, h / 2); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#B9A88F'; ctx.lineWidth = 2;
+    A.rr(ctx, bx, by, w, h, h / 2); ctx.stroke();
+    const ix = bx + padL + iconW / 2;
+    A.drawIcon(ctx, 'nocoin', ix, cy, 0.5, '#9A8A6E');
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#8A7A5E';
+    ctx.fillText(label, bx + padL + iconW + gap, cy + 1);
+    ctx.restore();
+  };
+
   // 在 (cx,cy) 置中畫一顆「關卡編號」圓徽章(永遠顯示,不受 locked 變暗影響)
   window.PLS_NUMBADGE = function (ctx, cx, cy, num, fill) {
     ctx.save();
@@ -656,9 +706,12 @@
       } else {
         A.drawFood(ctx, n.lv.bite, x, y, 0.85);
       }
+      let mastered = false, capped = false;
       if (state === 'cleared') {
         const clears = ST.clearCount(d, n.lv.id);
-        window.PLS_CLEARBADGE(ctx, x + 40, y - 42, clears, clears >= ST.deluxeAt());
+        mastered = clears >= ST.deluxeAt();
+        capped = !mastered && clears >= ST.capFor(d, 'math', n.lv.id);
+        window.PLS_CLEARBADGE(ctx, x + 40, y - 42, clears, mastered);
       }
       if (state === 'locked') {
         ctx.globalAlpha = 1;
@@ -670,6 +723,9 @@
       }
       // 關卡編號(永遠顯示在左上角)
       window.PLS_NUMBADGE(ctx, x - 40, y - 40, n.i + 1, '#C2924F');
+      // 入門/進階(永遠顯示在左下角)+ 過關次數已達上限、不再給獎勵(右下角,只有解過才可能出現)
+      window.PLS_TIERBADGE(ctx, x - 46, y + 44, ST.levelTier(d, n.lv.id));
+      if (capped) window.PLS_CAPBADGE(ctx, x + 48, y + 44);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '26px ' + FONT; ctx.fillStyle = '#7A5C3E';
       ctx.fillText(n.lv.name, x, y + 80);

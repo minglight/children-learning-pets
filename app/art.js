@@ -633,6 +633,21 @@
       ctx.closePath(); ctx.fill();
     } else if (key === 'check') {
       ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-3, 9); ctx.lineTo(13, -9); ctx.stroke();
+    } else if (key === 'sprout') { // 入門關卡徽章用:嫩芽
+      ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.moveTo(0, 12); ctx.lineTo(0, -6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -4); ctx.quadraticCurveTo(-14, -6, -13, -17); ctx.quadraticCurveTo(-2, -16, 0, -4); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0, 2); ctx.quadraticCurveTo(13, 0, 12, -11); ctx.quadraticCurveTo(1, -10, 0, 2); ctx.closePath(); ctx.fill();
+    } else if (key === 'bolt') { // 進階關卡徽章用:閃電
+      ctx.beginPath();
+      ctx.moveTo(3, -15); ctx.lineTo(-9, 3); ctx.lineTo(-1, 3); ctx.lineTo(-4, 15); ctx.lineTo(10, -5); ctx.lineTo(1, -5);
+      ctx.closePath(); ctx.fill();
+    } else if (key === 'nocoin') { // 「沒獎勵了」徽章用:被劃掉的金幣
+      ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = '700 13px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('$', 0, 1);
+      ctx.beginPath(); ctx.moveTo(-9, 9); ctx.lineTo(9, -9); ctx.stroke();
     }
     ctx.restore();
   }

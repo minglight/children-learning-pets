@@ -164,9 +164,12 @@
       const tk = n.lv.toyArtU;
       if (tk) TOY.drawToy(ctx, tk, x, y, 0.66);
       else { ctx.fillStyle = 'rgba(150,170,150,0.5)'; ctx.font = '46px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('?', x, y + 2); }
+      let mastered = false, capped = false;
       if (state === 'cleared') {
         const clears = ST.clearCount(d, n.lv.id);
-        window.PLS_CLEARBADGE(ctx, x + 40, y - 42, clears, clears >= ST.deluxeAt());
+        mastered = clears >= ST.deluxeAt();
+        capped = !mastered && clears >= ST.capFor(d, 'english', n.lv.id);
+        window.PLS_CLEARBADGE(ctx, x + 40, y - 42, clears, mastered);
       }
       if (state === 'locked') {
         ctx.globalAlpha = 1;
@@ -176,8 +179,9 @@
         ctx.restore();
         A.drawIcon(ctx, 'lock', x + 40, y - 36, 0.92, '#8FA58F');
       }
-      // 關卡編號(永遠顯示在左上角)
+      // 關卡編號(永遠顯示在左上角);英文沒有入門/進階分級,只在達上限時提示右下角
       window.PLS_NUMBADGE(ctx, x - 40, y - 40, n.i + 1, '#6E9A6E');
+      if (capped) window.PLS_CAPBADGE(ctx, x + 48, y + 44);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '26px ' + FONT; ctx.fillStyle = '#56684E';
       ctx.fillText(n.lv.name, x, y + 80);

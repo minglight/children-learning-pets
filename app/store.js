@@ -356,6 +356,11 @@
   function clearCapFor(d, levelId) {
     return levelTier(d, levelId) === 'advanced' ? getClearCapAdvanced() : getClearCapBasic();
   }
+  // 依科目算過關次數上限:數學走上面的難易度分層,英文沒有分級設定、固定 10 次
+  // (跟 deluxeAt() 剛好同值是巧合,語意不同,不要合併成同一個常數)。
+  function capFor(d, subject, levelId) {
+    return subject === 'math' ? clearCapFor(d, levelId) : 10;
+  }
 
   // 「破到第幾關」獎盃數字:list 陣列是序列解鎖(上一關過關才開下一關),
   // 從頭數到「第一個沒過關」為止的關卡數,代表目前的學習進度深度。math/english 共用同一套算法
@@ -398,7 +403,7 @@
         // 但「滿 10 次送豪華版」這個里程碑不受這個門檻擋——不然入門關卡預設門檻只有 3 次,凡是
         // 早該在門檻調整前就快集滿 10 次的小孩(例如已經 9 次),之後就再也碰不到豪華版了,等於
         // 調整難度分級反而把原本快到手的獎勵沒收掉。所以第 10 次通關這一下永遠照給,其餘次數才吃門檻。
-        const cap = (subject === 'math') ? clearCapFor(d, levelId) : 10;
+        const cap = capFor(d, subject, levelId);
         const hitDeluxeMilestone = rec.clears === deluxeAt();
         if (rec.clears <= cap || hitDeluxeMilestone) {
           feast = true;
@@ -841,7 +846,7 @@
     getClearCapBasic: getClearCapBasic, setClearCapBasic: setClearCapBasic,
     getClearCapAdvanced: getClearCapAdvanced, setClearCapAdvanced: setClearCapAdvanced,
     getAdvancedFrom: getAdvancedFrom, setAdvancedFrom: setAdvancedFrom,
-    levelTier: levelTier, clearCapFor: clearCapFor, trophyNumber: trophyNumber, trophyNumberEnglish: trophyNumberEnglish,
+    levelTier: levelTier, clearCapFor: clearCapFor, capFor: capFor, trophyNumber: trophyNumber, trophyNumberEnglish: trophyNumberEnglish,
     trophyNumberFor: trophyNumberFor,
     getPoints: getPoints, awardHandwriting: awardHandwriting, hwDailyLeft: hwDailyLeft,
     hwRoundProgress: hwRoundProgress, submitHwLetter: submitHwLetter,
