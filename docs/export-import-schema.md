@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 13`（v13 聊天記憶:新增 memo/lastSeen,寵物記得發生過的事;v12 難易度分級獎勵:過關次數上限依入門/進階分層,新增 advancedFrom;v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
+## 目前版本:`version = 14`（v14 解題長大:新增 growCele 升階慶祝待播,成長值改以過關為主;v13 聊天記憶:新增 memo/lastSeen,寵物記得發生過的事;v12 難易度分級獎勵:過關次數上限依入門/進階分層,新增 advancedFrom;v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -17,7 +17,7 @@
 ```jsonc
 {
   "app": "pls",                       // 固定字串;不是 "pls" 一律拒絕匯入
-  "version": 13,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
+  "version": 14,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
   "exportedAt": "2026-06-18T08:00:00.000Z", // ISO 時間,僅供參考
   "kidL": { /* 左邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 rabbit)
   "kidR": { /* 右邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 hamster)
@@ -84,6 +84,8 @@
       "pet": "哈哈", "act": "play", "item": "小火箭" }
   ],
   "lastSeen": "2026-8-20",    // v13:上次進房間的日期(距今 ≥2 天,寵物會說「好久不見」);null = 還沒進過
+  "growCele": null,           // v14:升階慶祝待播('kid' | 'grown' | null)。升階發生在答題畫面時記在這裡,
+                              //     下次進房間播完慶祝就清回 null;選寵物/畢業也會清掉
   "levels": {                 // 關卡進度:levelId -> 紀錄
     "e2": {
       "attempts": 30,         // 累計作答題數
@@ -251,3 +253,14 @@
   `{pet}` 的台詞**(每組模板都留了一句),真的沒有替代句才由 `fill()` 代換成「寵物」。不會出現半截的句子。
 - **語意澄清**:拜訪時挑的食物/玩具是「當場給朋友的寵物吃掉 / 陪牠玩」,**不是送禮物** ——
   東西不會進到對方背包,自己的背包也不扣(見 `docs/cloud-friends-schema.md`「拜訪分享」)。
+
+### v14（2026-09,成長改「解題長大」)
+- **新增 `growCele`**(`'kid'` | `'grown'` | `null`):升階慶祝待播。成長值現在主要來自「過關」,升階常發生在答題畫面,
+  `store.gainXp()` 升階時把新階段記在這裡,`room.js enter()` 讀到就播升階慶祝、播完 `clearGrowCele()` 清回 null。
+  舊檔缺這欄補 `null`;不是 `'kid'`/`'grown'` 的值一律當 `null`。
+- **成長值來源改變(不改欄位、不重算舊檔的 xp)**:`store.js GROW` —
+  正式過關(有獎勵)`+CLEAR_XP`(5)、滿分 `+PERFECT_XP`(7);獎勵已拿滿 / 練習模式過關 `+REPEAT_XP`(2);
+  字母手寫描滿一輪 `+HW_ROUND_XP`(3);餵食 / 陪玩每天前 `CARE_XP_ACTS`(5)次(餵+玩合計)各 +1(許願/金色食物 +2),
+  之後只是互動不加成長;所有來源合計每日上限 `DAILY_XP_CAP`(20)。舊的「每天第一次餵/玩多 +2」(`DAILY_BONUS`)取消。
+  `recordRun()` / `submitHwLetter()` 的回傳多了 `grow`(gainXp 結果),畫面拿來畫「🌱 成長 +N」徽章。
+- `care.fed` / `care.played` 欄位不變,但多了一個用途:判斷今天餵/玩的加成次數用完沒(`careXpLeft()`)。

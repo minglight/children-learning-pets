@@ -36,16 +36,28 @@
   // v13:聊天記憶 — 每小孩新增 memo(寵物記得的事件,最多 20 筆,閒聊時拿出來講)、
   //     lastSeen(上次進房間日期,給「好久不見」的招呼用)。兩者都是本機聊天素材,
   //     不影響成長/積分/關卡;舊檔缺欄位補空即可(不回填歷史,不騙小孩說記得沒發生的事)。
-  const SCHEMA_VERSION = 13;
+  // v14:成長改「解題長大」— 新增 growCele(升階慶祝待播:'kid'|'grown'|null;升階發生在答題畫面時,
+  //     回房間再播升階慶祝,播完清掉)。成長值的來源改成過關為主(見 GROW 常數),餵食/陪玩只是小補;
+  //     舊檔的 xp 數字原樣保留,不重算。
+  const SCHEMA_VERSION = 14;
   const GRADUATE_DAYS = 1;   // 大寶停留幾天後可畢業入珍藏(測試版不限)
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
   const HW_ROUND_TOTAL = 52;
 
-  // ── 成長系統常數(v4)──
+  // ── 成長系統常數(v4;v16 改「解題長大」)──
   // 階段門檻:xp < KID_AT = 幼幼;< GROWN_AT = 小寶;之後 = 大寶。
-  // v8:DAILY_XP_CAP = 每日成長值上限(平板時間煞車)。100xp ÷ 15 ≈ 7 天,最快一週長大;測試模式不限。
-  const GROW = { KID_AT: 30, GROWN_AT: 100, FEED_XP: 4, PLAY_XP: 6, DAILY_BONUS: 2, DAILY_XP_CAP: 15 };
+  // 成長值主要來自「解題」:正式過關 +CLEAR_XP(滿分 +PERFECT_XP);同一關再解(獎勵已拿滿 / 練習模式)
+  // 過關也有 +REPEAT_XP;字母手寫描滿一輪 +HW_ROUND_XP。
+  // 餵食 / 陪玩只是小補:每天前 CARE_XP_ACTS 次(餵+玩合計)各 +FEED_XP / +PLAY_XP(許願食物、金色食物
+  // +FEED_SPECIAL_XP),之後再餵/玩只有互動(圖鑑、許願、回憶照常),不加成長——長大要靠解題。
+  // DAILY_XP_CAP = 每日成長值上限(所有來源合計;平板時間煞車):100 ÷ 20 = 一天解 4 關,5 天養到大寶;測試模式不限。
+  const GROW = {
+    KID_AT: 30, GROWN_AT: 100,
+    CLEAR_XP: 5, PERFECT_XP: 7, REPEAT_XP: 2, HW_ROUND_XP: 3,
+    FEED_XP: 1, FEED_SPECIAL_XP: 2, PLAY_XP: 1, CARE_XP_ACTS: 5,
+    DAILY_XP_CAP: 20
+  };
   const STAGE_NAMES = { baby: '幼幼', kid: '小寶', grown: '大寶' };
 
   // ── v13:聊天記憶(memo)──
@@ -85,6 +97,7 @@
       decoDex: {},                // v10:配件圖鑑 {species:[5 bool]};養大寶抽到的款式會解鎖,珍藏館換裝只能用已解鎖的
       care: { date: today(), fed: 0, played: 0, xpToday: 0 },  // v4:今日照顧計數(跨日歸零)。v8:xpToday=今日已累積成長值
       memo: [],                      // v13:聊天記憶(最多 20 筆事件,閒聊時拿出來講)
+      growCele: null,                // v14:升階慶祝待播('kid'|'grown'),答題畫面升階 → 回房間播完清掉
       lastSeen: null,                // v13:上次進房間的日期(給「好久不見」的招呼用)
       wish: null,                    // v5:今日許願 {key, date, done};由 getWish() 產生
       dex: { foods: [], toys: [] },  // v5:圖鑑(吃過的食物 / 玩過的玩具 key 清單,畢業不歸零)
@@ -204,6 +217,8 @@
     // ── v13:聊天記憶 ──
     if (!Array.isArray(p.memo)) p.memo = [];
     if (typeof p.lastSeen !== 'string') p.lastSeen = null;
+    // ── v14:升階慶祝待播 ──
+    if (p.growCele !== 'kid' && p.growCele !== 'grown') p.growCele = null;
     p.home = migrateHome(p.home);
     // ── v6:移除佈置功能 — 把家裡擺出的食物/玩具轉進背包(deluxe 算 2 份),格子清空 ──
     if (from < 6) {
@@ -405,10 +420,10 @@
     rec.plays++;
     rec.attempts += total;
     if (rate > rec.bestRate) rec.bestRate = rate;
-    let feast = false, deluxe = false, point = 0, passed = false, capped = false;
+    let feast = false, deluxe = false, point = 0, capped = false;
+    const passed = passCheck(firstTryCorrect, total);   // 練習模式也算「有沒有過關」(過關就 +REPEAT_XP)
     if (!practice) {
-      if (passCheck(firstTryCorrect, total)) {
-        passed = true;
+      if (passed) {
         rec.cleared = true;
         rec.clears = (rec.clears || 0) + 1;
         if (!isTest()) rec.lastClearDate = today();   // 測試版不鎖每日
@@ -438,8 +453,15 @@
       }
     }
     d.levels[levelId] = rec;
+    // v16:解題長大 — 有獎勵的正式過關 +CLEAR_XP(滿分 +PERFECT_XP);獎勵已拿滿 / 練習模式過關 +REPEAT_XP。
+    // 沒過關 0(答對題數會顯示在結果畫面,鼓勵再挑戰)。gainXp 會吃每日上限。
+    let grow = null;
+    if (passed) {
+      const xp = feast ? (rate >= 1 ? GROW.PERFECT_XP : GROW.CLEAR_XP) : GROW.REPEAT_XP;
+      grow = gainXp(d, xp);
+    }
     save(d);
-    return { rate: rate, passed: passed, feast: feast, deluxe: deluxe, capped: capped, clears: rec.clears, point: point };
+    return { rate: rate, passed: passed, feast: feast, deluxe: deluxe, capped: capped, clears: rec.clears, point: point, grow: grow };
   }
 
   // ── 積分(過關 / 手寫練習累積,可兌換獎品;本寵物獨立)──
@@ -482,6 +504,7 @@
       var res = awardHandwriting(d);     // 套用每天 3 輪 / 累計上限 100 規則(內含 save)
       d.hwRound = [];                    // 不論有沒有拿到分,完成一輪就開始新的一輪
       pushMemo(d, { k: 'hwRound', mood: 'proud' });   // v13:描滿 A–Z 一整輪,值得記住
+      res.grow = gainXp(d, GROW.HW_ROUND_XP);          // v16:描滿一輪也會長大(吃每日上限)
       save(d);
       res.complete = true;
       res.count = HW_ROUND_TOTAL;
@@ -586,12 +609,22 @@
     if (prev !== today()) { d.lastSeen = today(); save(d); }
     return gap;
   }
-  // 關卡短名(記憶用;數學/英文共用;數學要 math + math2 兩個池都找一次)
+  // 關卡短名(記憶用;數學/英文共用;數學要 math + math2 兩個池都找一次)。
+  // 泡泡是單行、台詞要壓在 20 字內,所以名字要短:「Unit3 這是什麼?」→「這是什麼」、「課6 買東西」→「買東西」
+  // (去掉英文/課次前綴和句尾標點);「加法」這種 2 字名字加上短副標才分得出是哪一關 →「加法(10 以內)」。
+  function shortLevelName(lv) {
+    var name = String(lv.name || '');
+    var m = name.match(/^(?:[A-Za-z][A-Za-z0-9' ]*|課\d+)\s+(.+)$/);   // "Unit3 這是什麼?" / "My School Bag 我的書包" / "課6 買東西"
+    if (m) name = m[1];
+    name = name.replace(/[?？!！。.]+$/g, '');
+    if (name.length <= 3 && lv.sub && lv.sub.length <= 6) name += '(' + lv.sub + ')';
+    return name;
+  }
   function levelLabel(subject, levelId) {
     var list = subject === 'english'
       ? ((window.PLS_CONFIG && window.PLS_CONFIG.english) || []).concat((window.PLS_CONFIG && window.PLS_CONFIG.english2) || [])
       : ((window.PLS_CONFIG && window.PLS_CONFIG.math) || []).concat((window.PLS_CONFIG && window.PLS_CONFIG.math2) || []);
-    for (var i = 0; i < list.length; i++) if (list[i].id === levelId) return list[i].name;
+    for (var i = 0; i < list.length; i++) if (list[i].id === levelId) return shortLevelName(list[i]);
     return null;
   }
 
@@ -606,6 +639,7 @@
     d.growth = { xp: 0, deco: null, grownAt: null };
     d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
     d.wish = null;
+    d.growCele = null;
     save(d);
     return d;
   }
@@ -641,6 +675,7 @@
     d.growth = { xp: 0, deco: null, grownAt: null };
     d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
     d.wish = null;
+    d.growCele = null;
     save(d);
     return entry;
   }
@@ -674,9 +709,10 @@
 
   // 加成長值(內部):回 { gain, capped, xp, stage, grew(有沒有升階), stageZh, deco }
   // v8:每日成長上限(平板時間煞車)。超過上限的部分不再加 xp(但呼叫端動畫/圖鑑/積分照常);測試模式不限。
-  function gainXp(d, base, firstToday) {
+  // v16:升階時順便記 growCele —— 升階可能發生在答題畫面(過關長大),回房間才播升階慶祝。
+  function gainXp(d, base) {
     var before = stageOf(d.growth.xp);
-    var want = base + (firstToday ? GROW.DAILY_BONUS : 0);
+    var want = base;
     var gain = want;
     if (!isTest()) {
       if (typeof d.care.xpToday !== 'number') d.care.xpToday = 0;
@@ -694,7 +730,10 @@
       markDeco(d.decoDex || (d.decoDex = {}), d.species, d.growth.deco);
       pushMemo(d, { k: 'newDeco', mood: 'excited', deco: d.growth.deco, species: d.species });   // v13
     }
-    if (grew) pushMemo(d, { k: 'grow', mood: 'proud', stage: after, stageZh: STAGE_NAMES[after] });   // v13:長大是大事
+    if (grew) {
+      pushMemo(d, { k: 'grow', mood: 'proud', stage: after, stageZh: STAGE_NAMES[after] });   // v13:長大是大事
+      d.growCele = after;   // v14 schema:回房間播升階慶祝(room.js enter 讀到就播、播完 clearGrowCele)
+    }
     // v9:第一次升上大寶 → 記日期,開始 GRADUATE_DAYS 天畢業倒數
     if (grew && after === 'grown' && !d.growth.grownAt) d.growth.grownAt = today();
     return { gain: gain, capped: gain < want, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: grew, deco: d.growth.deco };
@@ -703,24 +742,34 @@
   // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1);餵中今日許願的食物 → 基礎值加倍。
   // v7:gold=true 消耗金色食物(inv.gold),基礎成長值再 ×2(與許願加倍可疊)。
   // 沒有該食物回 null;成功回 gainXp 的結果(含 grew 供升階慶祝、wishGranted 供許願慶祝)。
-  // 今天的成長值已經到頂(DAILY_XP_CAP)?到頂就不再餵/玩——食物玩具不會白白消耗,寵物會說「明天再來」。
-  // 測試模式不限。
+  // 今天的成長值已經到頂(DAILY_XP_CAP)?(成長條文案用;測試模式永遠 false)
   function xpFull(d) {
     if (isTest()) return false;
     return ((d.care && d.care.xpToday) || 0) >= GROW.DAILY_XP_CAP;
+  }
+  // 今天餵食 / 陪玩還會不會加成長值:每天前 CARE_XP_ACTS 次(餵+玩合計)才有;之後只是互動。測試模式不限。
+  function careXpLeft(d) {
+    if (isTest()) return 99;
+    return Math.max(0, GROW.CARE_XP_ACTS - (((d.care && d.care.fed) || 0) + ((d.care && d.care.played) || 0)));
+  }
+  // 沒加成長值時回一個「長得像 gainXp 結果」的物件,呼叫端不用分兩套判斷
+  function noGain(d) {
+    var st = stageOf(d.growth.xp);
+    return { gain: 0, capped: false, xp: d.growth.xp, stage: st, stageZh: STAGE_NAMES[st], grew: false, deco: d.growth.deco, noCare: true };
   }
 
   function feed(d, key, gold) {
     var box = gold ? (d.inv && d.inv.gold) : (d.inv && d.inv.foods);
     if (!box || !(box[key] > 0)) return null;
-    if (xpFull(d)) return { full: true };
+    var careLeft = careXpLeft(d);   // 先算,下面 fed++ 之前
     box[key]--;
     if (box[key] <= 0) delete box[key];
     d.care.fed++;
     // v5:許願命中 → 基礎成長值 ×2,並把願望標記完成(金色也算,加倍可疊)
     var wishGranted = !!(d.wish && d.wish.date === today() && !d.wish.done && d.wish.key === key);
     if (wishGranted) d.wish.done = true;
-    var res = gainXp(d, GROW.FEED_XP * (wishGranted ? 2 : 1) * (gold ? 2 : 1), d.care.fed === 1);
+    // v16:餵食只是小補 — 每天前幾次才 +1(許願 / 金色 +2,不疊加),之後純互動不加成長
+    var res = careLeft > 0 ? gainXp(d, (wishGranted || gold) ? GROW.FEED_SPECIAL_XP : GROW.FEED_XP) : noGain(d);
     res.wishGranted = wishGranted;
     res.gold = !!gold;
     if (d.dex.foods.indexOf(key) < 0) d.dex.foods.push(key);   // v5:圖鑑點亮
@@ -733,11 +782,11 @@
   // 陪玩:消耗 1 個玩具,成長值 +3(當天第一次多 +1)。
   function playToy(d, key) {
     if (!d.inv || !d.inv.toys || !(d.inv.toys[key] > 0)) return null;
-    if (xpFull(d)) return { full: true };
+    var careLeft = careXpLeft(d);
     d.inv.toys[key]--;
     if (d.inv.toys[key] <= 0) delete d.inv.toys[key];
     d.care.played++;
-    var res = gainXp(d, GROW.PLAY_XP, d.care.played === 1);
+    var res = careLeft > 0 ? gainXp(d, GROW.PLAY_XP) : noGain(d);
     if (d.dex.toys.indexOf(key) < 0) d.dex.toys.push(key);     // v5:圖鑑點亮
     save(d);
     return res;
@@ -745,9 +794,14 @@
 
   // 額外成長值(吃出幸運星等驚喜):回 gainXp 結果(可能觸發升階)。
   function bonusXp(d, n) {
-    var res = gainXp(d, Math.max(1, n | 0), false);
+    var res = gainXp(d, Math.max(1, n | 0));
     save(d);
     return res;
+  }
+  // 升階慶祝已經播過 → 清掉待播旗標
+  function clearGrowCele(slot) {
+    var d = load(slot);
+    if (d.growCele) { d.growCele = null; save(d); }
   }
 
   // ── v5:寵物許願(每天一個想吃的食物;餵中成長值加倍)──
@@ -878,7 +932,7 @@
     getPrizes: getPrizes, setPrizes: setPrizes, redeem: redeem,
     rewardsHidden: rewardsHidden, setRewardsHidden: setRewardsHidden,
     // v4:背包 / 成長 / 照顧
-    GROW: GROW, GRADUATE_DAYS: GRADUATE_DAYS, xpFull: xpFull, passCheck: passCheck,
+    GROW: GROW, GRADUATE_DAYS: GRADUATE_DAYS, xpFull: xpFull, careXpLeft: careXpLeft, clearGrowCele: clearGrowCele, passCheck: passCheck,
     stageOf: stageOf, growthInfo: growthInfo,
     invList: invList, invTotal: invTotal,
     addFoods: addFoods, addToy: addToy, feed: feed, playToy: playToy,

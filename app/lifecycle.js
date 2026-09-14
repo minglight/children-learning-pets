@@ -374,7 +374,9 @@
       const N = ST.DECO_N || 5;
       A.pill(ctx, W / 2, 132, '已收集 ' + this.owned.length + ' / ' + N + ' 款 · 點下面就能換上', '#A07B58', 'rgba(255,255,255,0.85)', 22);
       const bob = Math.sin(t * 2) * 4;
-      drawPetAt(ctx, this.species, t, W / 2, 468 + bob, 0.8, { stage: 'grown', mode: 'happy', growDeco: this.cur });
+      // 縮放用 spanOf 反推(大寶 ×1.12):頭頂壓在 pill 下方 160,長頸鹿不會頂到標題
+      const dsc = Math.min(0.8, (468 - 160) / (window.PLS_ACTOR.spanOf(this.species) * 1.12));
+      drawPetAt(ctx, this.species, t, W / 2, 468 + bob, dsc, { stage: 'grown', mode: 'happy', growDeco: this.cur });
     }
   };
 

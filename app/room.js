@@ -407,6 +407,8 @@
 
   // ── 設定欄(左)─────────────────────────────────────
   const PW = 384;
+  // 左欄成長卡的位置(4 張主選單卡之後);畢業卡出現時接在同一個位置
+  const GROWTH_CARD = { y: 560, h: 96 };
   const ICON = {
     eat: function (ctx, x, y) { A.drawFood(ctx, 'eggcake', x - 9, y - 2, 0.5); A.drawFood(ctx, 'boba', x + 11, y, 0.42); },
     play: function (ctx, x, y) { TOY.drawToy(ctx, 'doll', x, y + 2, 0.46); },
@@ -511,6 +513,16 @@
       this.trayPage = 0;     // v15:托盤分頁(一頁 14 格)
       this.act = null;       // 進行中的餵食/陪玩動畫
       this.grow = null;      // 升階慶祝 {t0, stage, stageZh}
+      // v16:解題長大 —— 升階可能發生在答題畫面,回房間才播慶祝(store 的 growCele 旗標,播完清掉)
+      {
+        const gd = ST.load(pid);
+        if (gd.growCele && gd.species) {
+          const ggi = ST.growthInfo(gd);
+          this.grow = { t0: PLS.t + 0.4, stage: ggi.stage, stageZh: ggi.stageZh };
+          ST.clearGrowCele(pid);
+          if (PLS.sfx && PLS.sfx.feast) PLS.sfx.feast();
+        }
+      }
       this.pat = null;       // 摸摸寵物 {t0}
       this.bubble = null;    // 寵物對話泡泡 {text, until, ask}
       this._askRects = null; // v13:回答選項鈕的命中範圍(每幀由 drawAsk 更新)
@@ -622,9 +634,10 @@
           onTap: function () { if (it.action) it.action(); else PLS.go(it.go, { pet: pid }); }
         });
       });
-      // v9:大寶滿 GRADUATE_DAYS 天 → 畢業入珍藏(金色脈動卡)
-      if (ST.canGraduate(ST.load(pid))) {
-        const gy = NTOP + NAV.length * NSTEP;
+      // v9:大寶滿 GRADUATE_DAYS 天 → 畢業入珍藏(金色脈動卡;v16:接在成長卡的位置,成長卡那時不畫,不再互相蓋住)
+      this.canGrad = ST.canGraduate(ST.load(pid));
+      if (this.canGrad) {
+        const gy = GROWTH_CARD.y;
         PLS.addButton({
           x: 30, y: gy, w: PW - 60, h: NH,
           draw: function (ctx) {
@@ -792,7 +805,10 @@
     // 撒嬌機率刻意壓低:今天還沒被照顧時偶爾提一下就好,其餘時間都拿來聊天。
     rollLine: function (d) {
       const fed = d.care.fed > 0, played = d.care.played > 0;
-      if (!fed && Math.random() < 0.35) return { text: pickTalk(CFG.talkCare.hungryNag) };
+      // v16:解題才是長大的主要來源 —— 今天還沒過關就優先邀主人去解題(機率一樣壓低,不催)
+      const solved = ((d.daily && d.daily.math) || 0) + ((d.daily && d.daily.english) || 0) > 0;
+      if (!solved && CFG.talkCare.solveNag && Math.random() < 0.35) return { text: pickTalk(CFG.talkCare.solveNag) };
+      if (!fed && Math.random() < 0.2) return { text: pickTalk(CFG.talkCare.hungryNag) };
       if (fed && !played && ST.invTotal(d, 'toys') > 0 && Math.random() < 0.2) {
         return { text: pickTalk(CFG.talkCare.playNag) };
       }
@@ -880,8 +896,6 @@
     startFeed: function (key, gold) {
       const res = ST.feed(ST.load(this.petId), key, gold);
       if (!res) { this.say(CFG.talkCare.noFood[0]); return; }
-      // v15:今天成長值到頂 → 不吃(食物不會消耗),說明天再餵
-      if (res.full) { this.say(pickTalk(CFG.talkCare.xpFull)); return; }
       // v5:吃完的隨機小反應。許願命中最優先;1/8 吃出幸運星(+1 成長);其餘四選一。
       let reaction;
       if (res.wishGranted) reaction = 'wishGranted';
@@ -893,7 +907,6 @@
     startPlay: function (key) {
       const res = ST.playToy(ST.load(this.petId), key);
       if (!res) { this.say(CFG.talkCare.noToy[0]); return; }
-      if (res.full) { this.say(pickTalk(CFG.talkCare.xpFullPlay)); return; }
       const w = this._wander || { x: 0, z: 0.7 };
       this.act = { kind: 'play', key: key, t0: PLS.t, fromX: w.x, fromZ: w.z, result: res };
     },
@@ -956,7 +969,9 @@
               this.say(pickTalk(bres.gain > 0 ? CFG.talkCare.star : CFG.talkCare.starCapped));
             } else {
               if (a.reaction === 'hearts') { PLS.burst(stand.x, headY + 10, 'feast'); }
-              this.say(pickTalk(CFG.talkCare[a.reaction] || CFG.talkCare.feedDone));
+              // v16:這一口沒加成長值(今天餵/玩的加成次數用完,或成長值到頂)→ 把主人推去解題
+              const noGrow = a.result && a.result.gain === 0 && !a.result.grew;
+              this.say(pickTalk(noGrow ? CFG.talkCare.eatNoGrow : (CFG.talkCare[a.reaction] || CFG.talkCare.feedDone)));
             }
           }
           if (a.reaction === 'hearts' && !a.hb2 && re > 0.6) { a.hb2 = true; PLS.burst(stand.x - 30, headY + 40, 'feast'); }
@@ -975,7 +990,11 @@
           return at('happy');
         }
         if (e < 5.0) {
-          if (!a.reacted) { a.reacted = true; PLS.sfx.correct(); this.say(pickTalk(CFG.talkCare.playDone)); }
+          if (!a.reacted) {
+            a.reacted = true; PLS.sfx.correct();
+            const noGrowP = a.result && a.result.gain === 0 && !a.result.grew;
+            this.say(pickTalk(noGrowP ? CFG.talkCare.playNoGrow : CFG.talkCare.playDone));
+          }
           return at('idle');
         }
       }
@@ -988,6 +1007,7 @@
       }
       if (res && res.grew) {
         this.grow = { t0: t, stage: res.stage, stageZh: res.stageZh };
+        ST.clearGrowCele(this.petId);   // 這裡已經播了,回房間不用再播一次
         PLS.sfx.feast();
         const d = ST.load(this.petId);
         PLS.say((d.name || CFG.pets[this.species || d.species || 'rabbit'].name) + '長大了!');
@@ -1237,11 +1257,13 @@
     },
 
     // ── 成長條(左欄,主選單卡片下方)──
+    // v16:多一行提示「解題就會長大」,成長值主要來自過關,不是餵食
     drawGrowth: function (ctx, t, d) {
+      if (this.canGrad) return;   // 畢業卡接在同一個位置(大寶已滿級,成長條沒東西好看了)
       const gi = ST.growthInfo(d);
       if (this._prDisp == null) this._prDisp = gi.progress;
       this._prDisp += (gi.progress - this._prDisp) * 0.1;
-      const x = 30, y = 568, w = PW - 60, h = 76;
+      const x = 30, y = GROWTH_CARD.y, w = PW - 60, h = GROWTH_CARD.h;
       ctx.save();
       ctx.shadowColor = 'rgba(150,100,60,0.12)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
       ctx.fillStyle = '#FFFFFF'; rr(ctx, x, y, w, h, 20); ctx.fill();
@@ -1257,6 +1279,10 @@
       ctx.fillStyle = '#F0E6D6'; rr(ctx, bx, by, bw, bh, 7); ctx.fill();
       const pr = Math.max(0, Math.min(1, this._prDisp));
       if (pr > 0.02) { ctx.fillStyle = '#F2B96B'; rr(ctx, bx, by, Math.max(bh, bw * pr), bh, 7); ctx.fill(); }
+      // 第三行:怎麼長大(數字讀 GROW,改常數不用改這裡)
+      const G = ST.GROW;
+      ctx.textAlign = 'left'; ctx.font = '17px ' + FONT; ctx.fillStyle = full ? '#B49A7C' : '#8A6242';
+      ctx.fillText(full ? '解題長大:明天再繼續!' : ('解題就會長大:過關 +' + G.CLEAR_XP + '・滿分 +' + G.PERFECT_XP), x + 22, y + 78);
     },
 
     // ── 升階慶祝(蓋在房間框上)──

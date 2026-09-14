@@ -296,6 +296,7 @@
       this.awarded = !!params.awarded;
       this.capped = !!params.capped;
       this.dailyLeft = params.dailyLeft | 0;
+      this.grow = params.grow || null;   // v16:描滿一輪也會長大
       this.start = PLS.t; this.heartTimer = 0;
       var _hd = ST.load(this.petId); this.species = _hd.species || 'rabbit';
       this.stage = ST.growthInfo(_hd).stage;
@@ -341,6 +342,7 @@
       else if (this.capped) msg = '手寫積分已達上限 100 分囉!';
       else msg = '今天的手寫積分拿完了,明天再來!';
       A.pill(ctx, W / 2, 198, msg, this.awarded ? '#C2591E' : '#7A6450', 'rgba(255,255,255,0.95)', 26);
+      A.growPill(ctx, W / 2, 252, this.grow, 24);
       ACT.drawAt(ctx, this.species, t, W / 2, 560 + 146 * 1.15, 1.15, { mode: k < 5 ? 'happy' : 'idle', stage: this.stage });
       if (this.awarded) {
         this.heartTimer -= 1 / 60;

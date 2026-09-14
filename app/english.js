@@ -925,11 +925,11 @@
           // v4:玩具收進玩具箱(豪華版給 2 個)
           const toyKey = this.lv.toyArtU;
           ST.addToy(d, toyKey, res.deluxe ? 2 : 1);
-          PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears, tier: this.tier });
+          PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears, tier: this.tier, grow: res.grow });
         } else {
           PLS.go('eresult', {
             pet: this.petId, levelIdx: this.levelIdx, practice: this.practice, tier: this.tier,
-            correct: this.firstTryCount, total: this.count, passed: res.passed, capped: res.capped
+            correct: this.firstTryCount, total: this.count, passed: res.passed, capped: res.capped, grow: res.grow
           });
         }
       } else { this.next(); }
@@ -1242,6 +1242,7 @@
       this.toyName = this.lv.toyU;
       this.deluxe = !!params.deluxe;
       this.clears = params.clears || 0;
+      this.grow = params.grow || null;   // v16:這一關長了多少
       this.start = PLS.t; this.heartTimer = 0;
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       PLS.sfx.feast();
@@ -1295,6 +1296,7 @@
       }
       // v4:小字 pill「回房間陪牠玩吧!」
       A.pill(ctx, W / 2, this.deluxe ? 272 : 240, '回房間陪牠玩吧!', '#5E7A56', 'rgba(220,240,220,0.90)', 21);
+      A.growPill(ctx, W - 200, 210, this.grow, 24);   // v16:解題長大
 
       // 寵物(左)+ 展示台(右)
       ACT.drawAt(ctx, this.species, t, 360, 480 + 146, 1, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage });
@@ -1338,6 +1340,7 @@
       this.petId = params.pet; this.levelIdx = params.levelIdx; this.practice = params.practice;
       this.tier = params.tier === 'english2' ? 'english2' : 'english';
       this.capped = !!params.capped; this.correct = params.correct; this.total = params.total;
+      this.grow = params.grow || null;
       var _md = ST.load(this.petId); this.species = _md.species || 'rabbit';
       this.stage = ST.growthInfo(_md).stage;
       // 三種情況:練習 / 過關但這關玩具已拿滿 / 沒過關(錯太多題,可以馬上再挑戰)
@@ -1378,6 +1381,7 @@
         if (tk) TOY.drawToy(ctx, tk, W / 2, 318, 1.2);
       }
 
+      A.growPill(ctx, W - 200, 116, this.grow, 24);   // v16:練習 / 拿滿也會長大一點點(右上,標題那一列)
       ACT.drawAt(ctx, this.species, t, W / 2, 600 + 146 * 0.72, 0.72, { stage: this.stage });
       A.bubble(ctx, W / 2, 440, this.msg, { size: 26 });
     }
@@ -1483,7 +1487,7 @@
             if (!self.strokes.length) { self.hint = '先描一個字母再按「寫好了」喔'; self.hintT = PLS.t; return; }
             const res = ST.submitHwLetter(ST.load(self.petId), self.letter());
             if (res.complete) {
-              PLS.go('hwpass', { pet: self.petId, awarded: res.awarded, capped: res.capped, dailyLeft: res.dailyLeft });
+              PLS.go('hwpass', { pet: self.petId, awarded: res.awarded, capped: res.capped, dailyLeft: res.dailyLeft, grow: res.grow });
               return;
             }
             self.refreshRound();

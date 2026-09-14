@@ -17,6 +17,17 @@
     return name + (tag || '');
   }
 
+  // v16:解題長大 —— 過關/練習/手寫畫面右上角的成長徽章。grow = store.gainXp 的結果(null 就不畫)
+  function growPill(ctx, x, y, grow, size) {
+    if (!grow) return;
+    size = size || 24;
+    let text, fg, bg;
+    if (grow.gain > 0) { text = '🌱 成長 +' + grow.gain + (grow.grew ? '・長大了!' : ''); fg = '#3E7A4A'; bg = 'rgba(214,240,220,0.96)'; }
+    else if (grow.capped) { text = '🌱 今天長滿了,明天再長'; fg = '#8A7A62'; bg = 'rgba(240,232,216,0.96)'; }
+    else return;
+    pill(ctx, x, y, text, fg, bg, size);
+  }
+
   function pill(ctx, x, y, text, fg, bg, size) {
     size = size || 30;
     ctx.font = size + 'px ' + FONT;
@@ -662,7 +673,7 @@
 
   window.PLS_ART = {
     FONT: FONT, el: el, rr: rr, pill: pill, bubble: bubble, sparkle: sparkle, heart: heart,
-    fitTitle: fitTitle,
+    fitTitle: fitTitle, growPill: growPill,
     drawFood: drawFood, drawFoodDeluxe: drawFoodDeluxe, drawFoodGold: drawFoodGold,
     drawShape: drawShape, drawPair: drawPair, drawIcon: drawIcon,
     fitText: fitText, drawLines: drawLines, wrapLines: wrapLines,

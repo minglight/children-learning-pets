@@ -138,7 +138,7 @@
   };
   // 玩具中文名(由英文關卡設定推得)
   const TOY_NAMES = {};
-  CFG.english.forEach(function (lv) {
+  (CFG.english || []).concat(CFG.english2 || []).forEach(function (lv) {
     if (lv.toyArtU) TOY_NAMES[lv.toyArtU] = lv.toyU;              // v9:全物種共用玩具
     if (lv.toyArt && lv.toy) {                                    // 相容:舊背包裡既有的分寵物玩具名稱
       if (lv.toyArt.rabbit) TOY_NAMES[lv.toyArt.rabbit] = TOY_NAMES[lv.toyArt.rabbit] || lv.toy.rabbit;
@@ -352,8 +352,9 @@
     ctx.beginPath(); A.rr(ctx, left, top, w, h, 24); ctx.clip();
     // 地毯
     ctx.fillStyle = 'rgba(255,255,255,0.34)'; A.el(ctx, left + w * 0.5, top + h - 30, w * 0.42, 30); ctx.fill();
-    // 寵物(帶大寶配件)
-    window.PLS_ACTOR.drawAt(ctx, species, t, left + w * 0.30, top + h - 64, 0.56,
+    // 寵物(帶大寶配件):縮放用 spanOf 反推(大寶 ×1.12),長頸鹿這種高個子頭才不會被卡片上緣切掉
+    const cardSc = Math.min(0.56, (h - 64 - 80) / (window.PLS_ACTOR.spanOf(species) * 1.12));
+    window.PLS_ACTOR.drawAt(ctx, species, t, left + w * 0.30, top + h - 64, cardSc,
       { stage: gi.stage, growDeco: gi.deco });
     ctx.restore();
     A.pill(ctx, left + 80, top + 36, name, th.accent, 'rgba(255,255,255,0.92)', 26);

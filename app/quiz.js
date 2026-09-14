@@ -267,12 +267,13 @@
           // v7:神秘金色食物 — 1/10 機率整份獎勵變金色(餵食成長值 ×2)
           const golden = Math.random() < 0.1;
           ST.addFoods(d, picks, golden);
-          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, tier: this.tier, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks, golden: golden });
+          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, tier: this.tier, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks, golden: golden, grow: res.grow });
         } else {
           PLS.go('result', {
             pet: this.petId, levelIdx: this.levelIdx, tier: this.tier,
             correct: this.firstTryCount, practice: this.practice,
-            passed: res.passed, capped: res.capped   // v15:過關但獎勵拿滿 vs 沒過關,文案不同
+            passed: res.passed, capped: res.capped,   // v15:過關但獎勵拿滿 vs 沒過關,文案不同
+            grow: res.grow                            // v16:練習 / 拿滿也會 +REPEAT_XP,畫面上要看得到
           });
         }
       } else {
@@ -414,7 +415,7 @@
       ACT.drawAt(ctx, this.species, t, PET.x, PET.y + 146 * PET.s, PET.s, { mode: this.petMode, stage: this.stage });
 
       if (this.practice) {
-        A.pill(ctx, PET.x, PLATE.y - 4, '練習中,不吃東西喔', '#A09182', 'rgba(255,255,255,0.85)', 21);
+        A.pill(ctx, PET.x, PLATE.y - 4, '練習中 · 過關也會長大 +' + ST.GROW.REPEAT_XP, '#A09182', 'rgba(255,255,255,0.85)', 21);
         for (let i = 0; i < this.stars; i++) {
           A.drawIcon(ctx, 'star', PET.x - 120 + (i % 5) * 60, PLATE.y + 40 + Math.floor(i / 5) * 54, 1.4, '#F2BD58');
         }
@@ -465,6 +466,7 @@
       this.correct = params.correct;
       this.practice = params.practice;
       this.capped = !!params.capped;
+      this.grow = params.grow || null;
       this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       // 三種情況:練習 / 過關但這關獎勵已拿滿(答對 10 題也會來這裡,不能說「差一點點」)/ 沒過關
@@ -499,6 +501,7 @@
       ctx.fillText(lv.name + '(' + lv.sub + ')', W / 2, 248);
       ctx.font = '60px ' + FONT; ctx.fillStyle = '#5E4A36';
       ctx.fillText('答對 ' + this.correct + ' / ' + CFG.questionsPerLevel + ' 題', W / 2, 332);
+      A.growPill(ctx, W - 200, 116, this.grow, 24);   // v16:過關(練習 / 拿滿)也會長大一點點(右上,標題那一列)
 
       ACT.drawAt(ctx, this.species, t, W / 2, 590 + 146 * 0.7, 0.7, { stage: this.stage });
       A.bubble(ctx, W / 2, 430, this.msg, { size: 26 });
@@ -517,6 +520,7 @@
       this.deluxe = !!params.deluxe;
       this.perfect = !!params.perfect;
       this.golden = !!params.golden;   // v7:金色食物開獎
+      this.grow = params.grow || null;  // v16:這一關長了多少
       this.clears = params.clears || 0;
       // v5:優先用 params.items;fallback 向下相容
       this.items = params.items || (this.deluxe ? deluxeItems(this.lv) : this.lv.feast.items);
@@ -616,6 +620,8 @@
       if (this.golden) {
         A.pill(ctx, W / 2 - 300, 130, '✨ 金色食物!', '#7A5410', '#FFE08A', 24);
       }
+      // v16:解題長大 —— 成長徽章(右上,籃子上方那一帶,不跟標題列打架)
+      A.growPill(ctx, W - 200, 210, this.grow, 24);
 
       // 桌子
       ctx.fillStyle = '#E0B98A'; A.rr(ctx, 160, 600, W - 320, 44, 20); ctx.fill();
@@ -768,8 +774,11 @@
       // 豪華版:寵物頭上的金皇冠(畫在寵物之後)
 
       // v4:寵物模式改 'happy'(食物收進背包,牠很開心但沒在吃)
-      ACT.drawAt(ctx, this.species, t, W / 2, 410 + 146, 1, { mode: 'happy', stage: this.stage });
-      if (this.deluxe) window.PLS_CROWN(ctx, W / 2, 322, 2.1, '#F6C44A');
+      // 縮放用 spanOf 反推(小寶 ×1 / 大寶 ×1.12):頭頂壓在食物名 pill 下方 ~222,兔耳才不會蓋住「一份熱狗」
+      const stMul = this.stage === 'grown' ? 1.12 : this.stage === 'baby' ? 0.85 : 1;
+      const fsc = Math.min(1, (556 - 222) / (ACT.spanOf(this.species) * stMul));
+      ACT.drawAt(ctx, this.species, t, W / 2, 556, fsc, { mode: 'happy', stage: this.stage });
+      if (this.deluxe) window.PLS_CROWN(ctx, W / 2, 556 - ACT.spanOf(this.species) * stMul * fsc * 0.64, 2.1 * fsc, '#F6C44A');   // 原本 322 = 腳底往上 0.64 個身高
       // v4:對話泡泡改用 harvest / harvestDeluxe
       const talkList = this.deluxe ? CFG.talk.harvestDeluxe : CFG.talk.harvest;
       A.bubble(ctx, W / 2, 252, k < 3.4 ? talkList[0] : talkList[1 % talkList.length], { size: 28 });
