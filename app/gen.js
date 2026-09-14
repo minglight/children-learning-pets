@@ -145,9 +145,11 @@
   gen.addCarry = function (diff) {
     let a, b, guard = 0;
     do {
-      a = ri(10, 89);
+      // 個位至少 1:個位是 0 的話一位數怎麼加都不會進位(以前 ri(10, 9) 會回 10,變成「50 + 10」這種
+      // 既不進位、加數還是兩位數的題目,跟關卡名稱「進位」對不上)
+      a = ri(1, 8) * 10 + ri(1, 9);
       const u = a % 10;
-      b = ri(Math.max(1, 10 - u), 9);
+      b = ri(10 - u, 9);
     } while (a + b > 99 && guard++ < 50);
     const ans = a + b;
     return {

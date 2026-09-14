@@ -241,18 +241,59 @@
   BANK.x0 = (W - (6 * BANK.w + 5 * BANK.gap)) / 2;
   // 單字手寫(wword):每個字母一格
   const WB = { w: 200, h: 240, gap: 30, y: 296 };
-  // qa 模式混的「單字聽寫描寫」子題:跟 wword 同一個 y,但格子寬度依單字長度動態縮放,
-  // 免得長一點的字(例如 pumpkin、eraser)爆版。
-  const TWORD = { y: 296, h: 300, gap: 16, availW: 1000, maxW: 170, minW: 92 };
-  function buildTraceBoxes(word) {
-    const n = word.length;
-    const w = Math.max(TWORD.minW, Math.min(TWORD.maxW, (TWORD.availW - (n - 1) * TWORD.gap) / n));
-    const totalW = n * w + (n - 1) * TWORD.gap;
-    const x0 = (W - totalW) / 2;
-    return word.split('').map(function (ch, i) {
-      return { letter: ch, x: x0 + i * (w + TWORD.gap), y: TWORD.y, w: w, h: TWORD.h, strokes: [], len: 0 };
+  // qa 模式混的「聽發音描寫」子題(v15:單字或整句都可能抽到):
+  //   • 英文字母才有描寫格;空格是字距;標點(' , . ? !)直接印在格子之間,不用描。
+  //   • 格子寬度從 maxW 往下試,直到整句最多排成 2 行塞得進 availW(3 行字會太小,手指描不了)。
+  //   • 每格記 need(至少要描多長才算有描),依格子大小換算——小格子裡的 i、l 本來就短。
+  const TWORD = { y: 250, h: 346, gap: 16, rowGap: 14, availW: 1000, maxW: 170, minW: 64, maxLines: 2 };
+  function isLetter(ch) { return /[A-Za-z]/.test(ch); }
+  function traceCap(w, h) { return Math.min(230, h * 0.6, w * 1.15); }   // 跟 renderTraceCard 的 Lh 同一條公式
+  function buildTraceLayout(text) {
+    const T = TWORD;
+    const words = String(text || '').split(' ').filter(Boolean);
+    function measure(w) {
+      const spaceW = Math.round(w * 0.45), punctW = Math.round(w * 0.4);
+      const wordWs = words.map(function (wd) {
+        let tw = 0;
+        wd.split('').forEach(function (ch, k) { if (k) tw += T.gap; tw += isLetter(ch) ? w : punctW; });
+        return tw;
+      });
+      const lines = []; let cur = [], curW = 0;
+      words.forEach(function (wd, i) {
+        const add = (cur.length ? spaceW : 0) + wordWs[i];
+        if (cur.length && curW + add > T.availW) { lines.push({ words: cur, w: curW }); cur = []; curW = 0; }
+        curW += (cur.length ? spaceW : 0) + wordWs[i]; cur.push(i);
+      });
+      if (cur.length) lines.push({ words: cur, w: curW });
+      return { w: w, spaceW: spaceW, punctW: punctW, lines: lines };
+    }
+    let m = measure(T.maxW);
+    for (let w = T.maxW; w >= T.minW; w -= 2) {
+      m = measure(w);
+      if (m.lines.length <= T.maxLines && m.lines.every(function (l) { return l.w <= T.availW; })) break;
+    }
+    const n = m.lines.length;
+    const rowH = Math.min(300, (T.h - (n - 1) * T.rowGap) / n);
+    const totalH = n * rowH + (n - 1) * T.rowGap;
+    const y0 = T.y + (T.h - totalH) / 2;
+    const Lh = traceCap(m.w, rowH);
+    const need = Math.max(24, Math.min(60, Lh * 0.4));
+    const boxes = [], marks = [];
+    m.lines.forEach(function (ln, li) {
+      let x = (W - ln.w) / 2;
+      const y = y0 + li * (rowH + T.rowGap);
+      ln.words.forEach(function (wi, k) {
+        if (k) x += m.spaceW;
+        words[wi].split('').forEach(function (ch, ci) {
+          if (ci) x += T.gap;
+          if (isLetter(ch)) { boxes.push({ letter: ch, x: x, y: y, w: m.w, h: rowH, strokes: [], len: 0, need: need }); x += m.w; }
+          else { marks.push({ ch: ch, x: x, y: y, w: m.punctW, h: rowH, Lh: Lh }); x += m.punctW; }
+        });
+      });
     });
+    return { boxes: boxes, marks: marks, lines: n, fits: n <= T.maxLines && boxes.length > 0 };
   }
+  function traceFits(text) { return buildTraceLayout(text).fits; }
 
   // 把大寫字母唸出來(用小寫,語音才不會多唸 "Capital")
   function sayLetter(ch) { if (ch) PLS.say(ch.toLowerCase(), 'en-US'); }
@@ -268,7 +309,8 @@
     ctx.fillStyle = '#FFFFFF'; A.rr(ctx, R.x, R.y, R.w, R.h, 30); ctx.fill();
     ctx.restore();
     const cardCx = R.x + R.w / 2, cardCy = R.y + R.h / 2;
-    const Lh = Math.min(230, R.h * 0.6, R.w * 1.5);
+    // 寬度上限 w×1.15:M / w 這種寬字母(約 70 單位寬 + 圓頭粗線)在 72px 的窄格裡才不會爆出格子邊
+    const Lh = Math.min(230, R.h * 0.6, R.w * 1.15);
     const LcY = cardCy + Lh * 0.017;
     const inset = Math.min(44, R.w * 0.12);
     const gx0 = R.x + inset, gx1 = R.x + R.w - inset;
@@ -349,6 +391,17 @@
       this.wordDeck = shuffle(wordPool.slice());
       this.slots = ['', '', '']; this.slotFrom = [null, null, null]; this.bank = [];
       this.qaDeck = shuffle((this.lv.bank || []).map(function (_, i) { return i; }));
+      // v15:qa 玩法每關固定抽 CFG.qaTraceMin 題(預設 4)當「聽發音描寫」,位置隨機、單字整句都可能;
+      // 太長排不進 2 行的句子跳過不抽。剩下的題目才是選擇題。
+      this.traceSet = new Set();
+      if (this.mode === 'qa' && this.qaDeck.length) {
+        const qb = this.lv.bank, want = Math.min(this.count, Math.max(0, CFG.qaTraceMin | 0));
+        const order = shuffle(Array.from({ length: this.count }, function (_, i) { return i; }));
+        for (let oi = 0; oi < order.length && this.traceSet.size < want; oi++) {
+          const item = qb[this.qaDeck[order[oi] % this.qaDeck.length]];
+          if (item && traceFits(item.en)) this.traceSet.add(order[oi]);
+        }
+      }
 
       backButton('emap', this.petId, { tier: this.tier });
       // 喇叭(再聽一次)
@@ -487,7 +540,7 @@
         return tb && tb.len > 60;
       }
       if (this.mode === 'wword' || (this.mode === 'qa' && this.qKind === 'trace')) {
-        return this.boxes.length > 0 && this.boxes.every(function (b) { return b.len > 60; });
+        return this.boxes.length > 0 && this.boxes.every(function (b) { return b.len > (b.need || 60); });
       }
       return this.drawnLen > 60;
     },
@@ -540,14 +593,16 @@
         const qbank = this.lv.bank || [];
         const idx = this.qaDeck[this.qIndex % this.qaDeck.length];
         const target = qbank[idx];
-        // 混題:單字(en 沒有空格)有 35% 機率變成「聽寫描寫」子題,句子一律照舊走選擇題。
-        const isWord = target.en.indexOf(' ') < 0;
-        this.qKind = (isWord && Math.random() < 0.35) ? 'trace' : 'mc';
+        // v15:這一題是不是「聽發音描寫」在 enter() 就抽好了(traceSet),單字、整句都可能。
+        this.qKind = (this.traceSet && this.traceSet.has(this.qIndex)) ? 'trace' : 'mc';
         if (this.qKind === 'trace') {
           this.q = null;
           this.traceWord = target.en;
-          this.boxes = buildTraceBoxes(target.en);
-          this.bubbleText = '聽發音,照筆順寫出來';
+          this.traceZh = target.zh || '';
+          const lay = buildTraceLayout(target.en);
+          this.boxes = lay.boxes;
+          this.traceMarks = lay.marks;
+          this.bubbleText = target.en.indexOf(' ') >= 0 ? '聽發音,把句子描出來' : '聽發音,照筆順寫出來';
           this.bubbleUntil = PLS.t + 2.6;
           setTimeout(function () { sayEN(target.en); }, 350);
         } else {
@@ -770,7 +825,7 @@
       const self = this;
       if (this.locked) return;
       if (this.mode === 'qa' && this.qKind === 'trace') {
-        const unfinished = this.boxes.filter(function (b) { return b.len <= 60; });
+        const unfinished = this.boxes.filter(function (b) { return b.len <= (b.need || 60); });
         if (unfinished.length) {
           this.bubbleText = '每一格都要描寫喔'; this.bubbleUntil = PLS.t + 2.2; PLS.sfx.wrong(); return;
         }
@@ -864,14 +919,18 @@
       this.qIndex++;
       if (this.qIndex >= this.count) {
         const d = ST.load(this.petId);
-        const res = ST.recordRun(d, 'english', this.lv.id, this.count, this.count, this.practice);
+        // v15:跟數學一樣用首次答對數算過關(以前寫死成 count/count,錯光也會過關拿玩具)
+        const res = ST.recordRun(d, 'english', this.lv.id, this.firstTryCount, this.count, this.practice);
         if (res.feast) {
           // v4:玩具收進玩具箱(豪華版給 2 個)
           const toyKey = this.lv.toyArtU;
           ST.addToy(d, toyKey, res.deluxe ? 2 : 1);
           PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears, tier: this.tier });
         } else {
-          PLS.go('eresult', { pet: this.petId, levelIdx: this.levelIdx, practice: this.practice, tier: this.tier });
+          PLS.go('eresult', {
+            pet: this.petId, levelIdx: this.levelIdx, practice: this.practice, tier: this.tier,
+            correct: this.firstTryCount, total: this.count, passed: res.passed, capped: res.capped
+          });
         }
       } else { this.next(); }
     },
@@ -908,7 +967,7 @@
     draw: function (ctx, t) {
       drawRoom(ctx);
       const tag = this.practice ? ' · 練習' : '';
-      A.pill(ctx, W / 2, 64, this.lv.name + '(' + this.lv.sub + ')' + tag, '#5E7A56', 'rgba(255,255,255,0.94)', 27);
+      A.pill(ctx, W / 2, 64, A.fitTitle(ctx, this.lv.name, this.lv.sub, tag, 27, 560), '#5E7A56', 'rgba(255,255,255,0.94)', 27);
       // 進度點
       for (let i = 0; i < this.count; i++) {
         const x = W / 2 - (this.count - 1) * 20 + i * 40, y = 118;
@@ -1026,14 +1085,22 @@
     // qa 模式混的「單字聽寫描寫」子題:聽發音,依筆順把單字每個字母描出來(跟課本無關,
     // 是額外的聽寫練習)。跟 drawWword 版面類似,但每格用 renderTraceCard 畫骨架引導。
     drawTraceWord: function (ctx, t) {
+      const isSentence = (this.traceWord || '').indexOf(' ') >= 0;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '30px ' + FONT; ctx.fillStyle = '#5E7A56';
-      ctx.fillText('聽發音,照筆順把單字描出來', W / 2, 178);
+      ctx.fillText(isSentence ? '聽發音,照著把句子描出來' : '聽發音,照筆順把單字描出來', W / 2, 178);
       ctx.font = '22px ' + FONT; ctx.fillStyle = '#9AB09A';
-      ctx.fillText('點右上角喇叭可以再聽一次', W / 2, 216);
+      ctx.fillText((this.traceZh ? this.traceZh + '　' : '') + '點右上角喇叭可以再聽一次', W / 2, 216);
       const self = this;
       this.boxes.forEach(function (b) {
         renderTraceCard(ctx, b.letter, b.strokes, self.accent, null, b);
+      });
+      // 標點:印在格子之間的基線上,淡色、不用描
+      (this.traceMarks || []).forEach(function (mk) {
+        const cy = mk.y + mk.h / 2 + mk.Lh * 0.017, base = cy + mk.Lh / 2;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.font = '700 ' + Math.round(mk.Lh * 1.0) + 'px ' + FONT; ctx.fillStyle = '#CFC4AC';
+        ctx.fillText(mk.ch, mk.x + mk.w / 2, base);
       });
     },
 
@@ -1270,9 +1337,12 @@
       const self = this;
       this.petId = params.pet; this.levelIdx = params.levelIdx; this.practice = params.practice;
       this.tier = params.tier === 'english2' ? 'english2' : 'english';
+      this.capped = !!params.capped; this.correct = params.correct; this.total = params.total;
       var _md = ST.load(this.petId); this.species = _md.species || 'rabbit';
       this.stage = ST.growthInfo(_md).stage;
-      this.msg = this.practice ? '練習完成!明天再來拿新玩具喔' : pickTalk(CFG.talkEng.full);
+      // 三種情況:練習 / 過關但這關玩具已拿滿 / 沒過關(錯太多題,可以馬上再挑戰)
+      this.msg = this.practice ? '練習完成!明天再來拿新玩具喔'
+        : this.capped ? pickTalk(CFG.talkEng.cappedPass) : pickTalk(CFG.talkEng.almost);
       PLS.addButton({
         x: W / 2 - 160, y: 720, w: 320, h: 100,
         draw: function (ctx) {
@@ -1292,15 +1362,21 @@
       const lv = CFG[this.tier][this.levelIdx];
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT; ctx.fillStyle = '#5E7A56';
-      ctx.fillText(this.practice ? '練習結束' : '今天玩夠囉', W / 2, 116);
+      ctx.fillText(this.practice ? '練習結束' : this.capped ? '過關了!' : '這一關結束了', W / 2, 116);
       ctx.save();
       ctx.shadowColor = 'rgba(110,140,115,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
       ctx.fillStyle = '#FFFFFF'; A.rr(ctx, W / 2 - 250, 186, 500, 180, 32); ctx.fill();
       ctx.restore();
       ctx.font = '32px ' + FONT; ctx.fillStyle = '#8AA08A';
       ctx.fillText(lv.name + '(' + lv.sub + ')', W / 2, 240);
-      const tk = lv.toyArtU;
-      if (tk) TOY.drawToy(ctx, tk, W / 2, 318, 1.2);
+      if (!this.practice && !this.capped && typeof this.correct === 'number') {
+        // 沒過關:老實寫答對幾題(跟數學結果畫面一樣)
+        ctx.font = '52px ' + FONT; ctx.fillStyle = '#56684E';
+        ctx.fillText('答對 ' + this.correct + ' / ' + this.total + ' 題', W / 2, 316);
+      } else {
+        const tk = lv.toyArtU;
+        if (tk) TOY.drawToy(ctx, tk, W / 2, 318, 1.2);
+      }
 
       ACT.drawAt(ctx, this.species, t, W / 2, 600 + 146 * 0.72, 0.72, { stage: this.stage });
       A.bubble(ctx, W / 2, 440, this.msg, { size: 26 });

@@ -433,6 +433,56 @@
       ctx.fillStyle = '#8FB4CE'; el(ctx, x + 8, y - 1, 11, 11); ctx.fill();
     }
   };
+  // ── 背包托盤的物品格(房間 / 拜訪朋友共用)──
+  // 一頁 7×2=14 格,超過就分頁(v15:食物已有 24 種 + 金色食物、玩具 17 種,以前只畫前 14 格,
+  // 排在後面的——尤其是永遠排最後的金色食物——根本點不到)。
+  // 回 { rects:[{x,y,w,h,key,gold}], prev, next, pages, page }:prev/next 是翻頁鈕命中區(只有一頁時為 null)。
+  const TRAY_PER_PAGE = 14;
+  function trayGrid(ctx, list, kind, px, py, pw2, ph2, page) {
+    const pages = Math.max(1, Math.ceil(list.length / TRAY_PER_PAGE));
+    page = Math.max(0, Math.min(pages - 1, page | 0));
+    const slice = list.slice(page * TRAY_PER_PAGE, page * TRAY_PER_PAGE + TRAY_PER_PAGE);
+    const cell = 96, gap2 = 12;
+    const perRow = Math.min(7, slice.length);
+    const gx0 = px + (pw2 - (perRow * cell + (perRow - 1) * gap2)) / 2;
+    const rects = [];
+    slice.forEach(function (it, i) {
+      const r = Math.floor(i / 7), c = i % 7;
+      const x = gx0 + c * (cell + gap2), y = py + 66 + r * (cell + gap2);
+      ctx.fillStyle = it.gold ? '#FFF6DC' : '#FFFFFF'; rr(ctx, x, y, cell, cell, 18); ctx.fill();
+      ctx.strokeStyle = it.gold ? '#E8B23C' : '#EFE0CE'; ctx.lineWidth = it.gold ? 3 : 2;
+      rr(ctx, x, y, cell, cell, 18); ctx.stroke();
+      if (kind === 'food') {
+        (it.gold ? A.drawFoodGold : A.drawFood)(ctx, it.key, x + cell / 2, y + cell / 2 - 4, 0.72);
+      } else TOY.drawToy(ctx, it.key, x + cell / 2, y + cell / 2 - 2, 0.6);
+      ctx.fillStyle = it.gold ? '#D89A18' : '#E8734E'; el(ctx, x + cell - 16, y + 16, 15, 15); ctx.fill();
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px ' + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(it.n > 99 ? 99 : it.n), x + cell - 16, y + 17);
+      rects.push({ x: x, y: y, w: cell, h: cell, key: it.key, gold: !!it.gold });
+    });
+    let prev = null, next = null;
+    if (pages > 1) {
+      // 翻頁列:◀  第 1 / 2 頁  ▶(放在托盤最下緣,跟以前「東西太多裝不下」那行同一個位置)
+      const ly = py + ph2 - 18, cx = px + pw2 / 2, bw = 56, bh = 34;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '19px ' + FONT; ctx.fillStyle = '#9A7B5C';
+      ctx.fillText('第 ' + (page + 1) + ' / ' + pages + ' 頁', cx, ly);
+      prev = { x: cx - 120 - bw / 2, y: ly - bh / 2, w: bw, h: bh };
+      next = { x: cx + 120 - bw / 2, y: ly - bh / 2, w: bw, h: bh };
+      [[prev, page > 0, -1], [next, page < pages - 1, 1]].forEach(function (pr) {
+        const r = pr[0], on = pr[1], dir = pr[2];
+        ctx.fillStyle = on ? '#F2B96B' : '#EFE6D8'; rr(ctx, r.x, r.y, r.w, r.h, 12); ctx.fill();
+        ctx.strokeStyle = on ? '#FFFFFF' : '#C9BBA6'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        const ax = r.x + r.w / 2, ay = r.y + r.h / 2;
+        ctx.beginPath();
+        ctx.moveTo(ax - 5 * dir, ay - 7); ctx.lineTo(ax + 4 * dir, ay); ctx.lineTo(ax - 5 * dir, ay + 7);
+        ctx.stroke();
+      });
+    }
+    return { rects: rects, prev: prev, next: next, pages: pages, page: page };
+  }
+
   function navCard(ctx, x, y, w, h, bg, line, title, sub, icon) {
     ctx.save();
     ctx.shadowColor = 'rgba(150,100,60,0.14)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 5;
@@ -458,6 +508,7 @@
       this.species = ST.load(pid).species || 'rabbit';   // v9:外觀物種
       // 互動狀態
       this.tray = null;      // 開啟中的背包托盤:'food' | 'toy' | null
+      this.trayPage = 0;     // v15:托盤分頁(一頁 14 格)
       this.act = null;       // 進行中的餵食/陪玩動畫
       this.grow = null;      // 升階慶祝 {t0, stage, stageZh}
       this.pat = null;       // 摸摸寵物 {t0}
@@ -571,7 +622,7 @@
           onTap: function () { if (it.action) it.action(); else PLS.go(it.go, { pet: pid }); }
         });
       });
-      // v9:大寶滿 3 天 → 畢業入珍藏(金色脈動卡)
+      // v9:大寶滿 GRADUATE_DAYS 天 → 畢業入珍藏(金色脈動卡)
       if (ST.canGraduate(ST.load(pid))) {
         const gy = NTOP + NAV.length * NSTEP;
         PLS.addButton({
@@ -636,6 +687,8 @@
       if (this.tray) {
         if (inR(this._trayClose)) { this.tray = null; PLS.sfx.tap(); return; }
         if (inR(this._trayCTA)) { PLS.sfx.tap(); PLS.go(this.tray === 'food' ? 'map' : 'emap', { pet: this.petId }); return; }
+        if (inR(this._trayPrev)) { this.trayPage = Math.max(0, (this.trayPage | 0) - 1); PLS.sfx.tap(); return; }
+        if (inR(this._trayNext)) { this.trayPage = (this.trayPage | 0) + 1; PLS.sfx.tap(); return; }
         const cells = this._trayRects || [];
         for (let i = 0; i < cells.length; i++) {
           if (inR(cells[i])) {
@@ -662,8 +715,8 @@
           return;
         }
       }
-      if (inR(this._foodBasket)) { this.tray = 'food'; PLS.sfx.tap(); return; }
-      if (inR(this._toyBox)) { this.tray = 'toy'; PLS.sfx.tap(); return; }
+      if (inR(this._foodBasket)) { this.tray = 'food'; this.trayPage = 0; PLS.sfx.tap(); return; }
+      if (inR(this._toyBox)) { this.tray = 'toy'; this.trayPage = 0; PLS.sfx.tap(); return; }
       // 掛畫 → 收集圖鑑
       if (inR(this._picRect)) { PLS.sfx.tap(); PLS.go('dex', { pet: this.petId }); return; }
       // 許願泡泡 → 提示去哪一關賺這個食物
@@ -827,6 +880,8 @@
     startFeed: function (key, gold) {
       const res = ST.feed(ST.load(this.petId), key, gold);
       if (!res) { this.say(CFG.talkCare.noFood[0]); return; }
+      // v15:今天成長值到頂 → 不吃(食物不會消耗),說明天再餵
+      if (res.full) { this.say(pickTalk(CFG.talkCare.xpFull)); return; }
       // v5:吃完的隨機小反應。許願命中最優先;1/8 吃出幸運星(+1 成長);其餘四選一。
       let reaction;
       if (res.wishGranted) reaction = 'wishGranted';
@@ -838,6 +893,7 @@
     startPlay: function (key) {
       const res = ST.playToy(ST.load(this.petId), key);
       if (!res) { this.say(CFG.talkCare.noToy[0]); return; }
+      if (res.full) { this.say(pickTalk(CFG.talkCare.xpFullPlay)); return; }
       const w = this._wander || { x: 0, z: 0.7 };
       this.act = { kind: 'play', key: key, t0: PLS.t, fromX: w.x, fromZ: w.z, result: res };
     },
@@ -896,7 +952,8 @@
               const bres = ST.bonusXp(ST.load(this.petId), 1);
               if (bres.grew) a.result = bres;
               PLS.burst(stand.x, headY - 10, 'feast');
-              this.say(pickTalk(CFG.talkCare.star));
+              // 今天成長值已到頂時星星不會再加,台詞就不要說「+1」
+              this.say(pickTalk(bres.gain > 0 ? CFG.talkCare.star : CFG.talkCare.starCapped));
             } else {
               if (a.reaction === 'hearts') { PLS.burst(stand.x, headY + 10, 'feast'); }
               this.say(pickTalk(CFG.talkCare[a.reaction] || CFG.talkCare.feedDone));
@@ -1137,7 +1194,8 @@
           return { key: it.key, n: it.n, gold: true };
         }));
       }
-      const pw2 = B.iw - 56, ph2 = 292;
+      // 要分頁時托盤加高一點,翻頁列才不會壓到第二排格子
+      const pw2 = B.iw - 56, ph2 = list.length > TRAY_PER_PAGE ? 326 : 292;
       const px = B.ix + 28, py = B.iy + B.ih - ph2 - 14;
       this._trayPanel = { x: px, y: py, w: pw2, h: ph2 };
       ctx.save();
@@ -1172,30 +1230,10 @@
         ctx.fillText(kind === 'food' ? '去數學餐廳解題賺食物 →' : '去英文遊戲間過關拿玩具 →', px + pw2 / 2, by3 + bh / 2);
         return;
       }
-      // 物品格:一排最多 7 個、最多兩排
-      const cell = 96, gap2 = 12;
-      const perRow = Math.min(7, list.length);
-      const gx0 = px + (pw2 - (perRow * cell + (perRow - 1) * gap2)) / 2;
-      const self = this;
-      list.slice(0, 14).forEach(function (it, i) {
-        const r = Math.floor(i / 7), c = i % 7;
-        const x = gx0 + c * (cell + gap2), y = py + 66 + r * (cell + gap2);
-        ctx.fillStyle = it.gold ? '#FFF6DC' : '#FFFFFF'; rr(ctx, x, y, cell, cell, 18); ctx.fill();
-        ctx.strokeStyle = it.gold ? '#E8B23C' : '#EFE0CE'; ctx.lineWidth = it.gold ? 3 : 2;
-        rr(ctx, x, y, cell, cell, 18); ctx.stroke();
-        if (kind === 'food') {
-          (it.gold ? A.drawFoodGold : A.drawFood)(ctx, it.key, x + cell / 2, y + cell / 2 - 4, 0.72);
-        } else TOY.drawToy(ctx, it.key, x + cell / 2, y + cell / 2 - 2, 0.6);
-        ctx.fillStyle = it.gold ? '#D89A18' : '#E8734E'; el(ctx, x + cell - 16, y + 16, 15, 15); ctx.fill();
-        ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px ' + FONT;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(it.n > 99 ? 99 : it.n), x + cell - 16, y + 17);
-        self._trayRects.push({ x: x, y: y, w: cell, h: cell, key: it.key, gold: !!it.gold });
-      });
-      if (list.length > 14) {
-        ctx.textAlign = 'center'; ctx.font = '18px ' + FONT; ctx.fillStyle = '#B9A88F';
-        ctx.fillText('東西太多裝不下,先吃掉/玩掉一些吧!', px + pw2 / 2, py + ph2 - 16);
-      }
+      // 物品格:一頁 7×2,超過分頁(翻頁鈕命中區記在 _trayPrev/_trayNext,tap() 用)
+      const g = trayGrid(ctx, list, kind, px, py, pw2, ph2, this.trayPage);
+      this.trayPage = g.page;
+      this._trayRects = g.rects; this._trayPrev = g.prev; this._trayNext = g.next;
     },
 
     // ── 成長條(左欄,主選單卡片下方)──
@@ -1212,7 +1250,9 @@
       ctx.font = '23px ' + FONT; ctx.fillStyle = '#8A6242';
       ctx.fillText('成長:' + gi.stageZh, x + 22, y + 24);
       ctx.textAlign = 'right'; ctx.font = '19px ' + FONT; ctx.fillStyle = '#B49A7C';
-      ctx.fillText(gi.next ? ('還差 ' + Math.max(0, gi.next - gi.xp) + ' 點長大') : '已經是大寶了!', x + w - 22, y + 24);
+      // v15:今天成長值到頂就直接寫在這裡,小朋友才知道為什麼餵不動
+      const full = ST.xpFull(d);
+      ctx.fillText(full ? '今天長滿了,明天再來' : gi.next ? ('還差 ' + Math.max(0, gi.next - gi.xp) + ' 點長大') : '已經是大寶了!', x + w - 22, y + 24);
       const bx = x + 22, bw = w - 44, by = y + 46, bh = 15;
       ctx.fillStyle = '#F0E6D6'; rr(ctx, bx, by, bw, bh, 7); ctx.fill();
       const pr = Math.max(0, Math.min(1, this._prDisp));
@@ -1242,9 +1282,10 @@
         ctx.stroke();
       }
       const pop = e < 0.5 ? 0.6 + 0.4 * Math.sin(e / 0.5 * Math.PI / 2) : 1;
-      ctx.save(); ctx.translate(cx, cy + 110); ctx.scale(0.62 * pop, 0.62 * pop);
-      P.draw(species, ctx, t, { mode: 'happy', stage: g.stage, growDeco: gDeco });
-      ctx.restore();
+      // v15:統一走 PLS_ACTOR.drawAt(以前直接 P.draw,新制物種畫不出來——長頸鹿升階會變成兔子)
+      // 長頸鹿這種高個子用 spanOf 反推縮小一點,頭才不會頂到「變成小寶了」那顆 pill
+      const gs = Math.min(0.62, (B.ih * 0.5) / ACT.spanOf(species)) * pop;
+      ACT.drawAt(ctx, species, t, cx, cy + 110 + 146 * gs, gs, { mode: 'happy', stage: g.stage, deco: gDeco });
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '52px ' + FONT;
       ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillText(name + '長大了!', cx, B.iy + 86);
@@ -1414,6 +1455,7 @@
     wanderStep: wanderStep, walkStep: walkStep, clamp: clamp, smooth: smooth,
     trophyBadge: trophyBadge,  // v12:獎盃徽章,app/visit.js 拜訪畫面重用同一份繪製
     petThumb: petThumb,        // v14:靜態縮圖(spanOf 反推縮放)
-    speciesName: speciesName
+    speciesName: speciesName,
+    trayGrid: trayGrid, TRAY_PER_PAGE: TRAY_PER_PAGE   // v15:托盤物品格(分頁),拜訪畫面共用同一份
   };
 })();

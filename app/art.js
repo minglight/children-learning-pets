@@ -9,6 +9,14 @@
   }
   function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
 
+  // 關卡標題「名稱(副標)· 練習」:太長會撞到右上角金幣 HUD 的 +N 飄字,量一下超過 maxW 就把副標拿掉。
+  function fitTitle(ctx, name, sub, tag, size, maxW) {
+    ctx.font = size + 'px ' + FONT;
+    const full = name + (sub ? '(' + sub + ')' : '') + (tag || '');
+    if (ctx.measureText(full).width <= maxW) return full;
+    return name + (tag || '');
+  }
+
   function pill(ctx, x, y, text, fg, bg, size) {
     size = size || 30;
     ctx.font = size + 'px ' + FONT;
@@ -654,6 +662,7 @@
 
   window.PLS_ART = {
     FONT: FONT, el: el, rr: rr, pill: pill, bubble: bubble, sparkle: sparkle, heart: heart,
+    fitTitle: fitTitle,
     drawFood: drawFood, drawFoodDeluxe: drawFoodDeluxe, drawFoodGold: drawFoodGold,
     drawShape: drawShape, drawPair: drawPair, drawIcon: drawIcon,
     fitText: fitText, drawLines: drawLines, wrapLines: wrapLines,

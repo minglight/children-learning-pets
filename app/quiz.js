@@ -159,10 +159,13 @@
       }
       if (!item) return null;
       const visual = item.visual && VIS ? VIS.instantiate(item.visual) : null;
-      // 有圖時:若「唸」的版本數字較少,就用它當題目(不寫出數量),讓小朋友自己數
+      // 有「要自己數」的圖(數數 / 錢幣 / 分類)時:若「唸」的版本數字較少,就用它當題目(不寫出數量),
+      // 讓小朋友自己數。直式 / 月曆這種圖,數字本來就是題目的一部分,照 <問> 用阿拉伯數字顯示,
+      // 不然「47 − 5」會變成「四十七 減 五」(唸的版本是給 TTS 用的,不是給眼睛看的)。
       const digits = function (s) { return (String(s).match(/\d/g) || []).length; };
+      const countable = visual && (visual.kind === 'count' || visual.kind === 'money' || visual.kind === 'groups');
       let shownText = item.text;
-      if (visual && item.say && digits(item.say) < digits(item.text)) shownText = item.say;
+      if (countable && item.say && digits(item.say) < digits(item.text)) shownText = item.say;
       return {
         kind: 'text',
         display: { text: shownText },
@@ -268,7 +271,8 @@
         } else {
           PLS.go('result', {
             pet: this.petId, levelIdx: this.levelIdx, tier: this.tier,
-            correct: this.firstTryCount, practice: this.practice
+            correct: this.firstTryCount, practice: this.practice,
+            passed: res.passed, capped: res.capped   // v15:過關但獎勵拿滿 vs 沒過關,文案不同
           });
         }
       } else {
@@ -376,7 +380,7 @@
     draw: function (ctx, t) {
       drawQuizWall(ctx);
       const tag = this.practice ? ' · 練習' : '';
-      A.pill(ctx, W / 2, 64, this.lv.name + '(' + this.lv.sub + ')' + tag, '#8A6242', 'rgba(255,255,255,0.92)', 27);
+      A.pill(ctx, W / 2, 64, A.fitTitle(ctx, this.lv.name, this.lv.sub, tag, 27, 560), '#8A6242', 'rgba(255,255,255,0.92)', 27);
 
       // 進度點(10 顆)
       for (let i = 0; i < CFG.questionsPerLevel; i++) {
@@ -460,11 +464,13 @@
       this.tier = params.tier === 'math2' ? 'math2' : 'math';
       this.correct = params.correct;
       this.practice = params.practice;
+      this.capped = !!params.capped;
       this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
+      // 三種情況:練習 / 過關但這關獎勵已拿滿(答對 10 題也會來這裡,不能說「差一點點」)/ 沒過關
       this.msg = this.practice
         ? '練習完成!明天再請我吃大餐喔'
-        : pickTalk(CFG.talk.almost);
+        : this.capped ? pickTalk(CFG.talk.cappedPass) : pickTalk(CFG.talk.almost);
       PLS.addButton({
         x: W / 2 - 160, y: 720, w: 320, h: 100,
         draw: function (ctx) {
@@ -484,7 +490,7 @@
       const lv = CFG[this.tier][this.levelIdx];
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT; ctx.fillStyle = '#8A6242';
-      ctx.fillText(this.practice ? '練習結束' : '這一關結束了', W / 2, 116);
+      ctx.fillText(this.practice ? '練習結束' : this.capped ? '過關了!' : '這一關結束了', W / 2, 116);
       ctx.save();
       ctx.shadowColor = 'rgba(150,100,60,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
       ctx.fillStyle = '#FFFCF6'; A.rr(ctx, W / 2 - 260, 188, 520, 196, 32); ctx.fill();
@@ -747,12 +753,16 @@
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '19px ' + FONT; ctx.globalAlpha = 0.72;
       ctx.fillStyle = this.deluxe ? '#C2591E' : '#9A7B5C';
-      ctx.fillText(
-        bClears >= dAt
-          ? '豪華版已解鎖！共解了 ' + bClears + ' 次！'
-          : '已解 ' + bClears + ' / ' + dAt + ' 次・集滿就有豪華大豐收！',
-        W / 2, bCY + 27
-      );
+      // v15:入門關卡預設 3 次後就不再給獎勵(進階 10 次),第 10 次才有豪華版——
+      // 文案要老實講「還能拿幾次」,不要只寫「集滿 10 次」讓小朋友以為第 4~9 次也有東西。
+      var capN = ST.capFor(ST.load(this.petId), 'math', this.lv.id);
+      var capLeft = Math.max(0, capN - bClears);
+      var capTxt;
+      if (bClears >= dAt) capTxt = '豪華版已解鎖！共解了 ' + bClears + ' 次！';
+      else if (capN >= dAt) capTxt = '已解 ' + bClears + ' / ' + dAt + ' 次・集滿就有豪華大豐收！';
+      else if (capLeft > 0) capTxt = '已解 ' + bClears + ' 次・這關還能再拿 ' + capLeft + ' 次獎勵・第 ' + dAt + ' 次有豪華大豐收！';
+      else capTxt = '已解 ' + bClears + ' 次・這關獎勵拿滿了・第 ' + dAt + ' 次還有豪華大豐收！';
+      ctx.fillText(capTxt, W / 2, bCY + 27);
       ctx.restore();
 
       // 豪華版:寵物頭上的金皇冠(畫在寵物之後)

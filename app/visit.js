@@ -33,6 +33,7 @@
       // 不然子畫面把 visit 的 enter() 重跑一次,「一次拜訪限分享一次」的軟限制就被繞過去了。
       this.mode = (params && params.shared) ? 'shared' : 'idle';   // 'idle' | 'confirm' | 'shared'
       this.tray = null;          // 開啟中的背包托盤:'food' | 'toy' | null(跟房間同一套操作)
+      this.trayPage = 0;         // v15:托盤分頁
       this.act = null;           // 朋友的寵物正在吃/玩的演出
 
       // v13:記住「我們去誰家玩過」(同一位朋友只留最新一次;給過東西後會再更新成帶道具的版本)。
@@ -153,6 +154,8 @@
       // 2) 托盤開著:選一樣東西 / 關起來(跟房間托盤同一套手感)
       if (this.tray) {
         if (inR(this._trayClose, x, y)) { this.tray = null; PLS.sfx.tap(); return; }
+        if (inR(this._trayPrev, x, y)) { this.trayPage = Math.max(0, (this.trayPage | 0) - 1); PLS.sfx.tap(); return; }
+        if (inR(this._trayNext, x, y)) { this.trayPage = (this.trayPage | 0) + 1; PLS.sfx.tap(); return; }
         const cells = this._trayRects || [];
         for (let i = 0; i < cells.length; i++) {
           if (inR(cells[i], x, y)) {
@@ -166,8 +169,8 @@
       }
       // 3) 下緣兩個入口(還沒給過東西、也沒有正在吃的演出時才開得了)
       if (this.mode === 'idle' && !this.act) {
-        if (inR(this._foodBtn, x, y)) { this.tray = 'food'; PLS.sfx.tap(); return; }
-        if (inR(this._toyBtn, x, y)) { this.tray = 'toy'; PLS.sfx.tap(); return; }
+        if (inR(this._foodBtn, x, y)) { this.tray = 'food'; this.trayPage = 0; PLS.sfx.tap(); return; }
+        if (inR(this._toyBtn, x, y)) { this.tray = 'toy'; this.trayPage = 0; PLS.sfx.tap(); return; }
       }
       // 4) 摸摸朋友的寵物
       const s = this._fPS || 0.42;
@@ -370,7 +373,7 @@
       const B = this._box, kind = this.tray;
       const list = this.invOf(kind);
       const nickname = (this.friend && this.friend.childNickname) || '朋友';
-      const pw2 = B.iw - 56, ph2 = 292;
+      const pw2 = B.iw - 56, ph2 = list.length > R2.TRAY_PER_PAGE ? 326 : 292;
       const px = B.ix + 28, py = B.iy + B.ih - ph2 - 14;
       this._trayPanel = { x: px, y: py, w: pw2, h: ph2 };
       ctx.save();
@@ -398,29 +401,10 @@
         ctx.fillText(kind === 'food' ? '回家去數學餐廳解題就能賺到喔' : '回家去英文遊戲間過關就能拿到喔', px + pw2 / 2, py + 152);
         return;
       }
-      const cell = 96, gap2 = 12;
-      const perRow = Math.min(7, list.length);
-      const gx0 = px + (pw2 - (perRow * cell + (perRow - 1) * gap2)) / 2;
-      const self = this;
-      list.slice(0, 14).forEach(function (it, i) {
-        const r = Math.floor(i / 7), c = i % 7;
-        const x = gx0 + c * (cell + gap2), y = py + 66 + r * (cell + gap2);
-        ctx.fillStyle = it.gold ? '#FFF6DC' : '#FFFFFF'; R2.rr(ctx, x, y, cell, cell, 18); ctx.fill();
-        ctx.strokeStyle = it.gold ? '#E8B23C' : '#EFE0CE'; ctx.lineWidth = it.gold ? 3 : 2;
-        R2.rr(ctx, x, y, cell, cell, 18); ctx.stroke();
-        if (kind === 'food') {
-          (it.gold ? A.drawFoodGold : A.drawFood)(ctx, it.key, x + cell / 2, y + cell / 2 - 4, 0.72);
-        } else TOY.drawToy(ctx, it.key, x + cell / 2, y + cell / 2 - 2, 0.6);
-        ctx.fillStyle = it.gold ? '#D89A18' : '#E8734E'; R2.el(ctx, x + cell - 16, y + 16, 15, 15); ctx.fill();
-        ctx.fillStyle = '#FFFFFF'; ctx.font = '700 16px ' + FONT;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(it.n > 99 ? 99 : it.n), x + cell - 16, y + 17);
-        self._trayRects.push({ x: x, y: y, w: cell, h: cell, key: it.key, gold: !!it.gold });
-      });
-      if (list.length > 14) {
-        ctx.textAlign = 'center'; ctx.font = '18px ' + FONT; ctx.fillStyle = '#B9A88F';
-        ctx.fillText('東西太多了,先自己吃掉/玩掉一些再帶出門吧!', px + pw2 / 2, py + ph2 - 16);
-      }
+      // 物品格:跟房間同一份 trayGrid(一頁 7×2,超過分頁),翻頁鈕命中區給 tap() 用
+      const g = R2.trayGrid(ctx, list, kind, px, py, pw2, ph2, this.trayPage);
+      this.trayPage = g.page;
+      this._trayRects = g.rects; this._trayPrev = g.prev; this._trayNext = g.next;
     },
 
     // ── 朋友的寵物走過來吃掉 / 玩起來(3.9 秒的小演出,結束回去自己逛)──

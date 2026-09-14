@@ -33,7 +33,8 @@
   2. 養大到大寶（`growth.xp ≥ 100`），記 `growth.grownAt`（升上大寶那天）。
   3. `graduate`（畢業）：大寶滿 `GRADUATE_DAYS`（3 天,測試版即可）後,房間出金色「🎓 讓牠畢業」鈕 → 慶祝畫面 → `ST.graduate(slot)` 把 `{species, deco, name, date}` 推進該小孩的 `collection[]`、species 歸 null → 回去 `pickpet` 再選新的一隻。
   4. `museum`（珍藏館）：首頁左下角「🏅 寵物珍藏館」進入,左右兩欄各一小孩,上「正在養」+ 成長條,下「已畢業珍藏」大寶牆（含當初配件/暱稱/日期）。
-- **成長速度煞車**：`GROW.DAILY_XP_CAP = 15`（每日成長值上限,記在 `care.xpToday`,跨日歸零）→ 100xp ÷ 15 ≈ **最快一週長大**（平板時間煞車;測試模式不限）。
+- **成長速度煞車**：`GROW.DAILY_XP_CAP = 15`（每日成長值上限,記在 `care.xpToday`,跨日歸零）→ 100xp ÷ 15 ≈ **最快一週長大**（平板時間煞車;測試模式不限）。**v15:到頂後 `store.feed()`/`playToy()` 直接回 `{full:true}` 不消耗食物/玩具**,房間寵物說「今天吃飽飽了,明天再餵我~」(`talkCare.xpFull`/`xpFullPlay`),成長條右側改顯示「今天長滿了,明天再來」;幸運星在到頂時用 `talkCare.starCapped`(不說 +1)。判斷用 `store.xpFull(d)`。
+- **畢業天數 `GRADUATE_DAYS`(目前 1 天)有匯出 `ST.GRADUATE_DAYS`**,畫面文案一律用它組字串,不要寫死「3 天」。
 - **長大配件**：每物種 5 款（`growth.deco` 0–4,升上大寶時隨機抽一款,由 `P.draw` 的 `o.growDeco` 畫出;各物種的 `xxxDeco(ctx, i, fx)` 在 `pets.js`,**8 隻都有 5 款**,兔兔/倉倉的是 `rabbitDeco`/`hamsterDeco`)。
 - **配件可收集/換裝(v10)**：每小孩有 `pet.decoDex = {species:[5 bool]}` 配件圖鑑;養大寶抽到哪款就**解鎖**那款(`gainXp` 抽 deco 時 `markDeco`)。**珍藏館(museum)點寵物 → `dressup` 換裝畫面**,只能換成「已收集」的款式(`ST.setCollectionDeco`/`setCurrentDeco`,內部 `ownsDeco` 檢查;未收集顯示 🔒)。API:`decoOwned`/`ownsDeco`/`setCollectionDeco`/`setCurrentDeco`/`DECO_N`。**畫珍藏縮圖/換裝格用 `PET_SPAN`(≈366,含最高兔耳)反推縮放,避免頭被 clip 切掉。**
 - **英文玩具改全物種共用一套**（v9）：6 個新物種沒有專屬玩具美術 → 10 個英文關卡各自的 `toyU`／`toyArtU`（`config.js`）為**共用玩具**,`english.js`／`dex.js`／`screens.js` 玩具查詢都走 `toyU`／`toyArtU`;舊的物種專屬玩具名保留純為相容顯示。
@@ -63,6 +64,7 @@
   - `trace`(描寫)模式已接上:`q.letter` 有定義就用骨架+筆順引導,沒定義 fallback 回字型。目前**大寫 A–Z + 小寫 a–z 全套已做**(曲線字母如 a b d e f p q r s 為手調座標,字形要微調就改 `GLYPHS`)。
   - 描寫卡有**四線格**(cap / x-height / baseline / descender),字母按基線定位(引擎以 y=50 的 x-height 線對到傳入的 cy)。
   - **筆順動畫**:`draw()` 傳 `opts.reveal`(0~1)即依筆順累計畫出該比例 + 筆尖圓點(`penColor`)。描寫關卡新字母會自動示範一次,並有「看筆順」鈕重播(`startDemo()`)。`letters-preview.html` 也有「▶ 播放筆順動畫」可預覽。
+  - **英文二上 `qa` 玩法的描寫題(v15)**:每關固定 `CFG.qaTraceMin`(4)題是「聽發音描寫」,位置隨機,**單字、整句(例如 I'm fine, thank you.)都可能抽到**;版面由 `english.js buildTraceLayout()` 決定——字母才有格子、空格是字距、標點淡淡印在格子間不用描,格寬從 170 往下試到最多排 2 行塞得進 1000px(3 行字太小手指描不了),每格記 `need`(至少要描多長)依格子大小換算;排不進 2 行的句子不會被抽成描寫題(`traceFits`)。
   - **字母手寫練習**:首頁 `emenu`(A–Z 字母格)→ 描寫頁 `epractice`(`app/english.js`),房間左欄「字母手寫練習」卡(`app/room.js`)進入。可切大小寫、上一個/下一個字母、清除、看筆順。**描滿一整輪(A–Z 大寫 + a–z 小寫共 52 個)才 +1 分**(本輪進度存 `pet.hwRound`,規則在 `store.submitHwLetter()`);隱藏獎品功能時無「寫好了」鈕、純自由練習。`emenu`/`epractice` 都顯示本輪進度,已描完的字母打勾。描寫卡渲染由共用函式 `renderTraceCard()` 處理(關卡與練習共用,字形/版面一致)。
 
 ## 積分 / 獎品商店（`app/points.js`）
@@ -75,7 +77,7 @@
 ## 電子雞化:背包 / 餵食 / 成長(schema v4,v6/v8/v9 調整;v9 起「本寵物」欄位＝掛在「本小孩」存檔下)
 - **背包本小孩獨立**(v9 起「本寵物」＝「本小孩」,畢業重選寵物時保留):`pet.inv = {foods:{key:數量}, toys:{key:數量}, gold:{key:數量}}`。**v6 起獎勵一次只給 1 個**:數學過關 → 從該關 `feast.items` 抽 **1 個**食物進 `foods`(**滿分(10 題第一次全對)或豪華(第 10 次通關)→ 2 個**;若寵物今日許願食物在這關且未完成,優先給它 — 邏輯在 `quiz.js advance()`);英文過關 → 玩具 1 個進 `toys`(豪華 ×2,`english.js advance()`)。豐收畫面(`feast`)以 `params.items` 顯示實拿的 1–2 個,滿分標題「滿分收穫!」+ ×2 徽章(徽章在標題右側,W/2,252 有寵物對話泡泡別壓到)。
 - **神秘金色食物(v7)**:數學過關 **1/10 機率**整份食物獎勵變金色(`quiz.js advance()` 擲骰 → `store.addFoods(d, keys, gold)` 進 `inv.gold`,與 `foods` 同 key 空間、獨立計數)。餵金色食物 `store.feed(d, key, gold=true)` → 基礎成長值 **×2**(與許願命中 ×2 **可疊 ×4**),圖鑑點亮同一基礎 key。渲染用 `art.js drawFoodGold`(離屏 source-atop 鍍金 + 閃星,做法同 `toys.js` 豪華玩具);豐收畫面金色徽章在標題**左**側(右側是 ×2 徽章),房間托盤金色食物排在一般食物後、金框格子,開吃語錄 `config.talkCare.goldFood`。
-- **餵食 / 陪玩在房間**(`app/room.js`):點房間前緣的「食物籃 / 玩具箱」開背包托盤 → 點一個道具 → 寵物走過去吃(三口吃完)/ 玩(玩具彈跳),**消耗 1 個**。資料在點下去那一刻就由 `store.feed()` / `store.playToy()` 扣掉,動畫只是演出。點寵物本體 = 摸摸牠(純互動)。
+- **餵食 / 陪玩在房間**(`app/room.js`):點房間前緣的「食物籃 / 玩具箱」開背包托盤 → 點一個道具 → 寵物走過去吃(三口吃完)/ 玩(玩具彈跳),**消耗 1 個**。**托盤一頁 7×2=14 格,超過就分頁(`trayGrid()`,匯出在 `PLS_ROOM2` 給 `visit.js` 共用;翻頁鈕 `_trayPrev`/`_trayNext`,`trayPage` 開托盤時歸 0)**——食物已有 24 種 + 金色食物,以前只畫前 14 格,排在後面的永遠點不到。資料在點下去那一刻就由 `store.feed()` / `store.playToy()` 扣掉,動畫只是演出。點寵物本體 = 摸摸牠(純互動)。
 - **房間是 2.5D**(v6):寵物在整片地板漫遊(`room.js updateWander`,狀態存 `this._wander`),z=0 靠牆 ~ z=1 前緣,`scAt(z)` 近大遠小,**點地板可叫牠走過去**。**視角**:`pets.js draw()` 的 `o.dir`('front'|'side'|'back') — 走遠看到背面(屁股尾巴/耳背/無臉),橫走看到 3/4 側面(五官前移、兔耳後倒、露尾巴;預設朝右,`petAt` 只在 side 時用 `face=-1` 翻面朝左),停下/吃玩回正面;方向由 `room.js dirOf()`(移動向量縱橫比)決定。其他畫面不傳 `dir` = 正面,不受影響。食物墊/遊戲墊(`station()`)只是餵食/陪玩定點(`matZ=0.34`);畫在寵物頭上的東西(照顧圖示/許願泡泡/對話泡泡)都要用 `_petX`/`_petY`/`_petS` 隨深度縮放定位。
 - **成長**:`pet.growth.xp`(v6:餵食 +4、陪玩 +6、每天第一次各多 +2,計數在 `pet.care`,跨日歸零)。**v8 加每日成長上限 `GROW.DAILY_XP_CAP = 15`**(記在 `care.xpToday`,跨日歸零;100xp÷15≈最快一週長大,測試模式不限)。階段門檻在 `store.js` 的 `GROW`:<30 幼幼(0.85×+呆毛)、<100 小寶、≥100 大寶(1.12×+每物種 5 款配件其一)。**大寶配件 `growth.deco`(0–4)升上大寶時決定並固定**。外觀由 `pets.js` 的 `draw(species, ctx, t, {stage, dir, growDeco})` 處理,**所有畫寵物的地方都要帶 species(不是 slot)+ stage + growDeco**(stage 用 `store.growthInfo(d).stage`、growDeco 用 `d.growth.deco`)。升階時房間會播全螢幕慶祝(`room.js drawGrow`)。
 - **佈置(換擺設)已移除**(v6):`app/shelf.js` 已刪除(但 `shelf` 畫面本身仍定義並註冊在 `app/screens.js`,尚未清乾淨);`pet.home` 欄位保留 `{foods:[3], toys:[3]}` 空格結構(各格 `{key, deluxe, date}`),`migrateHome()`／`setHomeItem()` 都還健在,v6 migration 會把舊檔擺出的食物/玩具轉進背包(deluxe 算 2 份)。**現階段不要讓任何畫面讀寫 `home` 的格子**——這組結構是「展示櫃」功能的預留地(見 `docs/design-brief.md` 相關計畫),要動之前先確認範圍。
@@ -90,7 +92,9 @@
 ## 過關獎勵的次數上限與豪華版(v12)
 - **過關次數上限依難易度分層**:`clearCapBasic`(入門關,預設 3)／`clearCapAdvanced`(進階關,預設 10),存在 `pls.clearCapBasic`／`pls.clearCapAdvanced`(全域,家長區可改,需密碼);「進階關卡從第幾關開始算」兩個小孩可各自設定。超過上限後仍可繼續玩,只是不再給點數/食物。
 - **豪華版獎勵**:`CFG.deluxeAt = 10` — 同一關正式解滿 10 次後改送豪華版(`FOODS_DELUXE` / `drawToyDeluxe`)。
-- ⚠️ **已知問題**:`deluxeAt`(10) 與 `clearCapBasic`(3) 互相打架 → **入門關卡的豪華獎勵事實上永遠觸發不到**,進階關卡也剛好卡在 10 的邊界。14 個豪華食物 + 10 個豪華玩具的美術幾乎沒有曝光機會。要動獎勵給予邏輯時請一併考慮這件事。
+- `deluxeAt`(10)跟 `clearCapBasic`(3)的衝突已由 `store.js recordRun` 的 `hitDeluxeMilestone` 處理:第 10 次通關永遠照給豪華版,不受入門上限擋;第 4~9 次沒獎勵,豐收畫面的文案會老實寫「這關還能再拿 N 次獎勵・第 10 次有豪華大豐收」。
+- **過關判定(v15 起數學/英文一致)**:`store.passCheck(firstTryCorrect, total)` — 最多可以錯 `max(1, floor(total × (1 − passRate)))` 題(10 題錯 1 題、8/6/5 題也是錯 1 題)。**英文以前寫死成 `count/count` 永遠過關,已改成真的看首次答對數**。`recordRun` 回 `{passed, feast, capped, deluxe, …}`:`passed` 過關、`feast` 有給獎勵、`capped` 過關但這關獎勵次數已拿滿。結果畫面(`result`/`eresult`)三種情況文案不同(練習 / 過關但拿滿 / 沒過關),沒過關會顯示答對幾題。
+- **每日額度(`daily.math`/`daily.english`)只在真的給獎勵時才扣**:關卡圖上寫的是「今天還可以賺 N 次食物」,沒過關 / 獎勵拿滿的那一次不算掉,小朋友可以馬上再挑戰(所以文案不要說「明天」)。
 - **破關獎盃**:房間右上角 `trophyBadge()`(`app/room.js`)顯示數學/英文各自「目前破到第幾關」,自己房間與好友拜訪畫面共用同一個繪製。
 
 ## 寵物聊天系統(v13,`app/config.js` talkCare + `app/room.js` 聊天引擎)
@@ -128,6 +132,7 @@
 - 要外包設計（新寵物、新房間場景、新獎品道具、UI 改版）一律走 **`docs/design-brief.md`** 的 prompt 模板,不要臨時發明說法。裡面有各類資產的座標系、必要變體、回傳格式與驗收清單。
 - **`Path2D` 可以直接吃 SVG path 字串畫進 canvas**,`app/letters.js:169` 已經在用(`ctx.stroke(new Path2D(st.d))`)。所以可交付的視覺範圍不限於實色+圓角,任何向量圖形都行。
 - **點陣 sprite 實質上不可行**:寵物有 3 視角 × 3 成長階段 × 10 物種,外加 10 個 `xxxDeco()` × 5 款 = 50 組寫死的配件座標,且 sprite 無法套用 `motion()` 的擠壓拉伸。要換媒材只能走 SVG path + 維持既有的程序化變形。
+- **升階慶祝 `room.js drawGrow` 也走 `ACT.drawAt`**(v15 前直接呼叫 `P.draw`,長頸鹿升階會畫成兔子)。目前 `room.js` 只剩 `petAt()` 的 legacy 分支還會碰 `P.draw`,新程式一律不要再直接呼叫。
 - **寵物的美術升級走上面的「寵物 actor 架構」章節**,`design-brief.md` 的 C1 模板已同步改寫成「交一組動作表 + 節奏參數 + 自己的 bounds」,不再要求三視角與固定外框。
 
 ## 好友雲端同步 / 自動備份(選用附加功能,v11,`app/cloud.js`)
@@ -139,6 +144,7 @@
 - **朋友家要看起來不一樣**:`visit.js` 跟 `room.js` 一樣查 `window.PLS_SCENE_ROOM[species]`,朋友養的物種有專屬場景就畫牠的;挑東西的介面就是自己房間那套背包托盤(食物/玩具兩個入口、7×2 格、數量徽章、金色食物金框)——**不要再退回「只放得下幾格」的排排站清單**,那會讓玩具永遠被食物擠掉。
 - **主人端通知**:小孩下次打開房間(`room.js enter()`)會呼叫 `PLS_CLOUD.checkVisitLog(slot)`,把新的紀錄疊成可點掉的橫幅「🐾 OO家的XX 來過我們家 / 給小白吃了『YY』」(左邊畫來訪的寵物、右邊畫那樣道具)。已讀游標純本機判斷,不寫回 Firestore。**真正的回饋是寵物自己記得**:同一批紀錄會寫成 `giftGot` 回憶(帶 `pet` 物種名 + `act` = eat/play),之後閒聊就會講「小宇家的哈哈給我吃鯛魚燒!」。
 - **好友來我家作客時,寵物會講出朋友的近況**(`room.js friendNewsLines()` + `config.js talkCare.friendNews`):「聽說阿翔破到第 9 關了!」素材**全部**來自該好友的 `status` 快照,快照沒有的欄位就不生成那句 —— **寧可少講,也不要讓寵物講出沒發生過的事**。
+- **家長區的存檔讀寫一律用 `ST.SLOTS`(kidL/kidR)**:學習狀況、寵物名字都以小孩為單位(v15 前還在讀 `pls.rabbit`/`pls.hamster`,所以數字永遠是 0、改名字寫到沒人讀的舊鍵)。
 - **好友清單(`index.html`)每列要畫出朋友的寵物**(縮圖 + 成長階段 + 兩科獎盃 + 珍藏數):這些資料 `status` 快照本來就有,不露出來等於白同步。
 - **維運後台**(`admin.html`+`app/admin.js`,Email/Password 登入,跟小孩的匿名登入是不同帳號系統):**只有 `firestore.rules` 裡 `isAdmin()` 寫死的單一 email 能登入看到資料**,不是「每個家長都有 admin 權限」;一般家長全程匿名登入,不會意外拿到後台存取權。`admin.html`/`app/admin.js` 刻意不進 `sw.js` 的 `ASSETS`(不支援離線,後台本來就要即時連網)。
 - **改動這組功能的檢查清單**:動到 Firestore 欄位/集合 → 同步更新 `docs/cloud-friends-schema.md` 與 `firestore.rules`;動到本機 `childNickname`/`giftsGiven` 欄位結構 → 照最上面「向前/向後相容」章節走 `store.js` migration + `docs/export-import-schema.md`。

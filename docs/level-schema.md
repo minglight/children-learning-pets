@@ -75,5 +75,6 @@
 
 ## 五、其他已知、但目前沒問題的地雷(留意即可,不用現在動)
 
-- `deluxeAt`(10)與 `clearCapBasic`(3)過去互相打架,`store.js` 的 `hitDeluxeMilestone` 已經放行第 10 次通關不受入門關卡上限卡住——**這個雷已經修好**,新增關卡不會踩到,`CLAUDE.md` 裡的舊說明還沒同步更新。
+- `deluxeAt`(10)與 `clearCapBasic`(3)過去互相打架,`store.js` 的 `hitDeluxeMilestone` 已經放行第 10 次通關不受入門關卡上限卡住——**這個雷已經修好**,新增關卡不會踩到(`CLAUDE.md` 的說明已同步)。
+- 過關判定是 `store.passCheck()`:最多錯 `max(1, floor(count × (1 − passRate)))` 題。英文關卡 `count` 小於 10 也一樣是「錯 1 題以內」,設計 `count` 時不用擔心比例算出來變成一題都不能錯。
 - `gen`/`bank`/`play`/`wordPool`/`toyArtU`/`feast.items` 這些字串欄位目前**完全沒有 schema 驗證**,打錯字都是等玩家點進那關才在畫面/console 出錯,沒有載入期的自我檢查。日後如果想一次解決,可以在開機時加一段簡單的自檢(逐一確認 `CFG.math` 每筆的 `gen` 都存在於 `G.gen`、`CFG.english` 每筆的 `toyArtU` 都存在於 `TOYS`……),失敗就 `console.warn`,但這是額外投資,不是現在的阻礙。

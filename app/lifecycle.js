@@ -1,5 +1,5 @@
 // lifecycle.js — v9 成長生命週期畫面:選寵物(pickpet)、畢業(graduate)、寵物珍藏館(museum)
-// 存檔以小孩為單位(kidL / kidR),寵物養到大寶滿 3 天可畢業入珍藏,再重選一隻從幼幼養。
+// 存檔以小孩為單位(kidL / kidR),寵物養到大寶滿 GRADUATE_DAYS 天(store.js)可畢業入珍藏,再重選一隻從幼幼養。
 (function () {
   const PLS = window.PLS, A = window.PLS_ART, P = window.PLS_PETS;
   const CFG = window.PLS_CONFIG, ST = window.PLS_STORE;
@@ -105,7 +105,7 @@
       const zh = SLOT_ZH[this.slot] || '';
       A.pill(ctx, W / 2, 74, zh + '小孩 · ' + (this.first ? '選一隻寵物開始養' : '選一隻新寵物,從幼幼養起'),
         '#8A6242', 'rgba(255,255,255,0.9)', 30);
-      A.pill(ctx, W / 2, 126, '養到大寶、陪牠 3 天,就能畢業進珍藏館', '#A07B58', 'rgba(255,255,255,0.8)', 20);
+      A.pill(ctx, W / 2, 126, '養到大寶、陪牠 ' + ST.GRADUATE_DAYS + ' 天,就能畢業進珍藏館', '#A07B58', 'rgba(255,255,255,0.8)', 20);
 
       const self = this;
       ctx.save();
@@ -187,10 +187,12 @@
       ctx.font = '56px ' + FONT;
       ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillText(this.name + ' 準備畢業了!', cx, 118);
       ctx.fillStyle = '#C2591E'; ctx.fillText(this.name + ' 準備畢業了!', cx, 114);
-      // 大寶 + 獎牌
-      drawPetAt(ctx, this.species, t, cx, cy + 150, 1.06, { stage: 'grown', mode: 'happy', growDeco: this.deco });
+      // 大寶 + 獎牌:縮放用 spanOf 反推(大寶 ×1.12),頭頂壓在標題下方 170,兔耳/長頸鹿脖子不會蓋到標題
+      const footY = 560;
+      const sc = Math.min(1.06, (footY - 170) / (window.PLS_ACTOR.spanOf(this.species) * 1.12));
+      drawPetAt(ctx, this.species, t, cx, footY, sc, { stage: 'grown', mode: 'happy', growDeco: this.deco });
       ctx.font = '64px ' + FONT; ctx.fillText('🏅', cx + 150, cy - 90);
-      A.pill(ctx, cx, 556, '畢業後會永久收進「寵物珍藏館」,金幣和圖鑑都留著', '#8A6242', 'rgba(255,255,255,0.9)', 22);
+      A.pill(ctx, cx, 598, '畢業後會永久收進「寵物珍藏館」,金幣和圖鑑都留著', '#8A6242', 'rgba(255,255,255,0.9)', 22);
       // 撒花
       if (t - this._burst > 0.4) { this._burst = t; PLS.burst && PLS.burst(cx + (Math.random() - 0.5) * 360, 200, 'feast'); }
     }

@@ -189,7 +189,7 @@
     if (typeof p.care.xpToday !== 'number') p.care.xpToday = 0;   // v8:今日已累積成長值
     // v8:大寶配件 index。舊的大寶資料沒有 → 給 0(第一款);還沒到大寶 → null
     if (typeof p.growth.deco !== 'number') p.growth.deco = (p.growth.xp >= GROW.GROWN_AT) ? 0 : null;
-    // v9:升大寶日期。已是大寶但沒記日期的舊資料 → 用今天起算 3 天畢業(公平);還沒大寶 → null
+    // v9:升大寶日期。已是大寶但沒記日期的舊資料 → 用今天起算 GRADUATE_DAYS 天畢業(公平);還沒大寶 → null
     if (typeof p.growth.grownAt !== 'string') p.growth.grownAt = (p.growth.xp >= GROW.GROWN_AT) ? today() : null;
     // ── v10:配件圖鑑 ──
     if (!p.decoDex || typeof p.decoDex !== 'object') p.decoDex = {};
@@ -384,7 +384,20 @@
       + trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.english2) || []);
   }
 
-  // 記錄一次完整關卡結果
+  // 過關門檻:首次答對率 ≥ passRate(預設 90%)。題數少於 10 題的關卡(英文 8/6/5 題)
+  // 按比例算會變成「一題都不能錯」,所以統一換算成「最多可以錯幾題」、至少允許錯 1 題——
+  // 10 題就是錯 1 題(跟原本 90% 一樣),8 題也是錯 1 題,而不是 7/8=87.5% 就不過。
+  function passCheck(firstTryCorrect, total) {
+    const passRate = window.PLS_CONFIG.passRate || 0.9;
+    const allowMiss = Math.max(1, Math.floor(total * (1 - passRate) + 1e-9));
+    return (total - firstTryCorrect) <= allowMiss;
+  }
+
+  // 記錄一次完整關卡結果。回 { rate, passed, feast, deluxe, capped, clears, point }:
+  //   passed = 這次有過關(答對率達標);feast = 有給獎勵(食物/玩具 + 1 點);
+  //   capped = 過關了但這關獎勵次數已拿滿(沒獎勵);練習模式三者皆 false。
+  // 每日「正式」次數(daily[subject])只在真的給獎勵時才扣——關卡圖上寫的是「今天還可以賺 N 次食物」,
+  // 沒賺到(沒過關 / 獎勵已拿滿)就不該算掉一次,小朋友可以馬上再挑戰。
   function recordRun(d, subject, levelId, firstTryCorrect, total, practice) {
     const rate = firstTryCorrect / total;
     const rec = d.levels[levelId] || { attempts: 0, bestRate: 0, cleared: false, plays: 0, clears: 0, lastClearDate: null };
@@ -392,10 +405,10 @@
     rec.plays++;
     rec.attempts += total;
     if (rate > rec.bestRate) rec.bestRate = rate;
-    let feast = false, deluxe = false, point = 0;
+    let feast = false, deluxe = false, point = 0, passed = false, capped = false;
     if (!practice) {
-      d.daily[subject] = (d.daily[subject] || 0) + 1;
-      if (rate >= window.PLS_CONFIG.passRate) {
+      if (passCheck(firstTryCorrect, total)) {
+        passed = true;
         rec.cleared = true;
         rec.clears = (rec.clears || 0) + 1;
         if (!isTest()) rec.lastClearDate = today();   // 測試版不鎖每日
@@ -409,6 +422,9 @@
           feast = true;
           deluxe = hitDeluxeMilestone;
           d.points = (d.points || 0) + 1; point = 1;
+          d.daily[subject] = (d.daily[subject] || 0) + 1;
+        } else {
+          capped = true;
         }
         // v13:記進寵物的回憶 — 之後閒聊時會誇這一關,並邀主人再去解一次(泡泡可點,直接跳關)。
         // 同一關只留最新一筆,免得反覆刷同一關把其他回憶擠掉。
@@ -423,7 +439,7 @@
     }
     d.levels[levelId] = rec;
     save(d);
-    return { rate: rate, feast: feast, deluxe: deluxe, clears: rec.clears, point: point };
+    return { rate: rate, passed: passed, feast: feast, deluxe: deluxe, capped: capped, clears: rec.clears, point: point };
   }
 
   // ── 積分(過關 / 手寫練習累積,可兌換獎品;本寵物獨立)──
@@ -528,7 +544,7 @@
     };
   }
 
-  // ── v9:成長生命週期(選寵物 → 養大 → 大寶滿 3 天畢業入珍藏 → 重選)──
+  // ── v9:成長生命週期(選寵物 → 養大 → 大寶滿 GRADUATE_DAYS 天畢業入珍藏 → 重選)──
   // today() 格式 'Y-M-D'(月/日不補零),用 UTC 換算避開時區問題。
   function dateNum(s) { var p = (s || '').split('-'); return p.length === 3 ? Date.UTC(+p[0], +p[1] - 1, +p[2]) : NaN; }
   function daysSince(s) { var n = dateNum(s); return isNaN(n) ? 0 : Math.floor((dateNum(today()) - n) / 86400000); }
@@ -679,7 +695,7 @@
       pushMemo(d, { k: 'newDeco', mood: 'excited', deco: d.growth.deco, species: d.species });   // v13
     }
     if (grew) pushMemo(d, { k: 'grow', mood: 'proud', stage: after, stageZh: STAGE_NAMES[after] });   // v13:長大是大事
-    // v9:第一次升上大寶 → 記日期,開始 3 天畢業倒數
+    // v9:第一次升上大寶 → 記日期,開始 GRADUATE_DAYS 天畢業倒數
     if (grew && after === 'grown' && !d.growth.grownAt) d.growth.grownAt = today();
     return { gain: gain, capped: gain < want, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: grew, deco: d.growth.deco };
   }
@@ -687,9 +703,17 @@
   // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1);餵中今日許願的食物 → 基礎值加倍。
   // v7:gold=true 消耗金色食物(inv.gold),基礎成長值再 ×2(與許願加倍可疊)。
   // 沒有該食物回 null;成功回 gainXp 的結果(含 grew 供升階慶祝、wishGranted 供許願慶祝)。
+  // 今天的成長值已經到頂(DAILY_XP_CAP)?到頂就不再餵/玩——食物玩具不會白白消耗,寵物會說「明天再來」。
+  // 測試模式不限。
+  function xpFull(d) {
+    if (isTest()) return false;
+    return ((d.care && d.care.xpToday) || 0) >= GROW.DAILY_XP_CAP;
+  }
+
   function feed(d, key, gold) {
     var box = gold ? (d.inv && d.inv.gold) : (d.inv && d.inv.foods);
     if (!box || !(box[key] > 0)) return null;
+    if (xpFull(d)) return { full: true };
     box[key]--;
     if (box[key] <= 0) delete box[key];
     d.care.fed++;
@@ -709,6 +733,7 @@
   // 陪玩:消耗 1 個玩具,成長值 +3(當天第一次多 +1)。
   function playToy(d, key) {
     if (!d.inv || !d.inv.toys || !(d.inv.toys[key] > 0)) return null;
+    if (xpFull(d)) return { full: true };
     d.inv.toys[key]--;
     if (d.inv.toys[key] <= 0) delete d.inv.toys[key];
     d.care.played++;
@@ -853,6 +878,7 @@
     getPrizes: getPrizes, setPrizes: setPrizes, redeem: redeem,
     rewardsHidden: rewardsHidden, setRewardsHidden: setRewardsHidden,
     // v4:背包 / 成長 / 照顧
+    GROW: GROW, GRADUATE_DAYS: GRADUATE_DAYS, xpFull: xpFull, passCheck: passCheck,
     stageOf: stageOf, growthInfo: growthInfo,
     invList: invList, invTotal: invTotal,
     addFoods: addFoods, addToy: addToy, feed: feed, playToy: playToy,

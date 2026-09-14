@@ -161,8 +161,9 @@
 
     <section>
       <h3>寵物名字</h3>
-      <div class="prow"><label>兔兔</label><input type="text" id="name-rabbit" maxlength="6" placeholder="兔兔"></div>
-      <div class="prow"><label>倉鼠</label><input type="text" id="name-hamster" maxlength="6" placeholder="倉倉"></div>
+      <p class="hint">幫小孩正在養的寵物取名字(換寵物/畢業後會回到新寵物的預設名)。</p>
+      <div class="prow"><label id="name-label-kidL">左邊小孩</label><input type="text" id="name-kidL" maxlength="6" placeholder="預設名"></div>
+      <div class="prow"><label id="name-label-kidR">右邊小孩</label><input type="text" id="name-kidR" maxlength="6" placeholder="預設名"></div>
       <div class="pbtns"><button class="pbtn ghost" id="save-names">儲存名字</button></div>
     </section>
 
@@ -271,7 +272,7 @@
   <div id="friends-panel">
     <button class="pbtn ghost" id="friends-close">關閉 ✕</button>
     <h2>好友</h2>
-    <p class="hint">跟同學交換好友代碼,每天可以帶自己的寵物去朋友家串一次門子,分享食物/玩具給對方。</p>
+    <p class="hint">跟同學交換好友代碼,每天可以帶自己的寵物去朋友家串一次門子,給對方的寵物吃點東西、陪牠玩。</p>
 
     <div id="friends-offline">目前無法連線好友功能,請檢查網路。</div>
 
@@ -369,28 +370,42 @@
   const overlay = document.getElementById('parent-overlay');
   const msg = document.getElementById('parent-msg');
 
+  // v15:存檔以「小孩」為單位(kidL / kidR),不再是 rabbit / hamster(v9 以前的鍵)——
+  // 以前這裡還在讀 pls.rabbit,所以學習狀況永遠是 0、改名字也寫到沒人讀的舊鍵。
+  function kidLabel(slot, d) {
+    const sp = d.species && CFG.pets[d.species];
+    const petName = d.name || (sp && sp.name) || '';
+    return ST.SLOT_NAMES[slot] + '小孩' + (sp ? '(' + petName + (d.name ? '・' + sp.name : '') + ')' : '(還沒選寵物)');
+  }
+  function countLevels(d, list) {
+    let cleared = 0, plays = 0;
+    (list || []).forEach(function (lv) {
+      const r = d.levels[lv.id];
+      if (r) { plays += r.plays || 0; if (r.cleared) cleared++; }
+    });
+    return { cleared: cleared, plays: plays, total: (list || []).filter(function (l) { return !l.locked; }).length };
+  }
   function refreshStats() {
     const box = document.getElementById('parent-stats');
     box.innerHTML = '';
-    ['rabbit', 'hamster'].forEach(function (pid) {
-      const d = ST.load(pid);
-      const name = d.name || CFG.pets[pid].name;
-      let cleared = 0, plays = 0;
-      CFG.math.forEach(function (lv) {
-        const r = d.levels[lv.id];
-        if (r) { plays += r.plays; if (r.cleared) cleared++; }
-      });
+    ST.SLOTS.forEach(function (slot) {
+      const d = ST.load(slot);
+      const m = countLevels(d, CFG.math.concat(CFG.math2 || []));
+      const e = countLevels(d, CFG.english.concat(CFG.english2 || []));
       const row = document.createElement('div');
       row.className = 'stat-row';
-      row.innerHTML = '<b>' + name + '</b><span>數學通關 ' + cleared + ' / ' +
-        CFG.math.filter(function (l) { return !l.locked; }).length + ' 關</span>' +
-        '<span>玩過 ' + plays + ' 輪</span>' +
-        '<span>今日大餐 ' + (d.daily.math || 0) + ' / ' + ST.getDailyLimit() + '</span>' +
+      row.innerHTML = '<b>' + kidLabel(slot, d) + '</b>' +
+        '<span>數學通關 ' + m.cleared + ' / ' + m.total + ' 關(玩過 ' + m.plays + ' 輪)</span>' +
+        '<span>英文通關 ' + e.cleared + ' / ' + e.total + ' 關(玩過 ' + e.plays + ' 輪)</span>' +
+        '<span>今日數學 ' + (d.daily.math || 0) + ' / ' + ST.getDailyLimit() + '・英文 ' + (d.daily.english || 0) + ' / ' + ST.getDailyLimit() + '</span>' +
         '<span>積分 🪙 ' + ST.getPoints(d) + '</span>';
       box.appendChild(row);
+      const lbl = document.getElementById('name-label-' + slot);
+      const sp = d.species && CFG.pets[d.species];
+      if (lbl) lbl.textContent = ST.SLOT_NAMES[slot] + (sp ? '・' + sp.name : '小孩');
+      const inp = document.getElementById('name-' + slot);
+      if (inp) { inp.value = d.name || ''; inp.placeholder = sp ? sp.name : '還沒選寵物'; inp.disabled = !sp; }
     });
-    document.getElementById('name-rabbit').value = ST.load('rabbit').name || '';
-    document.getElementById('name-hamster').value = ST.load('hamster').name || '';
     document.getElementById('daily-limit-input').value = ST.getDailyLimit();
   }
 
@@ -620,9 +635,10 @@
   });
 
   document.getElementById('save-names').addEventListener('click', function () {
-    ['rabbit', 'hamster'].forEach(function (pid) {
-      const d = ST.load(pid);
-      const v = document.getElementById('name-' + pid).value.trim();
+    ST.SLOTS.forEach(function (slot) {
+      const d = ST.load(slot);
+      if (!d.species) return;   // 還沒選寵物就沒有名字可以取
+      const v = document.getElementById('name-' + slot).value.trim();
       d.name = v || null;
       ST.save(d);
     });
