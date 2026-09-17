@@ -804,8 +804,17 @@
     if (d.growCele) { d.growCele = null; save(d); }
   }
 
+  // 這一關對這個小孩來說,以後還拿不拿得到獎勵(v12 分層上限 + deluxeAt 里程碑,見 recordRun):
+  // clears 已經超過 cap、又已經過了(或不會再等到)第 10 次豪華里程碑 → 之後永遠不會再給 feast。
+  function levelFeastExhausted(d, lv) {
+    var r = d.levels[lv.id];
+    var clears = r ? (r.clears || (r.cleared ? 1 : 0)) : 0;
+    return clears >= capFor(d, 'math', lv.id) && clears >= deluxeAt();
+  }
   // ── v5:寵物許願(每天一個想吃的食物;餵中成長值加倍)──
   // 池子 = 前三關 + 已解過的數學關卡的 feast 食物(確保拿得到)。
+  // v17:排除「這關獎勵已經拿滿、以後不會再給」的關卡——不然會許願一個小朋友再怎麼解都拿不到的食物,
+  // 寵物就會一直討著要一個永遠餵不到的東西(見 levelFeastExhausted)。
   // 回 { key, date, done, levelName }(levelName = 可以賺到這個食物的關卡,給小朋友提示)。
   function wishPool(d) {
     var pool = {};
@@ -816,21 +825,23 @@
       var r = d.levels[lv.id];
       var reachable = i < 3 || (r && (r.clears || r.cleared));
       if (!reachable) return;
+      if (levelFeastExhausted(d, lv)) return;
       lv.feast.items.forEach(function (k) { if (!pool[k]) pool[k] = lv; });
     });
     return pool;
   }
   function getWish(d) {
-    if (!d.wish || d.wish.date !== today()) {
-      var pool = wishPool(d);
+    var pool = wishPool(d);
+    // 除了換日要重抽,今天許的願如果剛好在當天內被解到「這關獎勵已經拿滿」也要重抽——
+    // 不然會卡著一個小朋友當下怎麼解都拿不到的願望,寵物講的「好想要」變成廢話。
+    if (!d.wish || d.wish.date !== today() || (!d.wish.done && !pool[d.wish.key])) {
       var keys = Object.keys(pool);
-      if (!keys.length) return null;
+      if (!keys.length) { d.wish = null; save(d); return null; }
       var key = keys[Math.floor(Math.random() * keys.length)];
       d.wish = { key: key, date: today(), done: false };
       save(d);
     }
-    var pool2 = wishPool(d);
-    var lv2 = pool2[d.wish.key];
+    var lv2 = pool[d.wish.key];
     return {
       key: d.wish.key, date: d.wish.date, done: !!d.wish.done,
       levelName: lv2 ? (lv2.name + '(' + lv2.sub + ')') : null
