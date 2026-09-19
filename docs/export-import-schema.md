@@ -6,7 +6,7 @@
 
 ---
 
-## 目前版本:`version = 14`（v14 解題長大:新增 growCele 升階慶祝待播,成長值改以過關為主;v13 聊天記憶:新增 memo/lastSeen,寵物記得發生過的事;v12 難易度分級獎勵:過關次數上限依入門/進階分層,新增 advancedFrom;v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
+## 目前版本:`version = 15`（v15 餵食/陪玩改真小補:care 新增 careXp,每天靠餵食/陪玩最多只能加 5 點成長值(不分次數);v14 解題長大:新增 growCele 升階慶祝待播,成長值改以過關為主;v13 聊天記憶:新增 memo/lastSeen,寵物記得發生過的事;v12 難易度分級獎勵:過關次數上限依入門/進階分層,新增 advancedFrom;v11 好友雲端同步:小朋友暱稱進正式 schema;v10 配件可收集/換裝;v9 以小孩為存檔單位:選寵物 → 養大 → 畢業珍藏）
 
 ### 為什麼需要這份規格
 本 App 是純前端單機程式,進度只存在瀏覽器 `localStorage`(cache),**隨時可能被瀏覽器清除**。
@@ -17,7 +17,7 @@
 ```jsonc
 {
   "app": "pls",                       // 固定字串;不是 "pls" 一律拒絕匯入
-  "version": 14,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
+  "version": 15,                      // schema 版本(= store.js 的 SCHEMA_VERSION)
   "exportedAt": "2026-06-18T08:00:00.000Z", // ISO 時間,僅供參考
   "kidL": { /* 左邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 rabbit)
   "kidR": { /* 右邊小孩的進度,見下 */ },   // v9:存檔以小孩為單位(取代 hamster)
@@ -67,7 +67,8 @@
   },
   "growth": { "xp": 42, "deco": null, "grownAt": null },  // v4:成長值。v8:deco=升大寶隨機配件 index(0-4)。v9:grownAt=升大寶日期(滿 3 天可畢業;未到大寶為 null)
   "care": {                   // v4:今日照顧計數(跨日歸零)。v8:新增 xpToday=今日已累積成長值(平板時間煞車用)
-    "date": "2026-7-6", "fed": 1, "played": 0, "xpToday": 8
+    "date": "2026-7-6", "fed": 1, "played": 0, "xpToday": 8,
+    "careXp": 3                // v15:今日餵食/陪玩已經加了多少成長值(上限 CARE_XP_DAILY_CAP=5,跨日歸零)
   },
   "wish": {                   // v5:今日許願(null = 尚未產生;跨日由 getWish() 重新抽)
     "key": "sushi", "date": "2026-7-8", "done": false
@@ -264,3 +265,16 @@
   之後只是互動不加成長;所有來源合計每日上限 `DAILY_XP_CAP`(20)。舊的「每天第一次餵/玩多 +2」(`DAILY_BONUS`)取消。
   `recordRun()` / `submitHwLetter()` 的回傳多了 `grow`(gainXp 結果),畫面拿來畫「🌱 成長 +N」徽章。
 - `care.fed` / `care.played` 欄位不變,但多了一個用途:判斷今天餵/玩的加成次數用完沒(`careXpLeft()`)。
+
+### v15（2026-09,餵食/陪玩改真小補 — 不能只靠囤積食物養大寵物)
+- **小孩 `care` 新增欄位**:`careXp`(number,預設 0,跟 `xpToday` 一樣跨日歸零)— 今天餵食/陪玩**已經**加了多少成長值。
+- **上限語意改變**:v14 的「每天前 `CARE_XP_ACTS`(5)次(餵+玩合計)才加成長值」改成「每天餵食/陪玩合計最多只能加
+  `GROW.CARE_XP_DAILY_CAP`(5)點成長值」——不再算次數,直接算額度。舊制金色/許願食物一次 +2,5 次全中可以衝到 10 XP/天;
+  新制無論怎麼分配,`feed()`/`playToy()`/`bonusXp()`(吃出幸運星)合計每天最多 5 XP,額度用完後純互動(反應、圖鑑點亮、
+  許願照樣能還願)不再加成長,逼小孩靠解題把剩下的 XP 賺完,不能光靠手上囤的食物躺著把寵物餵到大寶。
+  `GROW.CARE_XP_ACTS` 常數移除,改成 `CARE_XP_DAILY_CAP`。
+- **文案**:額度用完時的台詞(`config.js talkCare.eatNoGrow`/`playNoGrow`)加了「我有點飽了/我有點累了,想長大要去解題喔~」;
+  解題拿到成長值時,畫面上的成長徽章(`A.growPill`)文字從「🌱 成長 +N」改成寵物第一人稱講的「🌱 我覺得我又長高了一點!」
+  (純文案改動,不影響存檔結構)。
+- `migratePet()` 對舊檔補 `care.careXp = 0`;v14(含更舊)備份檔匯入自動補齊,進度不受影響(舊資料沒有「今天已經餵了多少
+  XP」的紀錄,一律當作今天還沒吃過,從 0 開始算額度)。

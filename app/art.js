@@ -18,11 +18,16 @@
   }
 
   // v16:解題長大 —— 過關/練習/手寫畫面右上角的成長徽章。grow = store.gainXp 的結果(null 就不畫)
+  // v15:文字改成寵物第一人稱講的話(「我覺得我又長高了一點」),不是冷冰冰的 +N 數字。
   function growPill(ctx, x, y, grow, size) {
     if (!grow) return;
     size = size || 24;
     let text, fg, bg;
-    if (grow.gain > 0) { text = '🌱 成長 +' + grow.gain + (grow.grew ? '・長大了!' : ''); fg = '#3E7A4A'; bg = 'rgba(214,240,220,0.96)'; }
+    if (grow.gain > 0) {
+      // 兩種文字長度都量過(canvas measureText),在畫面右上角(x=W-200)不會超出畫布右緣
+      text = grow.grew ? '🌱 我升級長大了!' : '🌱 我覺得我又長高了一點!';
+      fg = '#3E7A4A'; bg = 'rgba(214,240,220,0.96)';
+    }
     else if (grow.capped) { text = '🌱 今天長滿了,明天再長'; fg = '#8A7A62'; bg = 'rgba(240,232,216,0.96)'; }
     else return;
     pill(ctx, x, y, text, fg, bg, size);

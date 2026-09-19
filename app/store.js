@@ -39,7 +39,12 @@
   // v14:成長改「解題長大」— 新增 growCele(升階慶祝待播:'kid'|'grown'|null;升階發生在答題畫面時,
   //     回房間再播升階慶祝,播完清掉)。成長值的來源改成過關為主(見 GROW 常數),餵食/陪玩只是小補;
   //     舊檔的 xp 數字原樣保留,不重算。
-  const SCHEMA_VERSION = 14;
+  // v15:餵食/陪玩的「小補」改成真正的小補 — 原本每天前 5 次(餵+玩合計)各能加成長值,金色/許願食物
+  //     一次還能到 +2,一天最多能靠純餵食拿到 10 XP,長期靠囤積食物不解題也能養大寵物。
+  //     改成 care 新增 careXp(今日餵食/陪玩已經拿到的成長值,跨日歸零),直接限制「今天餵/玩總共最多
+  //     能加 CARE_XP_DAILY_CAP(5)點成長值」,吃滿後純互動(反應、圖鑑、許願照常)不再加成長。
+  //     GROW.CARE_XP_ACTS(次數)改成 CARE_XP_DAILY_CAP(XP 總量),語意從「次數」變「額度」。
+  const SCHEMA_VERSION = 15;
   const GRADUATE_DAYS = 1;   // 大寶停留幾天後可畢業入珍藏(測試版不限)
 
   // 一輪手寫 = 26 個大寫 + 26 個小寫 = 52 個字母,全描完才得 1 分。
@@ -49,13 +54,14 @@
   // 階段門檻:xp < KID_AT = 幼幼;< GROWN_AT = 小寶;之後 = 大寶。
   // 成長值主要來自「解題」:正式過關 +CLEAR_XP(滿分 +PERFECT_XP);同一關再解(獎勵已拿滿 / 練習模式)
   // 過關也有 +REPEAT_XP;字母手寫描滿一輪 +HW_ROUND_XP。
-  // 餵食 / 陪玩只是小補:每天前 CARE_XP_ACTS 次(餵+玩合計)各 +FEED_XP / +PLAY_XP(許願食物、金色食物
-  // +FEED_SPECIAL_XP),之後再餵/玩只有互動(圖鑑、許願、回憶照常),不加成長——長大要靠解題。
+  // 餵食 / 陪玩只是小補:每天最多合計加 CARE_XP_DAILY_CAP 點成長值(不分次數,吃到額度就停;許願食物、
+  // 金色食物每次 +FEED_SPECIAL_XP,否則 +FEED_XP / +PLAY_XP),額度用完後再餵/玩只有互動(圖鑑、許願、
+  // 回憶照常),不加成長——逼小孩靠解題,不能靠囤積食物幹坐著餵。
   // DAILY_XP_CAP = 每日成長值上限(所有來源合計;平板時間煞車):100 ÷ 20 = 一天解 4 關,5 天養到大寶;測試模式不限。
   const GROW = {
     KID_AT: 30, GROWN_AT: 100,
     CLEAR_XP: 5, PERFECT_XP: 7, REPEAT_XP: 2, HW_ROUND_XP: 3,
-    FEED_XP: 1, FEED_SPECIAL_XP: 2, PLAY_XP: 1, CARE_XP_ACTS: 5,
+    FEED_XP: 1, FEED_SPECIAL_XP: 2, PLAY_XP: 1, CARE_XP_DAILY_CAP: 5,
     DAILY_XP_CAP: 20
   };
   const STAGE_NAMES = { baby: '幼幼', kid: '小寶', grown: '大寶' };
@@ -95,7 +101,7 @@
       inv: { foods: {}, toys: {}, gold: {} },  // v4:背包(key -> 數量);過關賺到、餵食/陪玩消耗。v7:gold=金色食物
       growth: { xp: 0, deco: null, grownAt: null },  // v4:成長值。v8:deco=大寶配件 index。v9:grownAt=升大寶日期
       decoDex: {},                // v10:配件圖鑑 {species:[5 bool]};養大寶抽到的款式會解鎖,珍藏館換裝只能用已解鎖的
-      care: { date: today(), fed: 0, played: 0, xpToday: 0 },  // v4:今日照顧計數(跨日歸零)。v8:xpToday=今日已累積成長值
+      care: { date: today(), fed: 0, played: 0, xpToday: 0, careXp: 0 },  // v4:今日照顧計數(跨日歸零)。v8:xpToday=今日已累積成長值。v15:careXp=今日餵食/陪玩已加的成長值
       memo: [],                      // v13:聊天記憶(最多 20 筆事件,閒聊時拿出來講)
       growCele: null,                // v14:升階慶祝待播('kid'|'grown'),答題畫面升階 → 回房間播完清掉
       lastSeen: null,                // v13:上次進房間的日期(給「好久不見」的招呼用)
@@ -196,10 +202,11 @@
       });
       p.growth = { xp: Math.min(99, totalClears * 2) };
     }
-    if (!p.care || typeof p.care !== 'object') p.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
+    if (!p.care || typeof p.care !== 'object') p.care = { date: today(), fed: 0, played: 0, xpToday: 0, careXp: 0 };
     if (typeof p.care.fed !== 'number') p.care.fed = 0;
     if (typeof p.care.played !== 'number') p.care.played = 0;
     if (typeof p.care.xpToday !== 'number') p.care.xpToday = 0;   // v8:今日已累積成長值
+    if (typeof p.care.careXp !== 'number') p.care.careXp = 0;     // v15:今日餵食/陪玩已加的成長值(額度 CARE_XP_DAILY_CAP)
     // v8:大寶配件 index。舊的大寶資料沒有 → 給 0(第一款);還沒到大寶 → null
     if (typeof p.growth.deco !== 'number') p.growth.deco = (p.growth.xp >= GROW.GROWN_AT) ? 0 : null;
     // v9:升大寶日期。已是大寶但沒記日期的舊資料 → 用今天起算 GRADUATE_DAYS 天畢業(公平);還沒大寶 → null
@@ -253,7 +260,7 @@
       if (!raw) return blank(slot, null);   // 全新小孩:尚未選寵物(species = null)
       const d = migratePet(JSON.parse(raw), slot, LEGACY_SLOT[slot] || null);
       if (d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0, hw: 0 };  // 跨日歸零
-      if (d.care.date !== today()) d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };   // v4:照顧計數跨日歸零(v8:含 xpToday)
+      if (d.care.date !== today()) d.care = { date: today(), fed: 0, played: 0, xpToday: 0, careXp: 0 };   // v4:照顧計數跨日歸零(v8:含 xpToday;v15:含 careXp)
       return d;
     } catch (e) { return blank(slot, null); }
   }
@@ -637,7 +644,7 @@
     d.species = species || null;
     d.name = null;                 // 用新物種的預設名
     d.growth = { xp: 0, deco: null, grownAt: null };
-    d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
+    d.care = { date: today(), fed: 0, played: 0, xpToday: 0, careXp: 0 };
     d.wish = null;
     d.growCele = null;
     save(d);
@@ -673,7 +680,7 @@
     pushMemo(d, { k: 'graduate', mood: 'miss', name: entry.name, species: entry.species });
     d.species = null;              // 需要重新選一隻
     d.growth = { xp: 0, deco: null, grownAt: null };
-    d.care = { date: today(), fed: 0, played: 0, xpToday: 0 };
+    d.care = { date: today(), fed: 0, played: 0, xpToday: 0, careXp: 0 };
     d.wish = null;
     d.growCele = null;
     save(d);
@@ -739,18 +746,18 @@
     return { gain: gain, capped: gain < want, xp: d.growth.xp, stage: after, stageZh: STAGE_NAMES[after], grew: grew, deco: d.growth.deco };
   }
 
-  // 餵食:消耗 1 個食物,成長值 +2(當天第一次多 +1);餵中今日許願的食物 → 基礎值加倍。
-  // v7:gold=true 消耗金色食物(inv.gold),基礎成長值再 ×2(與許願加倍可疊)。
+  // 餵食:消耗 1 個食物,今天 care 額度(CARE_XP_DAILY_CAP)還有剩才加成長值;餵中今日許願的食物 → 該次 +FEED_SPECIAL_XP。
+  // v7:gold=true 消耗金色食物(inv.gold),同樣算 +FEED_SPECIAL_XP(與許願不疊加)。
   // 沒有該食物回 null;成功回 gainXp 的結果(含 grew 供升階慶祝、wishGranted 供許願慶祝)。
   // 今天的成長值已經到頂(DAILY_XP_CAP)?(成長條文案用;測試模式永遠 false)
   function xpFull(d) {
     if (isTest()) return false;
     return ((d.care && d.care.xpToday) || 0) >= GROW.DAILY_XP_CAP;
   }
-  // 今天餵食 / 陪玩還會不會加成長值:每天前 CARE_XP_ACTS 次(餵+玩合計)才有;之後只是互動。測試模式不限。
+  // 今天餵食 / 陪玩還剩多少成長值額度(v15:額度用完前每次都能加,用完就是純互動)。測試模式不限。
   function careXpLeft(d) {
     if (isTest()) return 99;
-    return Math.max(0, GROW.CARE_XP_ACTS - (((d.care && d.care.fed) || 0) + ((d.care && d.care.played) || 0)));
+    return Math.max(0, GROW.CARE_XP_DAILY_CAP - ((d.care && d.care.careXp) || 0));
   }
   // 沒加成長值時回一個「長得像 gainXp 結果」的物件,呼叫端不用分兩套判斷
   function noGain(d) {
@@ -761,15 +768,18 @@
   function feed(d, key, gold) {
     var box = gold ? (d.inv && d.inv.gold) : (d.inv && d.inv.foods);
     if (!box || !(box[key] > 0)) return null;
-    var careLeft = careXpLeft(d);   // 先算,下面 fed++ 之前
+    var careRoom = careXpLeft(d);   // 先算,下面 fed++ 之前
     box[key]--;
     if (box[key] <= 0) delete box[key];
     d.care.fed++;
     // v5:許願命中 → 基礎成長值 ×2,並把願望標記完成(金色也算,加倍可疊)
     var wishGranted = !!(d.wish && d.wish.date === today() && !d.wish.done && d.wish.key === key);
     if (wishGranted) d.wish.done = true;
-    // v16:餵食只是小補 — 每天前幾次才 +1(許願 / 金色 +2,不疊加),之後純互動不加成長
-    var res = careLeft > 0 ? gainXp(d, (wishGranted || gold) ? GROW.FEED_SPECIAL_XP : GROW.FEED_XP) : noGain(d);
+    // v15:餵食只是小補 — 今天的 care 額度(CARE_XP_DAILY_CAP)還有剩才加,額度不夠就只給剩下的那一點,
+    // 用完純互動不加成長
+    var want = (wishGranted || gold) ? GROW.FEED_SPECIAL_XP : GROW.FEED_XP;
+    var res = careRoom > 0 ? gainXp(d, Math.min(want, careRoom)) : noGain(d);
+    if (res.gain > 0) d.care.careXp = (d.care.careXp || 0) + res.gain;
     res.wishGranted = wishGranted;
     res.gold = !!gold;
     if (d.dex.foods.indexOf(key) < 0) d.dex.foods.push(key);   // v5:圖鑑點亮
@@ -779,22 +789,26 @@
     return res;
   }
 
-  // 陪玩:消耗 1 個玩具,成長值 +3(當天第一次多 +1)。
+  // 陪玩:消耗 1 個玩具,今天 care 額度還有剩才加成長值(見 feed() 的 v15 說明)。
   function playToy(d, key) {
     if (!d.inv || !d.inv.toys || !(d.inv.toys[key] > 0)) return null;
-    var careLeft = careXpLeft(d);
+    var careRoom = careXpLeft(d);
     d.inv.toys[key]--;
     if (d.inv.toys[key] <= 0) delete d.inv.toys[key];
     d.care.played++;
-    var res = careLeft > 0 ? gainXp(d, GROW.PLAY_XP) : noGain(d);
+    var res = careRoom > 0 ? gainXp(d, Math.min(GROW.PLAY_XP, careRoom)) : noGain(d);
+    if (res.gain > 0) d.care.careXp = (d.care.careXp || 0) + res.gain;
     if (d.dex.toys.indexOf(key) < 0) d.dex.toys.push(key);     // v5:圖鑑點亮
     save(d);
     return res;
   }
 
-  // 額外成長值(吃出幸運星等驚喜):回 gainXp 結果(可能觸發升階)。
+  // 額外成長值(吃出幸運星等驚喜):也算餵食觸發的成長,一樣吃 care 每日額度(v15),
+  // 不然額度用完了還能靠幸運星繞過上限。回 gainXp 結果(可能觸發升階)。
   function bonusXp(d, n) {
-    var res = gainXp(d, Math.max(1, n | 0));
+    var careRoom = careXpLeft(d);
+    var res = careRoom > 0 ? gainXp(d, Math.min(Math.max(1, n | 0), careRoom)) : noGain(d);
+    if (res.gain > 0) d.care.careXp = (d.care.careXp || 0) + res.gain;
     save(d);
     return res;
   }
