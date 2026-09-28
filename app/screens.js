@@ -71,8 +71,8 @@
     ctx.restore();
   };
 
-  // 在 (cx,cy) 置中畫「沒獎勵了」徽章(這一關過關次數已經超過上限,繼續玩也不會再拿點數/食物;
-  // 只在 state === 'cleared' 時才可能出現,不受 locked 影響所以不用處理 alpha)。
+  // 在 (cx,cy) 置中畫「積分已滿」徽章(v18:這一關的積分次數已經超過上限,繼續玩還是會拿到食物/玩具,
+  // 只是不會再加積分;只在 state === 'cleared' 時才可能出現,不受 locked 影響所以不用處理 alpha)。
   window.PLS_CAPBADGE = function (ctx, cx, cy) {
     const label = '已滿';
     ctx.save();

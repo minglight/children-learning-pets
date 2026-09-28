@@ -925,11 +925,16 @@
           // v4:玩具收進玩具箱(豪華版給 2 個)
           const toyKey = this.lv.toyArtU;
           ST.addToy(d, toyKey, res.deluxe ? 2 : 1);
-          PLS.go('etoy', { pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears, tier: this.tier, grow: res.grow });
+          PLS.go('etoy', {
+            pet: this.petId, levelIdx: this.levelIdx, deluxe: res.deluxe, clears: res.clears, tier: this.tier, grow: res.grow,
+            capped: res.capped   // v18:玩具照給,但這關的積分已經拿滿 → etoy 畫面要講清楚
+          });
         } else {
+          // v18:玩具不再有上限,正式過關(!practice && passed)一定走上面的 etoy 分支;
+          // 會落到這裡的只剩「練習模式」與「沒過關」兩種,不會再有「過關但沒獎勵」。
           PLS.go('eresult', {
             pet: this.petId, levelIdx: this.levelIdx, practice: this.practice, tier: this.tier,
-            correct: this.firstTryCount, total: this.count, passed: res.passed, capped: res.capped, grow: res.grow
+            correct: this.firstTryCount, total: this.count, passed: res.passed, grow: res.grow
           });
         }
       } else { this.next(); }
@@ -1243,11 +1248,15 @@
       this.deluxe = !!params.deluxe;
       this.clears = params.clears || 0;
       this.grow = params.grow || null;   // v16:這一關長了多少
+      this.capped = !!params.capped;     // v18:玩具照給,但這關的積分已經拿滿
+      this.cappedMsg = this.capped ? pickTalk(CFG.talkEng.cappedPass) : null;
       this.start = PLS.t; this.heartTimer = 0;
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       PLS.sfx.feast();
       // v4:語意改成「入手玩具箱」
-      PLS.say(this.deluxe ? '哇,豪華玩具收進玩具箱!' : '哇,新玩具入手!');
+      var sayText = this.deluxe ? '哇,豪華玩具收進玩具箱!' : '哇,新玩具入手!';
+      if (this.capped) sayText += this.cappedMsg;
+      PLS.say(sayText);
       PLS.addButton({
         x: W / 2 - 170, y: 706, w: 340, h: 100,
         hidden: function () { return PLS.t - self.start < 2.2; },
@@ -1297,6 +1306,8 @@
       // v4:小字 pill「回房間陪牠玩吧!」
       A.pill(ctx, W / 2, this.deluxe ? 272 : 240, '回房間陪牠玩吧!', '#5E7A56', 'rgba(220,240,220,0.90)', 21);
       A.growPill(ctx, W - 200, 210, this.grow, 24);   // v16:解題長大
+      // v18:玩具照給,但這關積分已經拿滿 —— 小灰 pill 提醒,不搶玩具慶祝的風頭
+      if (this.capped) A.pill(ctx, W / 2, this.deluxe ? 300 : 268, this.cappedMsg, '#8A7A62', 'rgba(230,232,222,0.92)', 21);
 
       // 寵物(左)+ 展示台(右)
       ACT.drawAt(ctx, this.species, t, 360, 480 + 146, 1, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage });
@@ -1339,13 +1350,12 @@
       const self = this;
       this.petId = params.pet; this.levelIdx = params.levelIdx; this.practice = params.practice;
       this.tier = params.tier === 'english2' ? 'english2' : 'english';
-      this.capped = !!params.capped; this.correct = params.correct; this.total = params.total;
+      this.correct = params.correct; this.total = params.total;
       this.grow = params.grow || null;
       var _md = ST.load(this.petId); this.species = _md.species || 'rabbit';
       this.stage = ST.growthInfo(_md).stage;
-      // 三種情況:練習 / 過關但這關玩具已拿滿 / 沒過關(錯太多題,可以馬上再挑戰)
-      this.msg = this.practice ? '練習完成!明天再來拿新玩具喔'
-        : this.capped ? pickTalk(CFG.talkEng.cappedPass) : pickTalk(CFG.talkEng.almost);
+      // v18:玩具不再有上限,正式過關一定走 etoy 畫面;會來這裡的只剩「練習」跟「沒過關」兩種情況。
+      this.msg = this.practice ? '練習完成!明天再來拿新玩具喔' : pickTalk(CFG.talkEng.almost);
       PLS.addButton({
         x: W / 2 - 160, y: 720, w: 320, h: 100,
         draw: function (ctx) {
@@ -1365,14 +1375,14 @@
       const lv = CFG[this.tier][this.levelIdx];
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT; ctx.fillStyle = '#5E7A56';
-      ctx.fillText(this.practice ? '練習結束' : this.capped ? '過關了!' : '這一關結束了', W / 2, 116);
+      ctx.fillText(this.practice ? '練習結束' : '這一關結束了', W / 2, 116);
       ctx.save();
       ctx.shadowColor = 'rgba(110,140,115,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
       ctx.fillStyle = '#FFFFFF'; A.rr(ctx, W / 2 - 250, 186, 500, 180, 32); ctx.fill();
       ctx.restore();
       ctx.font = '32px ' + FONT; ctx.fillStyle = '#8AA08A';
       ctx.fillText(lv.name + '(' + lv.sub + ')', W / 2, 240);
-      if (!this.practice && !this.capped && typeof this.correct === 'number') {
+      if (!this.practice && typeof this.correct === 'number') {
         // 沒過關:老實寫答對幾題(跟數學結果畫面一樣)
         ctx.font = '52px ' + FONT; ctx.fillStyle = '#56684E';
         ctx.fillText('答對 ' + this.correct + ' / ' + this.total + ' 題', W / 2, 316);

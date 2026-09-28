@@ -44,6 +44,10 @@
   //     改成 care 新增 careXp(今日餵食/陪玩已經拿到的成長值,跨日歸零),直接限制「今天餵/玩總共最多
   //     能加 CARE_XP_DAILY_CAP(5)點成長值」,吃滿後純互動(反應、圖鑑、許願照常)不再加成長。
   //     GROW.CARE_XP_ACTS(次數)改成 CARE_XP_DAILY_CAP(XP 總量),語意從「次數」變「額度」。
+  // v18(邏輯變動,schema 不變):過關獎勵「食物與積分拆開」— 正式過關一律給食物(不再有次數上限),
+  //     只有積分(可兌換獎品的稀缺資源)才吃入門/進階分層上限;成長值(CLEAR_XP/PERFECT_XP)跟著積分走,
+  //     不是跟著食物走。canEarnNow 加一條「今天成長值沒到頂」(!xpFull),只邀「去解真的會升級」的關。
+  //     不影響任何存檔欄位/匯出入結構,所以沒有新的 SCHEMA_VERSION,細節見 recordRun/canEarnNow 註解。
   const SCHEMA_VERSION = 15;
   const GRADUATE_DAYS = 1;   // 大寶停留幾天後可畢業入珍藏(測試版不限)
 
@@ -383,12 +387,15 @@
   function capFor(d, subject, levelId) {
     return subject === 'math' ? clearCapFor(d, levelId) : 10;
   }
-  // 這一關「現在」再解一次,recordRun 還會不會真的給獎勵(1 點 + 食物/玩具)?
-  // 規則要跟 recordRun 的給獎條件完全一致(見上面 feast 那段),供寵物聊天邀請跳關前檢查用——
-  // 不然小孩會被邀去一關「解完也拿不到東西」的關,誤以為是 bug。
+  // 這一關「現在」再解一次,recordRun 還會不會真的給積分(1 點)、真的會長大?
+  // v18:食物不再設上限,光是「拿得到食物」不足以構成邀請理由——寵物只邀「去解會真的升級」的關,
+  // 所以判斷式維持「積分/正式成長可賺」(跟 recordRun 給積分的條件一致),再加一條今天成長值沒到頂
+  // (!xpFull):成長值到頂時,就算積分/食物都還拿得到,解了也不會馬上長大,邀請就沒有意義。
+  // 供寵物聊天邀請跳關前檢查用——不然小孩會被邀去一關「解完也不會長大」的關,誤以為是 bug。
   function canEarnNow(d, subject, levelId) {
     if (clearedToday(d, levelId)) return false;
     if (remainToday(d, subject) <= 0) return false;
+    if (xpFull(d)) return false;
     const nextClears = clearCount(d, levelId) + 1;
     return nextClears <= capFor(d, subject, levelId) || nextClears === deluxeAt();
   }
@@ -424,11 +431,14 @@
     return (total - firstTryCorrect) <= allowMiss;
   }
 
-  // 記錄一次完整關卡結果。回 { rate, passed, feast, deluxe, capped, clears, point }:
-  //   passed = 這次有過關(答對率達標);feast = 有給獎勵(食物/玩具 + 1 點);
-  //   capped = 過關了但這關獎勵次數已拿滿(沒獎勵);練習模式三者皆 false。
-  // 每日「正式」次數(daily[subject])只在真的給獎勵時才扣——關卡圖上寫的是「今天還可以賺 N 次食物」,
-  // 沒賺到(沒過關 / 獎勵已拿滿)就不該算掉一次,小朋友可以馬上再挑戰。
+  // 記錄一次完整關卡結果。回 { rate, passed, feast, deluxe, capped, clears, point, grow }:
+  //   passed = 這次有過關(答對率達標);feast = 有給獎勵食物/玩具;point = 這次有沒有加積分(1/0);
+  //   capped = 過關了,但這關的積分已經拿滿(食物仍照給 —— v18 起 capped 不再等於「沒有獎勵」)。
+  //   練習模式 feast/point/capped 三者皆 false。
+  // v18:食物與積分拆開 —— 食物(電子雞互動素材,不稀缺)只要是正式過關就給,不再吃次數上限;
+  //   只有「積分」(可兌換獎品的稀缺資源)才吃入門/進階分層上限(capFor)+ 第 10 次豪華里程碑,規則與以前相同。
+  // 每日「正式」次數(daily[subject],平板時間煞車)照樣只在有給食物時才扣——現在正式過關幾乎都會給食物,
+  // 這條煞車實質上變成「只要是正式過關就扣」,跟畫面上「今天還可以賺 N 次」的說法一致。
   function recordRun(d, subject, levelId, firstTryCorrect, total, practice) {
     const rate = firstTryCorrect / total;
     const rec = d.levels[levelId] || { attempts: 0, bestRate: 0, cleared: false, plays: 0, clears: 0, lastClearDate: null };
@@ -443,20 +453,20 @@
         rec.cleared = true;
         rec.clears = (rec.clears || 0) + 1;
         if (!isTest()) rec.lastClearDate = today();   // 測試版不鎖每日
-        // v12:過關次數超過門檻(入門/進階分層,家長區可調)就不再給點數/食物;仍可繼續玩、仍算過關。
+        feast = true;   // v18:正式過關一律給食物,不再受次數上限卡住
+        // v12:積分次數超過門檻(入門/進階分層,家長區可調)就不再給積分;仍可繼續玩、仍算過關、仍給食物。
         // 但「滿 10 次送豪華版」這個里程碑不受這個門檻擋——不然入門關卡預設門檻只有 3 次,凡是
         // 早該在門檻調整前就快集滿 10 次的小孩(例如已經 9 次),之後就再也碰不到豪華版了,等於
         // 調整難度分級反而把原本快到手的獎勵沒收掉。所以第 10 次通關這一下永遠照給,其餘次數才吃門檻。
         const cap = capFor(d, subject, levelId);
         const hitDeluxeMilestone = rec.clears === deluxeAt();
+        deluxe = hitDeluxeMilestone;
         if (rec.clears <= cap || hitDeluxeMilestone) {
-          feast = true;
-          deluxe = hitDeluxeMilestone;
           d.points = (d.points || 0) + 1; point = 1;
-          d.daily[subject] = (d.daily[subject] || 0) + 1;
         } else {
-          capped = true;
+          capped = true;   // v18:積分拿滿了(食物 = feast 仍是 true,跟以前「capped = 沒獎勵」不同)
         }
+        d.daily[subject] = (d.daily[subject] || 0) + 1;
         // v13:記進寵物的回憶 — 之後閒聊時會誇這一關,並邀主人再去解一次(泡泡可點,直接跳關)。
         // 同一關只留最新一筆,免得反覆刷同一關把其他回憶擠掉。
         var lvName = levelLabel(subject, levelId);
@@ -469,11 +479,12 @@
       }
     }
     d.levels[levelId] = rec;
-    // v16:解題長大 — 有獎勵的正式過關 +CLEAR_XP(滿分 +PERFECT_XP);獎勵已拿滿 / 練習模式過關 +REPEAT_XP。
+    // v18:成長值跟著「積分」走,不是跟著「食物」走 —— 只有這次真的拿到積分的正式過關,
+    // 才 +CLEAR_XP(滿分 +PERFECT_XP);積分已拿滿的正式過關 / 練習模式過關,一律只 +REPEAT_XP。
     // 沒過關 0(答對題數會顯示在結果畫面,鼓勵再挑戰)。gainXp 會吃每日上限。
     let grow = null;
     if (passed) {
-      const xp = feast ? (rate >= 1 ? GROW.PERFECT_XP : GROW.CLEAR_XP) : GROW.REPEAT_XP;
+      const xp = point > 0 ? (rate >= 1 ? GROW.PERFECT_XP : GROW.CLEAR_XP) : GROW.REPEAT_XP;
       grow = gainXp(d, xp);
     }
     save(d);
@@ -827,17 +838,10 @@
     if (d.growCele) { d.growCele = null; save(d); }
   }
 
-  // 這一關對這個小孩來說,以後還拿不拿得到獎勵(v12 分層上限 + deluxeAt 里程碑,見 recordRun):
-  // clears 已經超過 cap、又已經過了(或不會再等到)第 10 次豪華里程碑 → 之後永遠不會再給 feast。
-  function levelFeastExhausted(d, lv) {
-    var r = d.levels[lv.id];
-    var clears = r ? (r.clears || (r.cleared ? 1 : 0)) : 0;
-    return clears >= capFor(d, 'math', lv.id) && clears >= deluxeAt();
-  }
   // ── v5:寵物許願(每天一個想吃的食物;餵中成長值加倍)──
   // 池子 = 前三關 + 已解過的數學關卡的 feast 食物(確保拿得到)。
-  // v17:排除「這關獎勵已經拿滿、以後不會再給」的關卡——不然會許願一個小朋友再怎麼解都拿不到的食物,
-  // 寵物就會一直討著要一個永遠餵不到的東西(見 levelFeastExhausted)。
+  // v18:食物不再有次數上限(見 recordRun),「這關獎勵已經拿滿、以後不會再給」的情況不再存在,
+  // 拿掉 v17 排除已拿滿關卡的 levelFeastExhausted 過濾——只要關卡「解得到」,食物就一定拿得到。
   // 回 { key, date, done, levelName }(levelName = 可以賺到這個食物的關卡,給小朋友提示)。
   function wishPool(d) {
     var pool = {};
@@ -848,15 +852,13 @@
       var r = d.levels[lv.id];
       var reachable = i < 3 || (r && (r.clears || r.cleared));
       if (!reachable) return;
-      if (levelFeastExhausted(d, lv)) return;
       lv.feast.items.forEach(function (k) { if (!pool[k]) pool[k] = lv; });
     });
     return pool;
   }
   function getWish(d) {
     var pool = wishPool(d);
-    // 除了換日要重抽,今天許的願如果剛好在當天內被解到「這關獎勵已經拿滿」也要重抽——
-    // 不然會卡著一個小朋友當下怎麼解都拿不到的願望,寵物講的「好想要」變成廢話。
+    // 除了換日要重抽,如果願望的食物不在目前池子裡(理論上不太會發生,防呆)也重抽一次。
     if (!d.wish || d.wish.date !== today() || (!d.wish.done && !pool[d.wish.key])) {
       var keys = Object.keys(pool);
       if (!keys.length) { d.wish = null; save(d); return null; }

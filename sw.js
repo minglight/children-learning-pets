@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v75';
+const VERSION = 'pls-v76';
 const ASSETS = [
   '.',
   'index.html',

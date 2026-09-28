@@ -267,13 +267,19 @@
           // v7:神秘金色食物 — 1/10 機率整份獎勵變金色(餵食成長值 ×2)
           const golden = Math.random() < 0.1;
           ST.addFoods(d, picks, golden);
-          PLS.go('feast', { pet: this.petId, levelIdx: this.levelIdx, tier: this.tier, deluxe: res.deluxe, perfect: perfect, clears: res.clears, items: picks, golden: golden, grow: res.grow });
+          PLS.go('feast', {
+            pet: this.petId, levelIdx: this.levelIdx, tier: this.tier, deluxe: res.deluxe, perfect: perfect,
+            clears: res.clears, items: picks, golden: golden, grow: res.grow,
+            capped: res.capped   // v18:食物照給,但這關的積分已經拿滿 → feast 畫面要講清楚
+          });
         } else {
+          // v18:食物不再有上限,正式過關(!practice && passed)一定走上面的 feast 分支;
+          // 會落到這裡的只剩「練習模式」與「沒過關」兩種,不會再有「過關但沒獎勵」。
           PLS.go('result', {
             pet: this.petId, levelIdx: this.levelIdx, tier: this.tier,
             correct: this.firstTryCount, practice: this.practice,
-            passed: res.passed, capped: res.capped,   // v15:過關但獎勵拿滿 vs 沒過關,文案不同
-            grow: res.grow                            // v16:練習 / 拿滿也會 +REPEAT_XP,畫面上要看得到
+            passed: res.passed,
+            grow: res.grow                            // v16:練習過關也會 +REPEAT_XP,畫面上要看得到
           });
         }
       } else {
@@ -465,14 +471,13 @@
       this.tier = params.tier === 'math2' ? 'math2' : 'math';
       this.correct = params.correct;
       this.practice = params.practice;
-      this.capped = !!params.capped;
       this.grow = params.grow || null;
       this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
-      // 三種情況:練習 / 過關但這關獎勵已拿滿(答對 10 題也會來這裡,不能說「差一點點」)/ 沒過關
+      // v18:食物不再有上限,正式過關一定走 feast 畫面;會來這裡的只剩「練習」跟「沒過關」兩種情況。
       this.msg = this.practice
         ? '練習完成!明天再請我吃大餐喔'
-        : this.capped ? pickTalk(CFG.talk.cappedPass) : pickTalk(CFG.talk.almost);
+        : pickTalk(CFG.talk.almost);
       PLS.addButton({
         x: W / 2 - 160, y: 720, w: 320, h: 100,
         draw: function (ctx) {
@@ -492,7 +497,7 @@
       const lv = CFG[this.tier][this.levelIdx];
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT; ctx.fillStyle = '#8A6242';
-      ctx.fillText(this.practice ? '練習結束' : this.capped ? '過關了!' : '這一關結束了', W / 2, 116);
+      ctx.fillText(this.practice ? '練習結束' : '這一關結束了', W / 2, 116);
       ctx.save();
       ctx.shadowColor = 'rgba(150,100,60,0.14)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
       ctx.fillStyle = '#FFFCF6'; A.rr(ctx, W / 2 - 260, 188, 520, 196, 32); ctx.fill();
@@ -522,11 +527,14 @@
       this.golden = !!params.golden;   // v7:金色食物開獎
       this.grow = params.grow || null;  // v16:這一關長了多少
       this.clears = params.clears || 0;
+      this.capped = !!params.capped;    // v18:食物照給,但這關的積分已經拿滿
       // v5:優先用 params.items;fallback 向下相容
       this.items = params.items || (this.deluxe ? deluxeItems(this.lv) : this.lv.feast.items);
       this.feastName = this.deluxe
         ? (this.lv.feast.deluxeName || ('豪華版 · ' + this.lv.feast.name))
         : (this.lv.feast.basicName  || this.lv.feast.name);
+      // v18:積分拿滿時的補充說明,畫面上用一顆小 pill 講(不搶食物慶祝的風頭)
+      this.cappedMsg = this.capped ? pickTalk(CFG.talk.cappedPass) : null;
       this.start = PLS.t;
       this.heartTimer = 0;
       this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
@@ -542,6 +550,7 @@
       else if (this.deluxe) { sayText = '豪華大豐收!背包裝得滿滿的!'; }
       else if (this.perfect) { sayText = '滿分!多送一份食物!'; }
       else { sayText = '太棒了,食物收進背包囉!'; }
+      if (this.capped) sayText += this.cappedMsg;
       PLS.say(sayText);
       PLS.addButton({
         x: W / 2 - 160, y: 706, w: 320, h: 100,
@@ -622,6 +631,8 @@
       }
       // v16:解題長大 —— 成長徽章(右上,籃子上方那一帶,不跟標題列打架)
       A.growPill(ctx, W - 200, 210, this.grow, 24);
+      // v18:食物照給,但這關積分已經拿滿 —— 小灰 pill 提醒,不搶食物慶祝的風頭
+      if (this.capped) A.pill(ctx, W / 2, 246, this.cappedMsg, '#8A7A62', 'rgba(240,232,216,0.92)', 22);
 
       // 桌子
       ctx.fillStyle = '#E0B98A'; A.rr(ctx, 160, 600, W - 320, 44, 20); ctx.fill();
