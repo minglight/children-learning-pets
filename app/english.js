@@ -1306,8 +1306,10 @@
       // v4:小字 pill「回房間陪牠玩吧!」
       A.pill(ctx, W / 2, this.deluxe ? 272 : 240, '回房間陪牠玩吧!', '#5E7A56', 'rgba(220,240,220,0.90)', 21);
       A.growPill(ctx, W - 200, 210, this.grow, 24);   // v16:解題長大
-      // v18:玩具照給,但這關積分已經拿滿 —— 小灰 pill 提醒,不搶玩具慶祝的風頭
-      if (this.capped) A.pill(ctx, W / 2, this.deluxe ? 300 : 268, this.cappedMsg, '#8A7A62', 'rgba(230,232,222,0.92)', 21);
+      // v18:玩具照給,但這關積分已經拿滿 —— 小灰 pill 提醒(同一欄往下疊,W/2 中央是寵物 + 對話泡泡)
+      if (this.capped) A.pill(ctx, W - 200, 274, this.cappedMsg, '#8A7A62', 'rgba(230,232,222,0.92)', 21);
+      // v18:讓成長看得見 —— 過關前 → 過關後的成長條動畫(同一欄繼續往下疊,展示台在更下面的 552+,不會打架)
+      A.growBar(ctx, W - 200, this.capped ? 356 : 304, 220, this.grow, Math.min(1, Math.max(0, (k - 0.3) / 1.1)));
 
       // 寵物(左)+ 展示台(右)
       ACT.drawAt(ctx, this.species, t, 360, 480 + 146, 1, { mode: k < 6 ? 'happy' : 'idle', stage: this.stage });
@@ -1352,6 +1354,7 @@
       this.tier = params.tier === 'english2' ? 'english2' : 'english';
       this.correct = params.correct; this.total = params.total;
       this.grow = params.grow || null;
+      this.start = PLS.t;   // v18:成長條動畫的起算時間
       var _md = ST.load(this.petId); this.species = _md.species || 'rabbit';
       this.stage = ST.growthInfo(_md).stage;
       // v18:玩具不再有上限,正式過關一定走 etoy 畫面;會來這裡的只剩「練習」跟「沒過關」兩種情況。
@@ -1392,6 +1395,8 @@
       }
 
       A.growPill(ctx, W - 200, 116, this.grow, 24);   // v16:練習 / 拿滿也會長大一點點(右上,標題那一列)
+      // v18:讓成長看得見 —— 過關前 → 過關後的成長條動畫(同一欄往下疊)
+      A.growBar(ctx, W - 200, 210, 220, this.grow, Math.min(1, (t - this.start) / 1.0));
       ACT.drawAt(ctx, this.species, t, W / 2, 600 + 146 * 0.72, 0.72, { stage: this.stage });
       A.bubble(ctx, W / 2, 440, this.msg, { size: 26 });
     }

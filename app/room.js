@@ -529,6 +529,10 @@
       this._chatT = 0;       // v13:上一句話的時間
       this._chatWait = 0;    // v13:距離下一句要等幾秒
       this._prDisp = null;   // 成長條顯示值(緩動)
+      this._growFx = null;    // v18:飄向成長條的「+N」/「+0」文字 {t0,x0,y0,gain,label,landed}
+      this._growFlashT = 0;   // 成長條「閃一下」的時間戳(有加成長值)
+      this._growShakeT = 0;   // 成長條「抖一下」的時間戳(沒加成長值)
+      this._growFreeze = false;   // 餵食/陪玩時先凍住成長條,等「+N」飛到才開始長
       this._down = null;
       this._wander = null;   // 2.5D 漫遊狀態 {x, z, tx, tz, state, until, face, hop, mode}
       // 雙寵物互訪:每次進房 1/3 機率,另一隻寵物過一會兒來作客(測試版必來,方便驗證)
@@ -910,10 +914,12 @@
       else reaction = pickTalk(['burp', 'spin', 'hops', 'hearts']);
       const w = this._wander || { x: 0, z: 0.7 };
       this.act = { kind: 'feed', key: key, gold: !!gold, t0: PLS.t, fromX: w.x, fromZ: w.z, bites: 0, result: res, reaction: reaction };
+      this._growFreeze = true;   // v18:成長條先凍住,等「+N」飛到才開始長(見 drawGrowFx)
     },
     startPlay: function (key) {
       const res = ST.playToy(ST.load(this.petId), key);
       if (!res) { this.say(CFG.talkCare.noToy[0]); return; }
+      this._growFreeze = true;   // v18:成長條先凍住,等「+N」飛到才開始長(見 drawGrowFx)
       const w = this._wander || { x: 0, z: 0.7 };
       this.act = { kind: 'play', key: key, t0: PLS.t, fromX: w.x, fromZ: w.z, result: res };
     },
@@ -980,6 +986,8 @@
               const noGrow = a.result && a.result.gain === 0 && !a.result.grew;
               this.say(pickTalk(noGrow ? CFG.talkCare.eatNoGrow : (CFG.talkCare[a.reaction] || CFG.talkCare.feedDone)));
             }
+            // v18:讓成長看得見 —— 飄「+N」/「+0」飛向成長條(星星反應可能換過 a.result,所以放最後讀)
+            this.spawnGrowFx(stand.x, headY, a.result);
           }
           if (a.reaction === 'hearts' && !a.hb2 && re > 0.6) { a.hb2 = true; PLS.burst(stand.x - 30, headY + 40, 'feast'); }
           if (a.reaction === 'spin') {
@@ -1001,6 +1009,7 @@
             a.reacted = true; PLS.sfx.correct();
             const noGrowP = a.result && a.result.gain === 0 && !a.result.grew;
             this.say(pickTalk(noGrowP ? CFG.talkCare.playNoGrow : CFG.talkCare.playDone));
+            this.spawnGrowFx(stand.x, headY, a.result);   // v18:讓成長看得見
           }
           return at('idle');
         }
@@ -1265,12 +1274,15 @@
 
     // ── 成長條(左欄,主選單卡片下方)──
     // v16:多一行提示「解題就會長大」,成長值主要來自過關,不是餵食
+    // v18:讓成長看得見 —— 餵食/陪玩時 _growFreeze 先凍住進度(等 drawGrowFx 的「+N」飛到才開始長)、
+    //     沒加成長值時卡片抖一下、成長條旁多畫「今天的點心額度」5 格圓點。
     drawGrowth: function (ctx, t, d) {
       if (this.canGrad) return;   // 畢業卡接在同一個位置(大寶已滿級,成長條沒東西好看了)
       const gi = ST.growthInfo(d);
       if (this._prDisp == null) this._prDisp = gi.progress;
-      this._prDisp += (gi.progress - this._prDisp) * 0.1;
-      const x = 30, y = GROWTH_CARD.y, w = PW - 60, h = GROWTH_CARD.h;
+      if (!this._growFreeze) this._prDisp += (gi.progress - this._prDisp) * 0.1;
+      const shakeK = this._growShakeT ? Math.max(0, 1 - (t - this._growShakeT) / 0.35) : 0;
+      const x = 30 + (shakeK > 0 ? Math.sin(t * 50) * 5 * shakeK : 0), y = GROWTH_CARD.y, w = PW - 60, h = GROWTH_CARD.h;
       ctx.save();
       ctx.shadowColor = 'rgba(150,100,60,0.12)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
       ctx.fillStyle = '#FFFFFF'; rr(ctx, x, y, w, h, 20); ctx.fill();
@@ -1282,14 +1294,71 @@
       // v15:今天成長值到頂就直接寫在這裡,小朋友才知道為什麼餵不動
       const full = ST.xpFull(d);
       ctx.fillText(full ? '今天長滿了,明天再來' : gi.next ? ('還差 ' + Math.max(0, gi.next - gi.xp) + ' 點長大') : '已經是大寶了!', x + w - 22, y + 24);
-      const bx = x + 22, bw = w - 44, by = y + 46, bh = 15;
+      // v18:成長條旁留位子給「今天的點心額度」5 格圓點(格數讀 GROW.CARE_XP_DAILY_CAP,不寫死)
+      const G = ST.GROW;
+      const dotN = G.CARE_XP_DAILY_CAP, dotR = 6, dotGap = 6;
+      const dotsW = dotN * dotR * 2 + (dotN - 1) * dotGap;
+      const by = y + 46, bh = 15, bx = x + 22, bw = (w - 44) - dotsW - 16;
       ctx.fillStyle = '#F0E6D6'; rr(ctx, bx, by, bw, bh, 7); ctx.fill();
       const pr = Math.max(0, Math.min(1, this._prDisp));
-      if (pr > 0.02) { ctx.fillStyle = '#F2B96B'; rr(ctx, bx, by, Math.max(bh, bw * pr), bh, 7); ctx.fill(); }
+      const fillW = Math.max(bh, bw * pr);
+      if (pr > 0.02) { ctx.fillStyle = '#F2B96B'; rr(ctx, bx, by, fillW, bh, 7); ctx.fill(); }
+      // 成長條「閃一下」(這次有加成長值,+N 剛好飛到)
+      const flashK = this._growFlashT ? Math.max(0, 1 - (t - this._growFlashT) / 0.4) : 0;
+      if (flashK > 0 && pr > 0.02) {
+        ctx.save(); ctx.globalAlpha = flashK * 0.7;
+        ctx.fillStyle = '#FFFFFF'; rr(ctx, bx, by, fillW, bh, 7); ctx.fill();
+        ctx.restore();
+      }
+      this._growBarTarget = { x: bx + fillW - 6, y: by + bh / 2 };   // 給 drawGrowFx 當落點(進度條頭)
+      // 點心額度圓點:今天餵食/陪玩已經用掉幾格(careXpLeft/CARE_XP_DAILY_CAP;跟「今天成長值到頂」是不同上限)
+      const usedDots = Math.max(0, Math.min(dotN, dotN - ST.careXpLeft(d)));
+      const dotCY = by + bh / 2;
+      for (let i = 0; i < dotN; i++) {
+        const dcx = bx + bw + 16 + dotR + i * (dotR * 2 + dotGap);
+        ctx.beginPath(); ctx.arc(dcx, dotCY, dotR, 0, TAU); ctx.closePath();
+        ctx.fillStyle = i < usedDots ? '#F2B96B' : '#EDE1CC';
+        ctx.fill();
+      }
       // 第三行:怎麼長大(數字讀 GROW,改常數不用改這裡)
-      const G = ST.GROW;
       ctx.textAlign = 'left'; ctx.font = '17px ' + FONT; ctx.fillStyle = full ? '#B49A7C' : '#8A6242';
       ctx.fillText(full ? '解題長大:明天再繼續!' : ('解題就會長大:過關 +' + G.CLEAR_XP + '・滿分 +' + G.PERFECT_XP), x + 22, y + 78);
+    },
+
+    // v18:讓成長看得見 —— 餵食/陪玩後飄一個「+N」(有加成長值)或灰色「+0」(沒加)飛向成長條。
+    spawnGrowFx: function (x0, y0, res) {
+      const gain = res ? res.gain : 0;
+      const label = gain > 0 ? ('+' + gain)
+        : (res && res.noCare) ? '+0 今天點心吃飽了'
+        : '+0 今天長滿了';
+      this._growFx = { t0: PLS.t, x0: x0, y0: y0, gain: gain, label: label, landed: false };
+    },
+    // 飛行動畫:落地那一刻觸發成長條閃一下(有加)或抖一下(沒加),並解除凍結讓成長條開始跑。
+    drawGrowFx: function (ctx, t) {
+      const fx = this._growFx; if (!fx) return;
+      if (this.canGrad) { this._growFx = null; this._growFreeze = false; return; }   // 沒有成長條可以飛,直接收掉
+      const dur = 0.8, e = t - fx.t0;
+      const target = this._growBarTarget || { x: 30 + (PW - 60) / 2, y: GROWTH_CARD.y + 53 };
+      if (e >= dur) {
+        if (!fx.landed) {
+          fx.landed = true;
+          this._growFreeze = false;
+          if (fx.gain > 0) { this._growFlashT = t; PLS.burst(target.x, target.y, 'small'); }
+          else { this._growShakeT = t; }
+        }
+        if (e > dur + 0.4) this._growFx = null;
+        return;
+      }
+      const k = e / dur, ease = 1 - (1 - k) * (1 - k);
+      const x = fx.x0 + (target.x - fx.x0) * ease;
+      const y = fx.y0 + (target.y - fx.y0) * ease - Math.sin(k * Math.PI) * 100;
+      ctx.save();
+      ctx.font = (fx.gain > 0 ? '700 28px ' : '700 20px ') + FONT;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = fx.gain > 0 ? '#3E7A4A' : '#8A7A62';
+      ctx.globalAlpha = Math.max(0, Math.min(1, 1.3 - k));
+      ctx.fillText(fx.label, x, y);
+      ctx.restore();
     },
 
     // ── 升階慶祝(蓋在房間框上)──
@@ -1450,6 +1519,7 @@
       ctx.font = '20px ' + FONT; ctx.fillStyle = 'rgba(120,95,70,0.82)'; ctx.fillText('今天想做什麼呢?', 190, 134);
       // 成長條
       this.drawGrowth(ctx, t, d);
+      this.drawGrowFx(ctx, t);   // v18:飄向成長條的「+N」/「+0」(蓋在成長條之上)
 
       // 蓋在最上面的層:背包托盤 / 升階慶祝
       if (this.tray) this.drawTray(ctx, t, d);

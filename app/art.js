@@ -33,6 +33,35 @@
     pill(ctx, x, y, text, fg, bg, size);
   }
 
+  // v18:讓成長看得見 —— feast/etoy、result/eresult 共用的成長條動畫。
+  // grow = store.recordRun() 回傳的 grow(gainXp 結果:{gain,xp,grew,stage,...});沒有 grow 或 gain<=0 不畫、回 false。
+  // k = 動畫進度(0~1,呼叫端自己用經過時間 / 動畫時長算);顏色沿用 room.js 成長條(#F2B96B 進度、#F0E6D6 底)。
+  // 用「過關前」那個階段的區間換算進度 —— 這次過關若跨階段升級,條子直接跑滿(不畫新階段的空條,升階慶祝留給房間播,
+  // 這裡只跑滿後疊一句「要長大了!回房間看看」提醒)。回傳這一幀是不是正在播「要長大了」提示。
+  function growBar(ctx, cx, cy, w, grow, k) {
+    if (!grow || !(grow.gain > 0)) return false;
+    const KID_AT = 30, GROWN_AT = 100;
+    const afterXp = grow.xp, beforeXp = afterXp - grow.gain;
+    const beforeStage = beforeXp >= GROWN_AT ? 'grown' : beforeXp >= KID_AT ? 'kid' : 'baby';
+    const lo = beforeStage === 'baby' ? 0 : beforeStage === 'kid' ? KID_AT : GROWN_AT;
+    const hi = beforeStage === 'baby' ? KID_AT : beforeStage === 'kid' ? GROWN_AT : null;
+    const progFrom = hi ? Math.max(0, Math.min(1, (beforeXp - lo) / (hi - lo))) : 1;
+    const progTo = hi ? Math.min(1, (afterXp - lo) / (hi - lo)) : 1;
+    const e = Math.max(0, Math.min(1, k == null ? 1 : k));
+    const pr = progFrom + (progTo - progFrom) * e;
+    const h = 18, bx = cx - w / 2, by = cy - h / 2;
+    ctx.save();
+    ctx.fillStyle = '#F0E6D6'; rr(ctx, bx, by, w, h, 9); ctx.fill();
+    if (pr > 0.02) { ctx.fillStyle = '#F2B96B'; rr(ctx, bx, by, Math.max(h, w * pr), h, 9); ctx.fill(); }
+    ctx.restore();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 22px ' + FONT; ctx.fillStyle = '#3E7A4A';
+    ctx.fillText('+' + grow.gain + ' 成長', cx, by - 20);
+    const leveling = !!grow.grew && e >= 0.98;
+    if (leveling) pill(ctx, cx, by + h + 32, '要長大了!回房間看看', '#C2851E', 'rgba(255,244,214,0.96)', 22);
+    return leveling;
+  }
+
   function pill(ctx, x, y, text, fg, bg, size) {
     size = size || 30;
     ctx.font = size + 'px ' + FONT;
@@ -678,7 +707,7 @@
 
   window.PLS_ART = {
     FONT: FONT, el: el, rr: rr, pill: pill, bubble: bubble, sparkle: sparkle, heart: heart,
-    fitTitle: fitTitle, growPill: growPill,
+    fitTitle: fitTitle, growPill: growPill, growBar: growBar,
     drawFood: drawFood, drawFoodDeluxe: drawFoodDeluxe, drawFoodGold: drawFoodGold,
     drawShape: drawShape, drawPair: drawPair, drawIcon: drawIcon,
     fitText: fitText, drawLines: drawLines, wrapLines: wrapLines,

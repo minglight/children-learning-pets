@@ -472,6 +472,7 @@
       this.correct = params.correct;
       this.practice = params.practice;
       this.grow = params.grow || null;
+      this.start = PLS.t;   // v18:成長條動畫的起算時間
       this.species = ST.load(this.petId).species || 'rabbit';   // v9:petId=slot,species=外觀
       this.stage = ST.growthInfo(ST.load(this.petId)).stage;
       // v18:食物不再有上限,正式過關一定走 feast 畫面;會來這裡的只剩「練習」跟「沒過關」兩種情況。
@@ -507,6 +508,8 @@
       ctx.font = '60px ' + FONT; ctx.fillStyle = '#5E4A36';
       ctx.fillText('答對 ' + this.correct + ' / ' + CFG.questionsPerLevel + ' 題', W / 2, 332);
       A.growPill(ctx, W - 200, 116, this.grow, 24);   // v16:過關(練習 / 拿滿)也會長大一點點(右上,標題那一列)
+      // v18:讓成長看得見 —— 過關前 → 過關後的成長條動畫(同一欄往下疊,練習過關 +2 也看得到)
+      A.growBar(ctx, W - 200, 210, 220, this.grow, Math.min(1, (t - this.start) / 1.0));
 
       ACT.drawAt(ctx, this.species, t, W / 2, 590 + 146 * 0.7, 0.7, { stage: this.stage });
       A.bubble(ctx, W / 2, 430, this.msg, { size: 26 });
@@ -631,8 +634,10 @@
       }
       // v16:解題長大 —— 成長徽章(右上,籃子上方那一帶,不跟標題列打架)
       A.growPill(ctx, W - 200, 210, this.grow, 24);
-      // v18:食物照給,但這關積分已經拿滿 —— 小灰 pill 提醒,不搶食物慶祝的風頭
-      if (this.capped) A.pill(ctx, W / 2, 246, this.cappedMsg, '#8A7A62', 'rgba(240,232,216,0.92)', 22);
+      // v18:食物照給,但這關積分已經拿滿 —— 小灰 pill 提醒(同一欄往下疊,中央 W/2 整條被寵物 + 對話泡泡佔滿)
+      if (this.capped) A.pill(ctx, W - 200, 274, this.cappedMsg, '#8A7A62', 'rgba(240,232,216,0.92)', 22);
+      // v18:讓成長看得見 —— 過關前 → 過關後的成長條動畫(同一欄繼續往下疊,籃子在更下面的 552,不會打架)
+      A.growBar(ctx, W - 200, this.capped ? 356 : 304, 220, this.grow, Math.min(1, Math.max(0, (t - this.start - 0.3) / 1.1)));
 
       // 桌子
       ctx.fillStyle = '#E0B98A'; A.rr(ctx, 160, 600, W - 320, 44, 20); ctx.fill();
