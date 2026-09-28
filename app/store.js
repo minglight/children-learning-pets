@@ -383,6 +383,15 @@
   function capFor(d, subject, levelId) {
     return subject === 'math' ? clearCapFor(d, levelId) : 10;
   }
+  // 這一關「現在」再解一次,recordRun 還會不會真的給獎勵(1 點 + 食物/玩具)?
+  // 規則要跟 recordRun 的給獎條件完全一致(見上面 feast 那段),供寵物聊天邀請跳關前檢查用——
+  // 不然小孩會被邀去一關「解完也拿不到東西」的關,誤以為是 bug。
+  function canEarnNow(d, subject, levelId) {
+    if (clearedToday(d, levelId)) return false;
+    if (remainToday(d, subject) <= 0) return false;
+    const nextClears = clearCount(d, levelId) + 1;
+    return nextClears <= capFor(d, subject, levelId) || nextClears === deluxeAt();
+  }
 
   // 「破到第幾關」獎盃數字:list 陣列是序列解鎖(上一關過關才開下一關),
   // 從頭數到「第一個沒過關」為止的關卡數,代表目前的學習進度深度。math/english 共用同一套算法
@@ -950,7 +959,7 @@
     getClearCapBasic: getClearCapBasic, setClearCapBasic: setClearCapBasic,
     getClearCapAdvanced: getClearCapAdvanced, setClearCapAdvanced: setClearCapAdvanced,
     getAdvancedFrom: getAdvancedFrom, setAdvancedFrom: setAdvancedFrom,
-    levelTier: levelTier, clearCapFor: clearCapFor, capFor: capFor, trophyNumber: trophyNumber, trophyNumberEnglish: trophyNumberEnglish,
+    levelTier: levelTier, clearCapFor: clearCapFor, capFor: capFor, canEarnNow: canEarnNow, trophyNumber: trophyNumber, trophyNumberEnglish: trophyNumberEnglish,
     trophyNumberFor: trophyNumberFor,
     getPoints: getPoints, awardHandwriting: awardHandwriting, hwDailyLeft: hwDailyLeft,
     hwRoundProgress: hwRoundProgress, submitHwLetter: submitHwLetter,

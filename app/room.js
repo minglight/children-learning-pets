@@ -79,8 +79,8 @@
         for (var i = 0; i < elist.length; i++) if (elist[i].id === m.lv) { eidx = i; break; }
         if (eidx < 0) continue;
         if (ST.levelState(d, elist, eidx) === 'locked') return null;
-        var epractice = ST.clearedToday(d, m.lv) || ST.remainToday(d, 'english') <= 0;
-        return { screen: 'eplay', params: { pet: slot, levelIdx: eidx, practice: epractice, tier: etiers[ei] } };
+        if (!ST.canEarnNow(d, 'english', m.lv)) return null;
+        return { screen: 'eplay', params: { pet: slot, levelIdx: eidx, practice: false, tier: etiers[ei] }, subject: 'english', levelId: m.lv };
       }
       return null;
     }
@@ -91,8 +91,8 @@
       for (var j = 0; j < tlist.length; j++) if (tlist[j].id === m.lv) { tidx = j; break; }
       if (tidx < 0) continue;
       if (ST.levelState(d, tlist, tidx) === 'locked') return null;
-      var practice = ST.clearedToday(d, m.lv) || ST.remainToday(d, 'math') <= 0;
-      return { screen: 'quiz', params: { pet: slot, levelIdx: tidx, practice: practice, tier: tiers[ti] } };
+      if (!ST.canEarnNow(d, 'math', m.lv)) return null;
+      return { screen: 'quiz', params: { pet: slot, levelIdx: tidx, practice: false, tier: tiers[ti] }, subject: 'math', levelId: m.lv };
     }
     return null;
   }
@@ -722,7 +722,14 @@
           this._askRects = null;
           this.bubble = null;
           PLS.sfx.tap();
-          if (opt.go) { PLS.go(opt.go.screen, opt.go.params); return; }   // 「走!」→ 直接跳那一關
+          if (opt.go) {
+            // 「走!」按下的當下用最新存檔再驗一次(邀請當時可能還能賺,點下去這幾秒內可能已經不能了)
+            var g = opt.go, fresh = ST.load(this.petId);
+            if (ST.canEarnNow(fresh, g.subject, g.levelId)) { PLS.go(g.screen, g.params); return; }
+            this.say(pickTalk(CFG.talkCare.memo.clearGoneReply));
+            this._chatT = PLS.t;
+            return;
+          }
           this.say(opt.r || '嘿嘿~');
           this._chatT = PLS.t;                                            // 回答完重新排下一句
           return;
