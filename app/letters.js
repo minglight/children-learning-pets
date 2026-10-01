@@ -107,25 +107,33 @@
     return _probe;
   }
 
+  // 沿一筆 SVG path 等距取樣(筆順動畫、手寫比對範本共用)
+  function sampleStroke(d) {
+    const p = probe();
+    p.setAttribute('d', d);
+    let len = 0; try { len = p.getTotalLength(); } catch (e) { len = 0; }
+    const N = Math.max(6, Math.min(90, Math.round(len / 2)));
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const q = p.getPointAtLength(len * i / N);
+      pts.push({ x: q.x, y: q.y });
+    }
+    return { len: len, pts: pts };
+  }
+
   const _cache = {};
   function measure(ch) {
     if (_cache[ch] !== undefined) return _cache[ch];
     const g = GLYPHS[ch];
     if (!g) { _cache[ch] = null; return null; }
-    const p = probe();
     let minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
     let total = 0;
     const strokes = g.map(function (d) {
-      p.setAttribute('d', d);
-      let len = 0; try { len = p.getTotalLength(); } catch (e) { len = 0; }
-      const N = Math.max(6, Math.min(90, Math.round(len / 2)));
-      const pts = [];                          // 沿筆畫等距取樣的點(動畫逐筆顯示用)
-      for (let i = 0; i <= N; i++) {
-        const q = p.getPointAtLength(len * i / N);
-        pts.push({ x: q.x, y: q.y });
+      const sm = sampleStroke(d), len = sm.len, pts = sm.pts;
+      pts.forEach(function (q) {
         if (q.x < minx) minx = q.x; if (q.x > maxx) maxx = q.x;
         if (q.y < miny) miny = q.y; if (q.y > maxy) maxy = q.y;
-      }
+      });
       const s0 = pts[0] || { x: 0, y: 0 };
       const e0 = pts[pts.length - 1] || s0;
       const ePrev = pts[pts.length - 2] || s0;
@@ -254,6 +262,11 @@
     has: function (ch) { return !!GLYPHS[ch]; },
     strokeCount: function (ch) { return GLYPHS[ch] ? GLYPHS[ch].length : 0; },
     draw: draw,
+    // 手寫比對(app/handwriting.js)用:字母骨架每一筆的取樣點(normalized 座標)
+    strokesOf: function (ch) { const m = measure(ch); return m ? m.strokes.map(function (s) { return s.pts; }) : null; },
+    // 任意一組 SVG path(例如另一種常見寫法)取樣成筆畫點
+    samplePaths: function (ds) { return ds.map(function (d) { return sampleStroke(d).pts; }); },
+    chars: function () { return Object.keys(GLYPHS); },
     _glyphs: GLYPHS   // 方便除錯/擴充
   };
 })();

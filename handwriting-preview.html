@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>手寫比對試寫</title>
+<style>
+  body { margin: 0; padding: 16px; background: #FBF2E4; font-family: "Andika", system-ui, sans-serif; color: #5E7A56; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .hint { color: #8AA08A; font-size: 14px; margin: 4px 0 12px; line-height: 1.5; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+  button, select { font-size: 18px; padding: 8px 14px; border-radius: 12px; border: 2px solid #D8E0D2; background: #fff; color: #5E7A56; }
+  button.main { background: #8FC9A8; border-color: #8FC9A8; color: #fff; }
+  #pad { background: #fff; border-radius: 24px; box-shadow: 0 4px 14px rgba(110,140,115,0.14); touch-action: none; display: block; max-width: 100%; }
+  #verdict { font-size: 28px; font-weight: 700; min-height: 40px; }
+  #detail, #self { font-family: ui-monospace, Menlo, monospace; font-size: 13px; white-space: pre-wrap; color: #6E7E6A; }
+  label { font-size: 15px; }
+  input[type=range] { width: 160px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<h1>手寫比對試寫（app/handwriting.js）</h1>
+<p class="hint">選一個字母、在格子裡寫（不用描），放開筆約 0.8 秒自動判定，也可以按「判定」。
+英文二上關卡的「默寫」題就是用這套判定：每個字母都要「像目標」而且「沒有明顯更像別的字母」。
+覺得冤枉（寫對卻判錯）或太鬆，記下字母跟寫法告訴 Athena；下面兩個門檻可以即時調著試，不會存檔。</p>
+<div class="row">
+  <label>目標字母 <select id="target"></select></label>
+  <button id="rand">隨機</button>
+  <button id="clear">清除</button>
+  <button id="judge" class="main">判定</button>
+  <label><input type="checkbox" id="ghost"> 顯示淡淡的骨架（描寫模式）</label>
+</div>
+<canvas id="pad" width="520" height="420"></canvas>
+<div id="verdict"></div>
+<div id="detail"></div>
+<div class="row">
+  <label>abs <input type="range" id="abs" min="0.10" max="0.60" step="0.01"> <span id="absV"></span></label>
+  <label>ratio <input type="range" id="ratio" min="1.00" max="1.60" step="0.01"> <span id="ratioV"></span></label>
+</div>
+<div class="row"><button id="selftest">模擬手寫自我測試（約 10 秒）</button></div>
+<div id="self"></div>
+
+<script src="app/letters.js"></script>
+<script src="app/handwriting.js"></script>
+<script>
+// 模擬小朋友手寫:從骨架出發,加上歪斜、筆畫錯位、抖動、頭尾太短/太長、筆順亂、一筆連寫
+window.SYN = (function () {
+  const L = window.PLS_LETTERS, HW = window.PLS_HW;
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function sym(x) { return rnd(-x, x); }
+  function variants(ch) {
+    const v = [L.strokesOf(ch)];
+    (HW._alt[ch] || []).forEach(function (ds) { v.push(L.samplePaths(ds)); });
+    return v;
+  }
+  function clone(st) { return st.map(function (s) { return s.map(function (p) { return { x: p.x, y: p.y }; }); }); }
+  function centroid(s) { let x = 0, y = 0; s.forEach(function (p) { x += p.x; y += p.y; }); return { x: x / s.length, y: y / s.length }; }
+  function len(s) { let l = 0; for (let i = 1; i < s.length; i++) l += Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y); return l; }
+  function dense(s, step) {
+    const out = [s[0]];
+    for (let i = 1; i < s.length; i++) {
+      const a = s[i - 1], b = s[i], d = Math.hypot(b.x - a.x, b.y - a.y), n = Math.max(1, Math.ceil(d / step));
+      for (let k = 1; k <= n; k++) out.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+    }
+    return out;
+  }
+  function trimExtend(s, lv) {
+    if (s.length < 3 || len(s) < 12) return s;
+    let d = dense(s, 1);
+    const n = d.length;
+    const a = sym(0.12 * lv), b = sym(0.12 * lv);
+    function ext(pts, atStart, frac) {
+      const k = Math.round(frac * n);
+      if (k <= 0) return pts;
+      const p0 = atStart ? pts[0] : pts[pts.length - 1], p1 = atStart ? pts[Math.min(3, pts.length - 1)] : pts[Math.max(0, pts.length - 4)];
+      const dx = p0.x - p1.x, dy = p0.y - p1.y, L0 = Math.hypot(dx, dy) || 1;
+      const add = [];
+      for (let i = 1; i <= k; i++) add.push({ x: p0.x + dx / L0 * i, y: p0.y + dy / L0 * i });
+      return atStart ? add.reverse().concat(pts) : pts.concat(add);
+    }
+    if (a > 0) d = d.slice(Math.round(a * n)); else d = ext(d, true, -a);
+    if (b > 0) d = d.slice(0, Math.max(2, d.length - Math.round(b * n))); else d = ext(d, false, -b);
+    return d;
+  }
+  function wobble(s, amp) {
+    const L0 = len(s); if (L0 < 1) return s;
+    const f1 = rnd(0.5, 1.5), f2 = rnd(1.5, 3), p1 = rnd(0, 6.28), p2 = rnd(0, 6.28), a1 = sym(amp), a2 = sym(amp * 0.5);
+    const b1 = sym(amp), q1 = rnd(0, 6.28);
+    let acc = 0;
+    return s.map(function (p, i) {
+      if (i) acc += Math.hypot(p.x - s[i - 1].x, p.y - s[i - 1].y);
+      const t = acc / L0 * 6.28;
+      return { x: p.x + a1 * Math.sin(f1 * t + p1) + a2 * Math.sin(f2 * t + p2), y: p.y + b1 * Math.sin(f1 * t + q1) };
+    });
+  }
+  function synth(ch, lv) {
+    const vs = variants(ch);
+    let st = clone(vs[Math.random() < 0.7 ? 0 : Math.floor(Math.random() * vs.length)]);
+    st = st.map(function (s) { return trimExtend(s, lv); });
+    st = st.map(function (s) {
+      const c = centroid(s), k = 1 + sym(0.15 * lv), dx = sym(7 * lv), dy = sym(7 * lv);
+      return s.map(function (p) { return { x: c.x + (p.x - c.x) * k + dx, y: c.y + (p.y - c.y) * k + dy }; });
+    });
+    st = st.map(function (s) { return wobble(s, 3.5 * lv); });
+    const rot = sym(0.2 * lv), sh = sym(0.25 * lv), sx = 1 + sym(0.25 * lv), sy = 1 + sym(0.12 * lv);
+    const cs = Math.cos(rot), sn = Math.sin(rot);
+    st = st.map(function (s) {
+      return s.map(function (p) {
+        let x = (p.x - 50) * sx + (p.y - 60) * sh, y = (p.y - 60) * sy;
+        return { x: x * cs - y * sn, y: x * sn + y * cs };
+      });
+    });
+    st = st.map(function (s) { return Math.random() < 0.5 ? s.slice().reverse() : s; });
+    if (st.length > 1 && Math.random() < 0.5) st = st.sort(function () { return Math.random() - 0.5; });
+    if (st.length > 1 && Math.random() < 0.3) {
+      const i = Math.floor(Math.random() * (st.length - 1));
+      st.splice(i, 2, st[i].concat(st[i + 1]));
+    }
+    const S = rnd(1.2, 2.2), ox = rnd(100, 300), oy = rnd(100, 300);
+    return st.map(function (s) {
+      return s.map(function (p) { return { x: ox + p.x * S + sym(0.8), y: oy + p.y * S + sym(0.8) }; });
+    });
+  }
+  return { synth: synth };
+})();
+
+</script>
+<script>
+(function () {
+  const L = PLS_LETTERS, HW = PLS_HW;
+  const pad = document.getElementById('pad'), ctx = pad.getContext('2d');
+  const sel = document.getElementById('target');
+  const chars = L.chars();
+  chars.forEach(function (c) { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+  sel.value = 'a';
+  let strokes = [], cur = null, timer = null;
+  const CAP = 230, CX = pad.width / 2, CY = pad.height / 2 + 4;   // 四線格:x-height 線在 CY
+
+  function draw() {
+    ctx.clearRect(0, 0, pad.width, pad.height);
+    const top = CY - CAP / 2, base = CY + CAP / 2, desc = CY + CAP * 0.78;
+    ctx.strokeStyle = 'rgba(150,180,150,0.45)'; ctx.lineWidth = 2;
+    [top, base].forEach(function (y) { ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(pad.width - 30, y); ctx.stroke(); });
+    ctx.setLineDash([6, 10]); ctx.strokeStyle = 'rgba(150,180,150,0.3)';
+    [CY, desc].forEach(function (y) { ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(pad.width - 30, y); ctx.stroke(); });
+    ctx.setLineDash([]);
+    if (document.getElementById('ghost').checked) L.draw(ctx, sel.value, { cx: CX, cy: CY, h: CAP, color: '#EDE7D8', showOrder: true, badgeColor: '#7FB08E', arrowColor: '#C9BC9C' });
+    ctx.strokeStyle = '#F0A24E'; ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    strokes.forEach(function (s) {
+      ctx.beginPath(); ctx.moveTo(s[0].x, s[0].y);
+      for (let i = 1; i < s.length; i++) ctx.lineTo(s[i].x, s[i].y);
+      if (s.length === 1) ctx.lineTo(s[0].x + 0.1, s[0].y);
+      ctx.stroke();
+    });
+  }
+  function pos(e) { const r = pad.getBoundingClientRect(); return { x: (e.clientX - r.left) * pad.width / r.width, y: (e.clientY - r.top) * pad.height / r.height }; }
+  pad.addEventListener('pointerdown', function (e) { clearTimeout(timer); pad.setPointerCapture(e.pointerId); cur = [pos(e)]; strokes.push(cur); draw(); });
+  pad.addEventListener('pointermove', function (e) { if (!cur) return; cur.push(pos(e)); draw(); });
+  pad.addEventListener('pointerup', function () { cur = null; clearTimeout(timer); timer = setTimeout(judge, 800); });
+
+  function judge() {
+    if (!strokes.length) return;
+    const t0 = performance.now();
+    const r = HW.check(strokes, sel.value);
+    const ms = (performance.now() - t0).toFixed(1);
+    const v = document.getElementById('verdict');
+    const why = { ok: '', empty: '（沒寫到）', unlike: '（不像 ' + sel.value + ' 的任何寫法）', 'looks-like': '（比較像 ' + r.otherCh + '）', 'no-template': '' }[r.reason];
+    v.textContent = (r.ok ? '✓ 過關' : '✗ 再寫一次') + ' ' + why;
+    v.style.color = r.ok ? '#3DAA6A' : '#D9735F';
+    document.getElementById('detail').textContent =
+      '目標距離 d=' + (r.d != null ? r.d.toFixed(3) : '-') + '（abs 上限 ' + HW.TUNE.abs.toFixed(2) + '）\n' +
+      '最像的別的字母 ' + (r.otherCh || '-') + ' d=' + (isFinite(r.other) ? r.other.toFixed(3) : '-') + '　比值 ' + (isFinite(r.other) ? (r.d / r.other).toFixed(2) : '-') + '（ratio 上限 ' + HW.TUNE.ratio.toFixed(2) + '）\n' +
+      '最像前五名：' + r.best.map(function (e) { return e.ch + ' ' + e.d.toFixed(3); }).join('　') + '\n' +
+      '筆畫 ' + strokes.length + '　比對 ' + ms + ' ms';
+  }
+  function clear() { strokes = []; cur = null; document.getElementById('verdict').textContent = ''; document.getElementById('detail').textContent = ''; draw(); }
+  document.getElementById('clear').onclick = clear;
+  document.getElementById('judge').onclick = judge;
+  document.getElementById('rand').onclick = function () { sel.value = chars[Math.floor(Math.random() * chars.length)]; clear(); };
+  sel.onchange = clear;
+  document.getElementById('ghost').onchange = draw;
+  ['abs', 'ratio'].forEach(function (k) {
+    const el = document.getElementById(k), out = document.getElementById(k + 'V');
+    el.value = HW.TUNE[k]; out.textContent = (+el.value).toFixed(2);
+    el.oninput = function () { HW.TUNE[k] = +el.value; out.textContent = (+el.value).toFixed(2); judge(); };
+  });
+
+  // 模擬手寫自我測試:每個字母各 PER 筆模擬手寫,三種歪斜程度;
+  // 「寫對會過」= 寫 X、目標 X 判定過關的比例;「寫錯被放過」= 寫 X、目標是別的同大小寫字母卻判定過關的比例。
+  document.getElementById('selftest').onclick = function () {
+    const out = document.getElementById('self');
+    out.textContent = '跑測試中…';
+    setTimeout(function () {
+      const PER = 15, LV = [0.6, 1.0, 1.4], isUp = function (c) { return c >= 'A' && c <= 'Z'; };
+      const tp = {}, conf = {}; let fa = 0, nn = 0;
+      const t0 = performance.now();
+      LV.forEach(function (lv) {
+        chars.forEach(function (ch) {
+          for (let k = 0; k < PER; k++) {
+            const st = SYN.synth(ch, lv);
+            tp[lv] = tp[lv] || [0, 0]; tp[lv][1]++; if (HW.check(st, ch).ok) tp[lv][0]++;
+            if (lv !== 1.0) continue;
+            chars.forEach(function (y) {
+              if (HW.sameSet(ch).indexOf(y) >= 0 || isUp(y) !== isUp(ch)) return;
+              nn++; if (HW.check(st, y).ok) { fa++; const key = ch + '→' + y; conf[key] = (conf[key] || 0) + 1; }
+            });
+          }
+        });
+      });
+      const top = Object.keys(conf).sort(function (a, b) { return conf[b] - conf[a]; }).slice(0, 15);
+      out.textContent = '門檻 ' + JSON.stringify(HW.TUNE) + '　' + Math.round(performance.now() - t0) + ' ms\n' +
+        '寫對會過（輕微/中等/嚴重歪斜）：' + LV.map(function (lv) { return (100 * tp[lv][0] / tp[lv][1]).toFixed(1) + '%'; }).join(' / ') + '\n' +
+        '寫錯被放過（中等歪斜）：' + (100 * fa / nn).toFixed(2) + '%\n' +
+        '最常被放過（寫的→當成目標，' + PER + ' 筆中幾筆）：' + top.map(function (k) { return k + ' ' + conf[k]; }).join('　');
+    }, 30);
+  };
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -99,6 +99,23 @@
       speechSynthesis.speak(u);
     } catch (e) {}
   };
+  // 依序唸好幾段、彼此不打斷(英文拼讀:單字 → 一個一個字母)。
+  // onStart(i):第 i 段開始唸(畫面跟著亮那一格);onDone:最後一段唸完。iOS 的語音事件偶爾不來,呼叫端要自己留保底計時。
+  PLS.sayQueue = function (parts, lang, onStart, onDone) {
+    if (!window.speechSynthesis) { if (onDone) onDone(); return; }
+    try {
+      speechSynthesis.cancel();
+      parts.forEach(function (text, i) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = lang || 'zh-TW';
+        if (!lang && voiceZh) u.voice = voiceZh;
+        u.rate = 0.88;
+        if (onStart) u.onstart = function () { onStart(i); };
+        if (onDone && i === parts.length - 1) u.onend = function () { onDone(); };
+        speechSynthesis.speak(u);
+      });
+    } catch (e) { if (onDone) onDone(); }
+  };
 
   // ── 音效(極輕的 WebAudio 提示音)─────────────────────
   let ac = null;

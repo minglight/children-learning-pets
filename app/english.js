@@ -298,6 +298,27 @@
   // 把大寫字母唸出來(用小寫,語音才不會多唸 "Capital")
   function sayLetter(ch) { if (ch) PLS.say(ch.toLowerCase(), 'en-US'); }
 
+  // 拼讀要唸的每一段:先整個單字,再一個一個字母(fish → fish, f, i, s, h)。字母一個一段,
+  // 單獨的 a 才會唸成字母 /eɪ/ 而不是冠詞;用小寫唸,才不會多唸 "capital"。
+  function spellParts(word) {
+    return [word].concat(String(word).split('').filter(isLetter).map(function (c) { return c.toLowerCase(); }));
+  }
+  // qa 手寫題(描寫→默寫)的單字池:關卡的 spellWords;沒有就用 bank 裡本身只有一個單字的題目(去掉句尾標點)。
+  // 排不進描寫格的長字不抽。
+  function spellPool(lv) {
+    const src = lv.spellWords || (lv.bank || []).map(function (b) {
+      const w = String(b.en || '').replace(/[!?.,]+$/, '');
+      return /^[A-Za-z]+$/.test(w) ? { en: w, zh: b.zh, color: b.color } : null;
+    }).filter(Boolean);
+    const seen = {};
+    return src.filter(function (it) {
+      const k = it.en.toLowerCase();
+      if (seen[k] || !traceFits(it.en)) return false;
+      seen[k] = true; return true;
+    });
+  }
+  const HW_GIVE_UP = 3;   // 手寫題第 3 次還沒過就放行(不算首次答對),免得比對誤判把小朋友卡死
+
   // 共用:描寫卡(白卡 + 四線格 + 筆順骨架/示範 + 玩家筆畫)。reveal=null 不示範。
   // 給「描寫關卡」與「字母手寫練習」共用,字形/版面才一致。
   // rect 選填:{x,y,w,h},省略時用單字母描寫關卡的 TCARD(維持原本呼叫端不用改)。
@@ -391,15 +412,23 @@
       this.wordDeck = shuffle(wordPool.slice());
       this.slots = ['', '', '']; this.slotFrom = [null, null, null]; this.bank = [];
       this.qaDeck = shuffle((this.lv.bank || []).map(function (_, i) { return i; }));
-      // v15:qa 玩法每關固定抽 CFG.qaTraceMin 題(預設 4)當「聽發音描寫」,位置隨機、單字整句都可能;
-      // 太長排不進 2 行的句子跳過不抽。剩下的題目才是選擇題。
-      this.traceSet = new Set();
-      if (this.mode === 'qa' && this.qaDeck.length) {
-        const qb = this.lv.bank, want = Math.min(this.count, Math.max(0, CFG.qaTraceMin | 0));
-        const order = shuffle(Array.from({ length: this.count }, function (_, i) { return i; }));
-        for (let oi = 0; oi < order.length && this.traceSet.size < want; oi++) {
-          const item = qb[this.qaDeck[order[oi] % this.qaDeck.length]];
-          if (item && traceFits(item.en)) this.traceSet.add(order[oi]);
+      // 2026-10:qa 玩法的手寫題改成「單字兩題一組」——第 s 題描寫(唸單字 + 逐字母拼讀,照骨架描),
+      // 第 s+1 題緊接著默寫同一個字(沒有虛線,app/handwriting.js 比對每格)。每關 CFG.qaSpellPairs 組,
+      // 位置隨機、不重疊;其餘題目是選擇題。hwPlan[qIndex] = {kind:'trace'|'recall', item:{en,zh,color}}
+      this.hwPlan = {};
+      if (this.mode === 'qa') {
+        const words = shuffle(spellPool(this.lv));
+        const pairs = Math.min(words.length, Math.max(0, CFG.qaSpellPairs | 0), Math.floor(this.count / 2));
+        const starts = shuffle(Array.from({ length: Math.max(0, this.count - 1) }, function (_, i) { return i; }));
+        const used = new Set();
+        let wi = 0;
+        for (let k = 0; k < starts.length && wi < pairs; k++) {
+          const s = starts[k];
+          if (used.has(s) || used.has(s + 1)) continue;
+          used.add(s); used.add(s + 1);
+          this.hwPlan[s] = { kind: 'trace', item: words[wi] };
+          this.hwPlan[s + 1] = { kind: 'recall', item: words[wi] };
+          wi++;
         }
       }
 
@@ -421,19 +450,19 @@
           const b = PLS.addButton({
             x: bx, y: TILE.y, w: TILE.w, h: TILE.h,
             draw: function (ctx, t) { self.drawTile(ctx, t, i, bx, TILE.y, TILE.w, TILE.h); },
-            hidden: function () { return self.mode === 'qa' && self.qKind === 'trace'; },
+            hidden: function () { return self.isHw(); },
             disabled: function () { return self.locked || !self.q || (self.wrong && self.wrong.has(i)); },
             onTap: function () { self.answer(i); }
           });
           self.tiles.push(b);
         })(i);
-        // qa 模式裡混的「單字聽寫描寫」子題(見 next() 的 qKind 判斷):跟 write/wword 共用清除+完成鈕的版面,
-        // 只在 qKind==='trace' 時顯示。
+        // qa 模式裡混的手寫題(描寫 / 默寫,見 next() 的 qKind 判斷):跟 write/wword 共用清除+完成鈕的版面,
+        // 只在手寫題時顯示。
         if (this.mode === 'qa') {
           const tby = 622;
           PLS.addButton({
             x: W / 2 - 260, y: tby, w: 240, h: 96,
-            hidden: function () { return self.qKind !== 'trace'; },
+            hidden: function () { return !self.isHw(); },
             draw: function (ctx) {
               ctx.fillStyle = '#FFFFFF'; A.rr(ctx, W / 2 - 260, tby, 240, 96, 28); ctx.fill();
               ctx.strokeStyle = '#D8E0D2'; ctx.lineWidth = 3; A.rr(ctx, W / 2 - 260, tby, 240, 96, 28); ctx.stroke();
@@ -445,7 +474,7 @@
           });
           PLS.addButton({
             x: W / 2 + 20, y: tby, w: 240, h: 96,
-            hidden: function () { return self.qKind !== 'trace'; },
+            hidden: function () { return !self.isHw(); },
             draw: function (ctx, t) {
               const ready = self.hasEnough();
               ctx.save();
@@ -530,17 +559,24 @@
       this.next();
     },
 
+    // qa 模式的手寫題(描寫 trace / 默寫 recall)
+    isHw: function () { return this.mode === 'qa' && (this.qKind === 'trace' || this.qKind === 'recall'); },
+
     clearStrokes: function () {
       this.strokes = []; this.cur = null; this.drawnLen = 0;
-      this.boxes.forEach(function (b) { b.strokes = []; b.len = 0; });
+      // 已經判定寫對(ok)的格子保留,只清還沒過的
+      this.boxes.forEach(function (b) { if (b.ok) return; b.strokes = []; b.len = 0; b.bad = false; });
     },
     hasEnough: function () {
       if (this.mode === 'write') {
         const tb = this.boxes.find(function (b) { return b.letter === this.target; }, this);
         return tb && tb.len > 60;
       }
-      if (this.mode === 'wword' || (this.mode === 'qa' && this.qKind === 'trace')) {
-        return this.boxes.length > 0 && this.boxes.every(function (b) { return b.len > (b.need || 60); });
+      if (this.isHw()) {
+        return this.boxes.length > 0 && this.boxes.every(function (b) { return b.ok || b.len > (b.need || 60); });
+      }
+      if (this.mode === 'wword') {
+        return this.boxes.length > 0 && this.boxes.every(function (b) { return b.len > 60; });
       }
       return this.drawnLen > 60;
     },
@@ -593,18 +629,31 @@
         const qbank = this.lv.bank || [];
         const idx = this.qaDeck[this.qIndex % this.qaDeck.length];
         const target = qbank[idx];
-        // v15:這一題是不是「聽發音描寫」在 enter() 就抽好了(traceSet),單字、整句都可能。
-        this.qKind = (this.traceSet && this.traceSet.has(this.qIndex)) ? 'trace' : 'mc';
-        if (this.qKind === 'trace') {
+        // 這一題是不是手寫題(描寫 / 默寫)在 enter() 就排好了(hwPlan)
+        const plan = this.hwPlan && this.hwPlan[this.qIndex];
+        this.qKind = plan ? plan.kind : 'mc';
+        this.hwTries = 0; this.hwHinted = false; this.spellHi = -1;
+        if (plan) {
+          const it = plan.item;
           this.q = null;
-          this.traceWord = target.en;
-          this.traceZh = target.zh || '';
-          const lay = buildTraceLayout(target.en);
+          this.traceWord = it.en;
+          // 中文意思跟英文同形(人名)就不顯示,不然等於把答案寫出來
+          this.traceZh = (it.zh && it.zh.toLowerCase() !== it.en.toLowerCase()) ? it.zh : '';
+          this.tracePic = (CFG.wordPics && CFG.wordPics[it.en.toLowerCase()]) || '';
+          this.traceColor = it.color || null;
+          const lay = buildTraceLayout(it.en);
           this.boxes = lay.boxes;
           this.traceMarks = lay.marks;
-          this.bubbleText = target.en.indexOf(' ') >= 0 ? '聽發音,把句子描出來' : '聽發音,照筆順寫出來';
+          // hint = 這格畫筆順骨架(描寫題全部有;默寫題只有錯兩次的格子才出現)
+          this.boxes.forEach(function (b) { b.ok = false; b.bad = false; b.hint = plan.kind === 'trace'; });
+          if (plan.kind === 'trace') {
+            this.bubbleText = '聽一聽,照筆順描出來';
+            setTimeout(function () { self.saySpell(); }, 350);
+          } else {
+            this.bubbleText = '換你自己寫寫看!';
+            setTimeout(function () { sayEN(it.en); }, 350);
+          }
           this.bubbleUntil = PLS.t + 2.6;
-          setTimeout(function () { sayEN(target.en); }, 350);
         } else {
           const others = shuffle(qbank.filter(function (_, bi) { return bi !== idx; })).slice(0, 2);
           const dir = Math.random() < 0.5 ? 'hear' : 'say';
@@ -672,12 +721,26 @@
       this.demoOn = true;
     },
 
+    // 拼讀:唸單字 → 一個一個字母,唸到哪個字母那一格就亮(spellHi)。onDone 是唸完(語音事件不一定會來)
+    saySpell: function (onDone) {
+      const self = this, q = this.qIndex, word = this.traceWord;
+      if (!word) { if (onDone) onDone(); return; }
+      this.spellHi = -1;
+      PLS.sayQueue(spellParts(word), 'en-US', function (i) {
+        if (self.qIndex !== q) return;
+        self.spellHi = i - 1;            // 第 0 段是整個單字,第 1 段起才是字母
+        self.spellHiUntil = PLS.t + 0.9;
+      }, onDone);
+    },
+
     replay: function () {
       if (this.mode === 'write') { sayLetter(this.targetBase); return; }
       if (this.mode === 'spell' || this.mode === 'wword') { sayWord(this.word); return; }
       if (this.mode === 'wpick') { if (this.q) sayWord(this.q.word); return; }
       if (this.mode === 'qa') {
-        if (this.qKind === 'trace') { sayEN(this.traceWord); return; }
+        // 描寫題(和默寫題出現提示之後)重聽 = 單字 + 拼讀;默寫題只唸單字,不然等於報答案
+        if (this.qKind === 'trace' || (this.qKind === 'recall' && this.hwHinted)) { this.saySpell(); return; }
+        if (this.qKind === 'recall') { sayEN(this.traceWord); return; }
         if (!this.q) return;
         if (this.q.dir === 'hear') sayEN(this.q.prompt); else PLS.say(this.q.prompt);
         return;
@@ -800,12 +863,14 @@
         } else if (phase === 'up') { this.cur = null; }
         return;
       }
-      if (this.mode === 'write' || this.mode === 'wword' || (this.mode === 'qa' && this.qKind === 'trace')) {
+      if (this.mode === 'write' || this.mode === 'wword' || this.isHw()) {
         if (phase === 'down') {
           this.curBox = null;
           for (let i = 0; i < this.boxes.length; i++) {
             const b = this.boxes[i];
             if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+              if (b.ok || this.locked) break;   // 已經判定寫對的格子不再收筆畫
+              b.bad = false;
               this.curBox = b; this.cur = [{ x: x, y: y }]; b.strokes.push(this.cur); break;
             }
           }
@@ -824,14 +889,44 @@
     finishStroke: function () {
       const self = this;
       if (this.locked) return;
-      if (this.mode === 'qa' && this.qKind === 'trace') {
-        const unfinished = this.boxes.filter(function (b) { return b.len <= (b.need || 60); });
+      if (this.isHw()) {
+        const recall = this.qKind === 'recall';
+        const unfinished = this.boxes.filter(function (b) { return !b.ok && b.len <= (b.need || 60); });
         if (unfinished.length) {
-          this.bubbleText = '每一格都要描寫喔'; this.bubbleUntil = PLS.t + 2.2; PLS.sfx.wrong(); return;
+          this.bubbleText = recall ? '每一格都要寫喔' : '每一格都要描寫喔'; this.bubbleUntil = PLS.t + 2.2; PLS.sfx.wrong(); return;
         }
+        // 每格比對寫的像不像那個字母(app/handwriting.js);沒載到比對模組就跟以前一樣只看有沒有寫
+        const HW = window.PLS_HW;
+        this.boxes.forEach(function (b) {
+          if (b.ok) return;
+          b.ok = HW ? HW.check(b.strokes, b.letter).ok : true;
+          b.bad = !b.ok;
+        });
+        const bad = this.boxes.filter(function (b) { return !b.ok; });
+        this.hwTries++;
+        if (bad.length && this.hwTries < HW_GIVE_UP) {
+          PLS.sfx.wrong();
+          this.streak = 0;
+          bad.forEach(function (b) { b.strokes = []; b.len = 0; });
+          if (recall && this.hwTries >= 2) {
+            // 默寫錯第二次:寫錯的那幾格出現骨架改成描寫,再拼讀一次給他聽
+            bad.forEach(function (b) { b.hint = true; });
+            this.hwHinted = true;
+            this.bubbleText = '照著淡淡的字描描看';
+            this.saySpell();
+          } else {
+            this.bubbleText = recall ? '紅色的格子再寫一次喔' : '紅色的格子照著線再描一次';
+            if (recall) sayEN(this.traceWord);
+          }
+          this.bubbleUntil = PLS.t + 2.6;
+          return;
+        }
+        // 過關;第 HW_GIVE_UP 次還沒過也放行(可能是比對誤判),但不算首次答對。
+        // 寫錯一次再寫對還算首次答對——一個字母寫歪不該讓整關過不了。
+        const clean = !bad.length && this.hwTries <= 2 && !this.hwHinted;
+        bad.forEach(function (b) { b.ok = true; b.bad = false; });
         this.locked = true;
-        this.firstTryCount++;
-        this.streak++;
+        if (clean) { this.firstTryCount++; this.streak++; } else this.streak = 0;
         PLS.sfx.correct();
         this.boxes.forEach(function (b) { PLS.burst(b.x + b.w / 2, b.y + b.h / 2, 'small'); });
         const isLast = (this.qIndex + 1 >= this.count);
@@ -839,8 +934,18 @@
           const pp = this._petPos || { x: 150, y: 742 };
           PLS.burst(W / 2, TWORD.y + TWORD.h / 2, 'feast'); PLS.burst(pp.x, pp.y - 60, 'feast');
           this.bubbleText = '全部完成!'; this.bubbleUntil = PLS.t + 3;
-        } else { this.bubbleText = pickTalk(CFG.talkEng.nice); this.bubbleUntil = PLS.t + 1.6; }
-        setTimeout(function () { self.advance(); }, 1100);
+        } else if (!clean) { this.bubbleText = '下次會寫得更好!'; this.bubbleUntil = PLS.t + 1.6; }
+        else { this.bubbleText = recall ? '你記住了!' : pickTalk(CFG.talkEng.nice); this.bubbleUntil = PLS.t + 1.6; }
+        if (recall) {
+          // 默寫完再拼讀一次加深印象,唸完才換題(語音事件不一定會來,另留保底計時)
+          let done = false;
+          const go = function () { if (done) return; done = true; self.advance(); };
+          this.saySpell(function () { setTimeout(go, 300); });
+          setTimeout(go, 1500 + 700 * this.boxes.length);
+        } else {
+          sayEN(this.traceWord);
+          setTimeout(function () { self.advance(); }, 1300);
+        }
         return;
       }
       if (this.mode === 'wword') {
@@ -1007,7 +1112,7 @@
 
       if (this.mode === 'pick' || this.mode === 'match') this.drawPick(ctx, t);
       else if (this.mode === 'wpick') this.drawWordPick(ctx, t);
-      else if (this.mode === 'qa') { if (this.qKind === 'trace') this.drawTraceWord(ctx, t); else this.drawQA(ctx, t); }
+      else if (this.mode === 'qa') { if (this.isHw()) this.drawTraceWord(ctx, t); else this.drawQA(ctx, t); }
       else if (this.mode === 'spell') this.drawSpell(ctx, t);
       else if (this.mode === 'write') this.drawWrite(ctx, t);
       else if (this.mode === 'wword') this.drawWword(ctx, t);
@@ -1087,18 +1192,46 @@
       }
     },
 
-    // qa 模式混的「單字聽寫描寫」子題:聽發音,依筆順把單字每個字母描出來(跟課本無關,
-    // 是額外的聽寫練習)。跟 drawWword 版面類似,但每格用 renderTraceCard 畫骨架引導。
+    // qa 模式混的手寫題:描寫(每格有筆順骨架)/ 默寫(只有四線格,錯兩次的格子才出現骨架)。
+    // 每格用 renderTraceCard 畫,一格一個字母;拼讀唸到哪個字母那格亮框,比對沒過的格子紅色虛線框。
     drawTraceWord: function (ctx, t) {
-      const isSentence = (this.traceWord || '').indexOf(' ') >= 0;
+      const recall = this.qKind === 'recall';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '30px ' + FONT; ctx.fillStyle = '#5E7A56';
-      ctx.fillText(isSentence ? '聽發音,照著把句子描出來' : '聽發音,照筆順把單字描出來', W / 2, 178);
+      const title = !recall ? '聽一聽,照筆順把單字描出來' : this.hwHinted ? '照著淡淡的字描描看' : '剛剛描過的單字,自己寫寫看';
+      ctx.fillText(title, W / 2, 174);
+      // 第二行:提示圖(或顏色色塊)+ 中文意思 + 喇叭說明——只給意思,不給拼字
+      const tip = (this.traceZh ? this.traceZh + '　' : '') + '點右上角喇叭可以再聽一次';
+      ctx.font = '22px ' + FONT;
+      const picW = this.tracePic ? 54 : this.traceColor ? 42 : 0;
+      const x0 = W / 2 - (picW + ctx.measureText(tip).width) / 2, ty = 220;
+      ctx.textAlign = 'left';
+      if (this.tracePic) {
+        ctx.font = '40px ' + FONT; ctx.fillText(this.tracePic, x0, ty + 2);
+      } else if (this.traceColor) {
+        ctx.fillStyle = this.traceColor; ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 2;
+        A.el(ctx, x0 + 15, ty, 15, 15); ctx.fill(); ctx.stroke();
+      }
       ctx.font = '22px ' + FONT; ctx.fillStyle = '#9AB09A';
-      ctx.fillText((this.traceZh ? this.traceZh + '　' : '') + '點右上角喇叭可以再聽一次', W / 2, 216);
+      ctx.fillText(tip, x0 + picW, ty);
+      ctx.textAlign = 'center';
       const self = this;
-      this.boxes.forEach(function (b) {
-        renderTraceCard(ctx, b.letter, b.strokes, self.accent, null, b);
+      this.boxes.forEach(function (b, i) {
+        renderTraceCard(ctx, b.hint ? b.letter : null, b.strokes, self.accent, null, b);
+        if (i === self.spellHi && PLS.t < (self.spellHiUntil || 0)) {
+          ctx.strokeStyle = self.accent; ctx.lineWidth = 6;
+          A.rr(ctx, b.x + 3, b.y + 3, b.w - 6, b.h - 6, 28); ctx.stroke();
+        }
+        if (b.bad) {
+          ctx.strokeStyle = '#E58A78'; ctx.lineWidth = 5; ctx.setLineDash([14, 10]);
+          A.rr(ctx, b.x + 3, b.y + 3, b.w - 6, b.h - 6, 28); ctx.stroke(); ctx.setLineDash([]);
+        } else if (b.ok && !self.locked) {
+          // 這格已經寫對:右上角小勾勾(其他格還要重寫時讓他知道哪些不用動)
+          const cx = b.x + b.w - 24, cy = b.y + 24;
+          ctx.fillStyle = '#8FC9A8'; A.el(ctx, cx, cy, 15, 15); ctx.fill();
+          ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.beginPath(); ctx.moveTo(cx - 7, cy); ctx.lineTo(cx - 2, cy + 5); ctx.lineTo(cx + 7, cy - 5); ctx.stroke();
+        }
       });
       // 標點:印在格子之間的基線上,淡色、不用描
       (this.traceMarks || []).forEach(function (mk) {

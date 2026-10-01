@@ -9,9 +9,19 @@ window.PLS_CONFIG = {
   // 「入門」= advancedFrom 之前的關卡,「進階」= advancedFrom(含)之後;兩個門檻家長區可調(全域共用)。
   clearCapBasic: 3,      // 入門關卡:過幾次後不再給獎勵(預設；可在家長區調整)
   clearCapAdvanced: 10,  // 進階關卡:過幾次後不再給獎勵(預設；可在家長區調整)
-  // v15:英文二上(english2,qa 玩法)每關至少幾題是「聽發音描寫」(單字或整句都可能抽到),
-  // 其餘才是選擇題;count=10 時就是 4 題描寫 + 6 題選擇。
-  qaTraceMin: 4,
+  // 2026-10:英文二上(english2,qa 玩法)的手寫題改成「單字、兩題一組」(以前整句描寫太長,描完也記不住):
+  //   ① 描寫:先唸單字、再一個一個唸字母(fish → f, i, s, h),照筆順骨架描;
+  //   ② 默寫:緊接著同一個單字,沒有虛線,只聽發音(可以看圖),自己寫,app/handwriting.js 比對每個字母像不像。
+  // 每關抽 qaSpellPairs 個單字;count=10 時就是 4 題手寫 + 6 題選擇,手寫題數跟以前一樣。
+  // 單字來源:關卡的 spellWords;沒有就用 bank 裡本身只有一個單字的題目(「Hello!」這種去掉標點)。
+  qaSpellPairs: 2,
+  // 默寫題的提示圖(只給意思、不洩漏拼字;沒列的單字就不放圖,顏色單字改用 bank 的 color 色塊)
+  wordPics: {
+    one: '1️⃣', two: '2️⃣', three: '3️⃣', four: '4️⃣', five: '5️⃣', six: '6️⃣', seven: '7️⃣', eight: '8️⃣', nine: '9️⃣', ten: '🔟',
+    hi: '👋', hello: '👋',
+    book: '📖', pen: '🖊️', pencil: '✏️', ruler: '📏', marker: '🖍️', bag: '🎒', school: '🏫',
+    bat: '🦇', ghost: '👻', pumpkin: '🎃', spider: '🕷️', vampire: '🧛', witch: '🧙‍♀️'
+  },
 
   // v11:好友雲端同步(選用附加功能,見 app/cloud.js)— 純前端 SDK 金鑰,安全邊界在 firestore.rules,不是這裡。
   firebase: {
@@ -332,6 +342,14 @@ window.PLS_CONFIG = {
       ] },
     { id: 'e2c6', name: 'My School Bag 我的書包', sub: '介紹書包裡的文具', play: 'qa', count: 10,
       toyU: '公主裙', toyArtU: 'dress',
+      // bank 全是句子,手寫題(描寫→默寫)改從這課句子裡出現的單字抽
+      spellWords: [
+        { en: 'school', zh: '學校' }, { en: 'bag', zh: '書包' },
+        { en: 'book', zh: '書' }, { en: 'pen', zh: '筆' }, { en: 'pencil', zh: '鉛筆' },
+        { en: 'eraser', zh: '橡皮擦' }, { en: 'ruler', zh: '尺' }, { en: 'marker', zh: '彩色筆' },
+        { en: 'red', zh: '紅色', color: '#E4574B' }, { en: 'blue', zh: '藍色', color: '#4A7FC1' },
+        { en: 'green', zh: '綠色', color: '#4F9E5C' }, { en: 'yellow', zh: '黃色', color: '#E8C13B' }
+      ],
       bank: [
         { en: 'This is my school bag.', zh: '這是我的書包。' },
         { en: 'My school bag is red.', zh: '我的書包是紅色的。', color: '#E4574B' },
