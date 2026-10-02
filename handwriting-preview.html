@@ -191,14 +191,15 @@ window.SYN = (function () {
     const out = document.getElementById('self');
     out.textContent = '跑測試中…';
     setTimeout(function () {
-      const PER = 15, LV = [0.6, 1.0, 1.4], isUp = function (c) { return c >= 'A' && c <= 'Z'; };
-      const tp = {}, conf = {}; let fa = 0, nn = 0;
+      const PER = 15, LV = [0.6, 1.0, 1.4], isUp = function (c) { return c >= 'A' && c <= 'Z' ? 'U' : c >= '0' && c <= '9' ? 'D' : 'l'; };   // 三類:大寫 / 小寫 / 數字,只跟同類比
+      const tp = {}, dg = {}, conf = {}; let fa = 0, nn = 0;
       const t0 = performance.now();
       LV.forEach(function (lv) {
         chars.forEach(function (ch) {
           for (let k = 0; k < PER; k++) {
             const st = SYN.synth(ch, lv);
-            tp[lv] = tp[lv] || [0, 0]; tp[lv][1]++; if (HW.check(st, ch).ok) tp[lv][0]++;
+            tp[lv] = tp[lv] || [0, 0]; tp[lv][1]++; const okk = HW.check(st, ch).ok; if (okk) tp[lv][0]++;
+            if (ch >= '0' && ch <= '9') { dg[lv] = dg[lv] || [0, 0]; dg[lv][1]++; if (okk) dg[lv][0]++; }
             if (lv !== 1.0) continue;
             chars.forEach(function (y) {
               if (HW.sameSet(ch).indexOf(y) >= 0 || isUp(y) !== isUp(ch)) return;
@@ -210,6 +211,7 @@ window.SYN = (function () {
       const top = Object.keys(conf).sort(function (a, b) { return conf[b] - conf[a]; }).slice(0, 15);
       out.textContent = '門檻 ' + JSON.stringify(HW.TUNE) + '　' + Math.round(performance.now() - t0) + ' ms\n' +
         '寫對會過（輕微/中等/嚴重歪斜）：' + LV.map(function (lv) { return (100 * tp[lv][0] / tp[lv][1]).toFixed(1) + '%'; }).join(' / ') + '\n' +
+        '其中數字 0-9 寫對會過：' + LV.map(function (lv) { return (100 * dg[lv][0] / dg[lv][1]).toFixed(1) + '%'; }).join(' / ') + '\n' +
         '寫錯被放過（中等歪斜）：' + (100 * fa / nn).toFixed(2) + '%\n' +
         '最常被放過（寫的→當成目標，' + PER + ' 筆中幾筆）：' + top.map(function (k) { return k + ' ' + conf[k]; }).join('　');
     }, 30);

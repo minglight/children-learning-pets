@@ -273,6 +273,22 @@ window.PLS_CONFIG = {
         { en: 'nine', zh: '9' },
         { en: 'ten', zh: '10' }
       ] },
+    // Unit2 之後插一關「數字 1-10 手寫」(2026-10 Hank 要求):隨機 5 個數字,每個先描寫、再默寫(共 10 題,全是手寫)。
+    // 單字池 spellWords 的 en 是要寫的字元(數字),say 是唸出來的英文;hwOnly = 不混選擇題,qaSpellPairs = 這關的組數。
+    // 玩具用 toys.js 裡本來就設計好的「數字積木」。
+    { id: 'e2c3n', name: 'Unit2 數字手寫', sub: '1-10', play: 'qa', count: 10,
+      hwOnly: true, qaSpellPairs: 5,
+      toyU: '數字積木', toyArtU: 'numberblocks',
+      spellWords: [
+        { en: '1', say: 'one', zh: '' }, { en: '2', say: 'two', zh: '' }, { en: '3', say: 'three', zh: '' },
+        { en: '4', say: 'four', zh: '' }, { en: '5', say: 'five', zh: '' }, { en: '6', say: 'six', zh: '' },
+        { en: '7', say: 'seven', zh: '' }, { en: '8', say: 'eight', zh: '' }, { en: '9', say: 'nine', zh: '' },
+        { en: '10', say: 'ten', spell: ['one', 'zero'], zh: '' }
+      ],
+      bank: [
+        { en: 'one', zh: '1' }, { en: 'two', zh: '2' }, { en: 'three', zh: '3' }, { en: 'four', zh: '4' }, { en: 'five', zh: '5' },
+        { en: 'six', zh: '6' }, { en: 'seven', zh: '7' }, { en: 'eight', zh: '8' }, { en: 'nine', zh: '9' }, { en: 'ten', zh: '10' }
+      ] },
     { id: 'e2c4', name: 'Unit3 這是什麼?', sub: "What's This?‧文具", play: 'qa', count: 10,
       toyU: '野餐籃', toyArtU: 'basket',
       // 這課本身的新單字(文具)只有 6 個,課本就是教這 6 個,不再多加;
@@ -313,6 +329,7 @@ window.PLS_CONFIG = {
         { en: "It's a jet.", zh: '這是一架噴射機。' }
       ] },
     { id: 'e2c5', name: 'Unit4 這是什麼顏色?', sub: 'What Color Is It?‧顏色', play: 'qa', count: 10,
+      noColorHint: true,   // 選項/手寫題都不放顏色圓點:題目「紅色」旁邊就畫紅點等於送答案(2026-10 Hank 要求拿掉)
       toyU: '挖土機', toyArtU: 'digger',
       // 這課本身的新顏色單字只有 6 個(課本就是教這 6 個,不再多加);
       // 額外用「My School Bag」已經用過的同一種句型「[名詞] is [顏色].」(例如
@@ -339,6 +356,21 @@ window.PLS_CONFIG = {
         { en: 'The book is yellow.', zh: '書是黃色的。', color: '#E8C13B' },
         { en: 'The pen is black.', zh: '筆是黑色的。', color: '#3A3A3A' },
         { en: 'The marker is white.', zh: '彩色筆是白色的。', color: '#F2F2ED' }
+      ] },
+    // Unit4 之後插一關「顏色單字手寫」(2026-10 Hank 要求):6 個顏色單字隨機抽 5 個,每個先描寫、再默寫。
+    // 這關保留顏色圓點當提示圖(圖只告訴他是哪個顏色,不給拼字);玩具用 toys.js 的「蠟筆盒」。
+    { id: 'e2c5n', name: 'Unit4 顏色單字手寫', sub: 'red‧blue‧green… 寫寫看', play: 'qa', count: 10,
+      hwOnly: true, qaSpellPairs: 5,
+      toyU: '蠟筆盒', toyArtU: 'crayonbox',
+      spellWords: [
+        { en: 'red', zh: '紅色', color: '#E4574B' }, { en: 'blue', zh: '藍色', color: '#4A7FC1' },
+        { en: 'green', zh: '綠色', color: '#4F9E5C' }, { en: 'yellow', zh: '黃色', color: '#E8C13B' },
+        { en: 'black', zh: '黑色', color: '#3A3A3A' }, { en: 'white', zh: '白色', color: '#F2F2ED' }
+      ],
+      bank: [
+        { en: 'red', zh: '紅色', color: '#E4574B' }, { en: 'blue', zh: '藍色', color: '#4A7FC1' },
+        { en: 'green', zh: '綠色', color: '#4F9E5C' }, { en: 'yellow', zh: '黃色', color: '#E8C13B' },
+        { en: 'black', zh: '黑色', color: '#3A3A3A' }, { en: 'white', zh: '白色', color: '#F2F2ED' }
       ] },
     { id: 'e2c6', name: 'My School Bag 我的書包', sub: '介紹書包裡的文具', play: 'qa', count: 10,
       toyU: '公主裙', toyArtU: 'dress',
@@ -581,3 +613,30 @@ window.PLS_CONFIG = {
     cappedPass: ['這關的積分已經集滿囉~', '積分點滿了,去別關賺積分吧!']
   }
 };
+
+// ── english2:每個選擇題單元後面自動接一關「單字練習」(2026-10 Hank 要求)──────────────
+// 單字來源跟 english.js spellPool 同一套:關卡的 spellWords,沒有就取 bank 裡只有一個單字的題目。
+// 做法:複製上一關(同 bank、同玩具)→ hwOnly(全手寫,不混選擇題)、最多 5 組「描寫→默寫」。
+// 已經有自己手寫關的單元(下一關本來就是 hwOnly,例如 e2c3n 數字、e2c5n 顏色)不重複產生。
+// id = 原關 id + 'w'(進度以 id 為鍵,插關不影響舊進度)。
+(function () {
+  const list = window.PLS_CONFIG.english2, out = [];
+  list.forEach(function (lv, i) {
+    out.push(lv);
+    const next = list[i + 1];
+    if (lv.hwOnly || (next && next.hwOnly) || lv.play !== 'qa') return;
+    const src = lv.spellWords || (lv.bank || []).map(function (b) {
+      const w = String(b.en || '').replace(/[!?.,]+$/, '');
+      return /^[A-Za-z]+$/.test(w) ? { en: w, zh: b.zh, color: b.color } : null;
+    }).filter(Boolean);
+    const seen = {}, words = src.filter(function (it) { const k = it.en.toLowerCase(); if (seen[k]) return false; seen[k] = true; return true; });
+    if (words.length < 2) return;
+    const pairs = Math.min(5, words.length);
+    const base = String(lv.name).replace(/[?？!！。.]+/g, '');
+    out.push(Object.assign({}, lv, {
+      id: lv.id + 'w', name: base + ' 單字練習', sub: '單字描寫＋默寫',
+      hwOnly: true, qaSpellPairs: pairs, count: pairs * 2
+    }));
+  });
+  window.PLS_CONFIG.english2 = out;
+})();
