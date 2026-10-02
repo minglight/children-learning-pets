@@ -655,12 +655,17 @@
           }
           this.bubbleUntil = PLS.t + 2.6;
         } else {
-          const others = shuffle(qbank.filter(function (_, bi) { return bi !== idx; })).slice(0, 2);
-          const dir = Math.random() < 0.5 ? 'hear' : 'say';
+          // 中文跟英文同形(人名)的題目:題目文字就是答案,所以一律「只聽不顯示」、選出寫法(聽音辨字),
+          // 干擾選項也只從同樣是人名/單字的題目抽,不跟句子混在一起
+          const isSame = function (b) { return b.zh.toLowerCase() === b.en.toLowerCase(); };
+          const nameQ = isSame(target);
+          const cands = qbank.filter(function (b, bi) { return bi !== idx && (!nameQ || isSame(b)); });
+          const others = shuffle(cands).slice(0, 2);
+          const dir = nameQ ? 'hear' : (Math.random() < 0.5 ? 'hear' : 'say');
           const pool = shuffle([target].concat(others));
           if (dir === 'hear') {
             this.q = {
-              dir: dir, prompt: target.en,
+              dir: dir, prompt: target.en, listenOnly: nameQ,
               options: pool.map(function (o) { return o.zh; }),
               optColors: pool.map(function (o) { return o.color || null; }),
               answer: target.zh
@@ -1180,10 +1185,17 @@
       if (q.dir === 'hear') {
         ctx.fillStyle = '#EAF3EC'; A.el(ctx, cx, cy - 70, 72, 72); ctx.fill();
         A.drawIcon(ctx, 'speaker', cx, cy - 70, 1.7, '#6E9A6E');
-        const fit = A.fitText(ctx, q.prompt, PC.w - 160, 92, 46, 26);
-        A.drawLines(ctx, fit.lines, fit.size, cx, cy + 32, this.deep);
-        ctx.font = '24px ' + FONT; ctx.fillStyle = '#9AB09A';
-        ctx.fillText('聽聽看,這句話是什麼意思?', cx, cy + 110);
+        if (q.listenOnly) {
+          ctx.font = '40px ' + FONT; ctx.fillStyle = '#5E7A56';
+          ctx.fillText('聽聽看,是哪個名字?', cx, cy + 40);
+          ctx.font = '24px ' + FONT; ctx.fillStyle = '#9AB09A';
+          ctx.fillText('點喇叭再聽一次', cx, cy + 96);
+        } else {
+          const fit = A.fitText(ctx, q.prompt, PC.w - 160, 92, 46, 26);
+          A.drawLines(ctx, fit.lines, fit.size, cx, cy + 32, this.deep);
+          ctx.font = '24px ' + FONT; ctx.fillStyle = '#9AB09A';
+          ctx.fillText('聽聽看,這句話是什麼意思?', cx, cy + 110);
+        }
       } else {
         const fit = A.fitText(ctx, q.prompt, PC.w - 160, 130, 54, 28);
         A.drawLines(ctx, fit.lines, fit.size, cx, cy - 16, this.deep);
