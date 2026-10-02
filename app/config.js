@@ -273,18 +273,12 @@ window.PLS_CONFIG = {
         { en: 'nine', zh: '9' },
         { en: 'ten', zh: '10' }
       ] },
-    // Unit2 之後插一關「數字 1-10 手寫」(2026-10 Hank 要求):隨機 5 個數字,每個先描寫、再默寫(共 10 題,全是手寫)。
-    // 單字池 spellWords 的 en 是要寫的字元(數字),say 是唸出來的英文;hwOnly = 不混選擇題,qaSpellPairs = 這關的組數。
-    // 玩具用 toys.js 裡本來就設計好的「數字積木」。
-    { id: 'e2c3n', name: 'Unit2 數字手寫', sub: '1-10', play: 'qa', count: 10,
+    // Unit2 之後插一關「數字單字手寫」(2026-10 Hank 要求):one~ten 隨機抽 5 個,每個先描寫、再默寫(共 10 題,全是手寫)。
+    // 寫的是英文單字,不是阿拉伯數字;中文欄放阿拉伯數字當提示。玩具用 toys.js 的「數字積木」。
+    // hwOnly = 不混選擇題;qaSpellPairs = 這關的組數。
+    { id: 'e2c3n', name: 'Unit2 數字單字手寫', sub: 'one~ten', play: 'qa', count: 10,
       hwOnly: true, qaSpellPairs: 5,
       toyU: '數字積木', toyArtU: 'numberblocks',
-      spellWords: [
-        { en: '1', say: 'one', zh: '' }, { en: '2', say: 'two', zh: '' }, { en: '3', say: 'three', zh: '' },
-        { en: '4', say: 'four', zh: '' }, { en: '5', say: 'five', zh: '' }, { en: '6', say: 'six', zh: '' },
-        { en: '7', say: 'seven', zh: '' }, { en: '8', say: 'eight', zh: '' }, { en: '9', say: 'nine', zh: '' },
-        { en: '10', say: 'ten', spell: ['one', 'zero'], zh: '' }
-      ],
       bank: [
         { en: 'one', zh: '1' }, { en: 'two', zh: '2' }, { en: 'three', zh: '3' }, { en: 'four', zh: '4' }, { en: 'five', zh: '5' },
         { en: 'six', zh: '6' }, { en: 'seven', zh: '7' }, { en: 'eight', zh: '8' }, { en: 'nine', zh: '9' }, { en: 'ten', zh: '10' }

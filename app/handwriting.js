@@ -41,12 +41,7 @@
     f: [['M62 26 A16 14 0 0 0 40 30 L40 100', 'M28 56 L56 56']],
     q: [['M64 56 C40 56 26 64 26 78 C26 92 40 100 64 100', 'M64 52 L64 128 L74 120']], // 尾巴往右勾
     G: [['M80 28 A33 36 0 1 0 80 80 L80 56 L58 56']],                    // 一筆寫完的 G
-    k: [['M28 8 L28 100', 'M62 56 L30 78 L64 100']],                     // 兩斜線一筆
-    // 數字常見的其他寫法
-    '1': [['M46 8 L46 100']],                                            // 一直線的 1
-    '4': [['M58 100 L58 8 L16 70 L80 70']],                              // 一筆寫完的 4
-    '7': [['M20 8 L76 8 L38 100', 'M30 54 L62 54']],                     // 中間有橫的 7
-    '9': [['M70 34 C70 6 24 6 24 32 C24 56 70 58 70 34', 'M70 34 L70 100']]  // 圓圈 + 直豎的 9
+    k: [['M28 8 L28 100', 'M62 56 L30 78 L64 100']]                      // 兩斜線一筆
   };
 
   // 大小寫同形(只差大小/位置)→ 視為同一個字
@@ -57,7 +52,6 @@
   }
 
   function isUpper(ch) { return ch >= 'A' && ch <= 'Z'; }
-  function isDigit(ch) { return ch >= '0' && ch <= '9'; }
 
   function pathLen(s) {
     let L = 0;
@@ -202,11 +196,10 @@
     let d = Infinity, other = Infinity, otherCh = null;
     // 只跟「同大小寫」的字母比(單字是小寫就只跟小寫比):i/I、y/Y 這種大小寫差一點點的不互相搶;
     // 位置與大小本來就不看,寫成大寫也不會因此判錯。
-    const up = isUpper(target), digit = isDigit(target);
+    const up = isUpper(target);
     r.forEach(function (e) {
       if (same.indexOf(e.ch) >= 0) { if (e.d < d) d = e.d; }
-      else if (isDigit(e.ch) !== digit) { /* 數字跟字母不互相比 */ }
-      else if ((digit || !TUNE.sameCase || isUpper(e.ch) === up) && e.d < other) { other = e.d; otherCh = e.ch; }
+      else if ((!TUNE.sameCase || isUpper(e.ch) === up) && e.d < other) { other = e.d; otherCh = e.ch; }
     });
     let reason = 'ok';
     if (d > TUNE.abs) reason = 'unlike';                   // 寫得不像這個字

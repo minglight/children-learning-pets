@@ -246,7 +246,7 @@
   //   • 格子寬度從 maxW 往下試,直到整句最多排成 2 行塞得進 availW(3 行字會太小,手指描不了)。
   //   • 每格記 need(至少要描多長才算有描),依格子大小換算——小格子裡的 i、l 本來就短。
   const TWORD = { y: 250, h: 346, gap: 16, rowGap: 14, availW: 1000, maxW: 170, minW: 64, maxLines: 2 };
-  function isLetter(ch) { return /[A-Za-z0-9]/.test(ch); }   // 要寫的字元:字母或數字(數字關 e2c3n 用)
+  function isLetter(ch) { return /[A-Za-z]/.test(ch); }
   function traceCap(w, h) { return Math.min(230, h * 0.6, w * 1.15); }   // 跟 renderTraceCard 的 Lh 同一條公式
   function buildTraceLayout(text) {
     const T = TWORD;
@@ -302,12 +302,6 @@
   // 單獨的 a 才會唸成字母 /eɪ/ 而不是冠詞;用小寫唸,才不會多唸 "capital"。
   function spellParts(word) {
     return [word].concat(String(word).split('').filter(isLetter).map(function (c) { return c.toLowerCase(); }));
-  }
-  // 項目有 say(要唸的英文,例如數字 7 → seven)就用它:先唸 say,再唸 spell(例如 10 → ten, one, zero);
-  // 沒有 spell(一位數)就只唸 say 一次,不拆。沒有 say 的一般單字照 spellParts。
-  function partsOf(it) {
-    if (!it.say) return spellParts(it.en);
-    return [it.say].concat(it.spell || []);
   }
   // qa 手寫題(描寫→默寫)的單字池:關卡的 spellWords;沒有就用 bank 裡本身只有一個單字的題目(去掉句尾標點)。
   // 排不進描寫格的長字不抽。
@@ -425,7 +419,7 @@
       if (this.mode === 'qa') {
         const words = shuffle(spellPool(this.lv));
         const pairs = Math.min(words.length, Math.max(0, (this.lv.qaSpellPairs != null ? this.lv.qaSpellPairs : CFG.qaSpellPairs) | 0), Math.floor(this.count / 2));
-        // hwOnly(數字手寫、顏色單字手寫那種全手寫關):題目一組接一組排滿 0,2,4…,不混選擇題
+        // hwOnly(單字練習、數字單字、顏色單字那種全手寫關):題目一組接一組排滿 0,2,4…,不混選擇題
         const starts = this.lv.hwOnly
           ? Array.from({ length: Math.floor(this.count / 2) }, function (_, i) { return i * 2; })
           : shuffle(Array.from({ length: Math.max(0, this.count - 1) }, function (_, i) { return i; }));
@@ -646,8 +640,6 @@
           const it = plan.item;
           this.q = null;
           this.traceWord = it.en;
-          this.traceSay = it.say || it.en;      // 要唸出來的(數字 7 → seven)
-          this.traceParts = partsOf(it);
           // 中文意思跟英文同形(人名)就不顯示,不然等於把答案寫出來
           this.traceZh = (it.zh && it.zh.toLowerCase() !== it.en.toLowerCase()) ? it.zh : '';
           this.tracePic = (CFG.wordPics && CFG.wordPics[it.en.toLowerCase()]) || '';
@@ -662,7 +654,7 @@
             setTimeout(function () { self.saySpell(); }, 350);
           } else {
             this.bubbleText = '換你自己寫寫看!';
-            setTimeout(function () { sayEN(self.traceSay); }, 350);
+            setTimeout(function () { sayEN(it.en); }, 350);
           }
           this.bubbleUntil = PLS.t + 2.6;
         } else {
@@ -742,7 +734,7 @@
       const self = this, q = this.qIndex, word = this.traceWord;
       if (!word) { if (onDone) onDone(); return; }
       this.spellHi = -1;
-      PLS.sayQueue(this.traceParts || spellParts(word), 'en-US', function (i) {
+      PLS.sayQueue(spellParts(word), 'en-US', function (i) {
         if (self.qIndex !== q) return;
         self.spellHi = i - 1;            // 第 0 段是整個單字,第 1 段起才是字母
         self.spellHiUntil = PLS.t + 0.9;
@@ -756,7 +748,7 @@
       if (this.mode === 'qa') {
         // 描寫題(和默寫題出現提示之後)重聽 = 單字 + 拼讀;默寫題只唸單字,不然等於報答案
         if (this.qKind === 'trace' || (this.qKind === 'recall' && this.hwHinted)) { this.saySpell(); return; }
-        if (this.qKind === 'recall') { sayEN(this.traceSay); return; }
+        if (this.qKind === 'recall') { sayEN(this.traceWord); return; }
         if (!this.q) return;
         if (this.q.dir === 'hear') sayEN(this.q.prompt); else PLS.say(this.q.prompt);
         return;
@@ -932,7 +924,7 @@
             this.saySpell();
           } else {
             this.bubbleText = recall ? '紅色的格子再寫一次喔' : '紅色的格子照著線再描一次';
-            if (recall) sayEN(this.traceSay);
+            if (recall) sayEN(this.traceWord);
           }
           this.bubbleUntil = PLS.t + 2.6;
           return;
@@ -959,7 +951,7 @@
           this.saySpell(function () { setTimeout(go, 300); });
           setTimeout(go, 1500 + 700 * this.boxes.length);
         } else {
-          sayEN(this.traceSay);
+          sayEN(this.traceWord);
           setTimeout(function () { self.advance(); }, 1300);
         }
         return;
@@ -1221,8 +1213,7 @@
       const recall = this.qKind === 'recall';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '30px ' + FONT; ctx.fillStyle = '#5E7A56';
-      const what = /^[0-9]+$/.test(this.traceWord || '') ? '數字' : '單字';
-      const title = !recall ? '聽一聽,照筆順把' + what + '描出來' : this.hwHinted ? '照著淡淡的字描描看' : '剛剛描過的' + what + ',自己寫寫看';
+      const title = !recall ? '聽一聽,照筆順把單字描出來' : this.hwHinted ? '照著淡淡的字描描看' : '剛剛描過的單字,自己寫寫看';
       ctx.fillText(title, W / 2, 174);
       // 第二行:提示圖(或顏色色塊)+ 中文意思 + 喇叭說明——只給意思,不給拼字
       const tip = (this.traceZh ? this.traceZh + '　' : '') + '點右上角喇叭可以再聽一次';
