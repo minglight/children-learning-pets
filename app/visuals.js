@@ -493,7 +493,7 @@
   function drawPolyVisual(ctx, v, box) {
     const P = window.PLS_GEN && window.PLS_GEN.poly;
     const list = v.shapes || [];
-    const n = list.length || 1, gap = 34, labelH = 40;
+    const n = list.length || 1, gap = 20, labelH = 30;
     const slotW = (box.w - gap * (n - 1)) / n;
     const t = (window.PLS && window.PLS.t) || 0;
     list.forEach(function (sh, i) {
@@ -504,7 +504,8 @@
         cells = P.norm(cells);
       }
       const cx = box.x + slotW * i + gap * i + slotW / 2, cy = box.y + (box.h - labelH) / 2;
-      const unit = polyUnit(cells, slotW - 16, box.h - labelH - 16, 46, !!sh.anim);
+      // 上課的框不大(題目文字下面約 130~186px),積木盡量撐滿:四周只留 6px,一格最大 64
+      const unit = polyUnit(cells, slotW - 6, box.h - labelH - 6, 64, !!sh.anim);
       const o = {};
       if (sh.anim) {
         const ph = (t % 3.6);
@@ -517,7 +518,7 @@
       if (sh.label) {
         ctx.fillStyle = '#8A6242'; ctx.font = 'bold 26px ' + FONT;
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(sh.label, cx, box.y + box.h - labelH / 2);
+        ctx.fillText(sh.label, cx, box.y + box.h - labelH / 2 + 2);
       }
     });
   }
