@@ -164,6 +164,30 @@ window.PLS_CONFIG = {
       bite: 'potsticker', feast: { name: '煎餃小吃攤', basicName: '一份煎餃', deluxeName: '煎餃豪華全份', items: ['potsticker', 'potsticker', 'potsticker', 'potsticker', 'potsticker'] } }
   ],
 
+  // ── 數學 · 拼拼轉轉(第三個獨立關卡池,2026-10 SEC-55)──────────────────────
+  // 空間推理:「轉轉看」= 找出跟題目同一塊、只是轉了方向的形狀(翻面的不算)。gen 在 gen.js rotate4a~rotate6b:
+  // 4 格 → 5 格 → 6 格;a = 干擾裡有一塊是別的形狀(入門),b = 干擾全是翻面(要真的分得出轉跟翻),
+  // 最後一關四選一。跟 math/math2 一樣走 map/quiz 畫面、扣 daily.math 額度,不新增科目,存檔結構不變。
+  // 第一關 sp1 掛「先教再考」上課(lessons.js L.sp1:轉一轉 vs 翻面)。
+  // 食物是 6 種新設計、主題是「會轉、會捲」的點心(art.js lollipop~tanghulu)。七巧板拖拉之後再評估。
+  mathspace: [
+    { id: 'sp1', name: '轉轉看(一)', sub: '4 格‧轉一轉找同一塊', gen: 'rotate4a', icon: 'puzzle',
+      bite: 'lollipop', feast: { name: '彩虹棒棒糖', basicName: '一支棒棒糖', deluxeName: '棒棒糖豪華花束', items: ['lollipop', 'lollipop', 'lollipop', 'lollipop', 'lollipop'] } },
+    { id: 'sp2', name: '轉轉看(二)', sub: '4 格‧翻面的不算', gen: 'rotate4b', icon: 'puzzle',
+      bite: 'swissroll', feast: { name: '瑞士捲', basicName: '一片瑞士捲', deluxeName: '瑞士捲豪華整條', items: ['swissroll', 'swissroll', 'swissroll', 'swissroll', 'swissroll'] } },
+    { id: 'sp3', name: '轉轉看(三)', sub: '5 格‧轉一轉找同一塊', gen: 'rotate5a', icon: 'puzzle',
+      bite: 'cinnamonroll', feast: { name: '肉桂捲烤盤', basicName: '一個肉桂捲', deluxeName: '肉桂捲豪華烤盤', items: ['cinnamonroll', 'cinnamonroll', 'cinnamonroll', 'cinnamonroll', 'cinnamonroll'] } },
+    { id: 'sp4', name: '轉轉看(四)', sub: '5 格‧翻面的不算', gen: 'rotate5b', icon: 'puzzle',
+      bite: 'pretzel', feast: { name: '蝴蝶餅籃', basicName: '一個蝴蝶餅', deluxeName: '蝴蝶餅豪華籃', items: ['pretzel', 'pretzel', 'pretzel', 'pretzel', 'pretzel'] } },
+    { id: 'sp5', name: '轉轉看(五)', sub: '6 格挑戰', gen: 'rotate6a', icon: 'puzzle',
+      bite: 'churro', feast: { name: '吉拿棒杯', basicName: '一根吉拿棒', deluxeName: '吉拿棒豪華杯', items: ['churro', 'churro', 'churro', 'churro', 'churro'] } },
+    { id: 'sp6', name: '轉轉看(六)', sub: '6 格‧四選一', gen: 'rotate6b', icon: 'puzzle',
+      bite: 'tanghulu', feast: { name: '糖葫蘆攤', basicName: '一串糖葫蘆', deluxeName: '糖葫蘆豪華一大把', items: ['tanghulu', 'tanghulu', 'tanghulu', 'tanghulu', 'tanghulu'] } }
+  ],
+  // 數學的所有獨立關卡池(順序 = 選挑戰畫面的順序)。要列出「全部數學關卡」的地方(圖鑑、獎盃、許願、
+  // 關卡短名、寵物邀請跳關)一律走這個清單,新增關卡池只要加在這裡。
+  mathTiers: ['math', 'math2', 'mathspace'],
+
   // ── 英文關卡(階梯,難度非常緩慢遞增)──────────────────
   // 英文獎勵是「玩具」。v9:全物種共用一套玩具(toyU / toyArtU),不再分寵物;
   //   舊欄位 toy/toyArt(rabbit/hamster)保留純為顯示舊背包裡既有的玩具名稱。

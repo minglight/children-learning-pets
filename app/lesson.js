@@ -19,7 +19,7 @@
       const self = this;
       this.petId = params.pet;
       this.levelIdx = params.levelIdx;
-      this.tier = params.tier === 'math2' ? 'math2' : 'math';
+      this.tier = (CFG.mathTiers || ['math', 'math2']).indexOf(params.tier) >= 0 ? params.tier : 'math';   // math / math2 / mathspace(config.js mathTiers)
       this.practice = !!params.practice;
       this.lv = CFG[this.tier][this.levelIdx];
       this.script = (window.PLS_LESSONS || {})[this.lv.id];

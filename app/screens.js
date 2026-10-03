@@ -121,7 +121,9 @@
     // v14:二上關卡的 10 種新食物。沒有名字的 key 會一路變成「寶物」——寵物的許願泡泡、
     // 記憶台詞、拿去朋友家分享的 label 全都會顯示成「寶物」,新增食物一定要補這裡。
     onigiri: '飯糰', mango: '芒果', taiyaki: '鯛魚燒', hotdog: '熱狗', watermelon: '西瓜',
-    donut: '甜甜圈', popcorn: '爆米花', macaron: '馬卡龍', mochi: '大福', potsticker: '煎餃'
+    donut: '甜甜圈', popcorn: '爆米花', macaron: '馬卡龍', mochi: '大福', potsticker: '煎餃',
+    // 2026-10:拼拼轉轉(mathspace)6 關的新食物
+    lollipop: '棒棒糖', swissroll: '瑞士捲', cinnamonroll: '肉桂捲', pretzel: '蝴蝶餅', churro: '吉拿棒', tanghulu: '糖葫蘆'
   };
   // 布置小窩:基礎版(解 1 次) / 豪華版(解 10 次)名稱
   const FOOD_BASIC_NAMES = {
@@ -153,7 +155,7 @@
     list: function (petId) {
       const d = ST.load(petId), test = ST.isTest();
       const seen = {}, out = [];
-      (CFG.math || []).concat(CFG.math2 || []).forEach(function (lv) {
+      ST.mathLevels().forEach(function (lv) {
         const rec = d.levels[lv.id];
         if (!(rec && rec.cleared) && !test) return;
         const clears = ST.clearCount(d, lv.id);
@@ -549,7 +551,8 @@
   const TIER_GROUPS = {
     math: [
       { id: 'math', title: '基礎挑戰', sub: '數字‧加減法‧乘法啟蒙', color: '#C2791E', bg: '#FCEED6' },
-      { id: 'math2', title: '二年級上學期', sub: '課本 10 課,獨立進度', color: '#3F8A6E', bg: '#E5F3EC' }
+      { id: 'math2', title: '二年級上學期', sub: '課本 10 課,獨立進度', color: '#3F8A6E', bg: '#E5F3EC' },
+      { id: 'mathspace', title: '拼拼轉轉', sub: '轉方向‧空間思考,獨立進度', color: '#4F7FB8', bg: '#E4EDF8' }
     ],
     english: [
       { id: 'english', title: '基礎挑戰', sub: '字母‧拼讀‧單字書寫', color: '#4E8A5A', bg: '#E9F4E3' },
@@ -566,8 +569,9 @@
       backBtn('room', { pet: this.petId });
       const tiers = TIER_GROUPS[this.subject];
       const mapScreen = this.subject === 'english' ? 'emap' : 'map';
-      const CW = 480, CH = 240, GAP = 32;
-      const totalW = CW * 2 + GAP;
+      // 2 張卡 480 寬;數學有 3 個挑戰(多了拼拼轉轉)時縮成 340 寬排一排
+      const CW = tiers.length > 2 ? 340 : 480, CH = 240, GAP = tiers.length > 2 ? 24 : 32;
+      const totalW = CW * tiers.length + GAP * (tiers.length - 1);
       const x0 = (W - totalW) / 2;
       const y0 = (H - CH) / 2 + 20;
       tiers.forEach(function (tr) {
@@ -604,7 +608,7 @@
       const fg = isEng ? '#4E8A5A' : '#8A6242';
       ctx.fillStyle = glow; ctx.fillText(title, W / 2, 100);
       ctx.fillStyle = fg; ctx.fillText(title, W / 2, 96);
-      A.pill(ctx, W / 2, 156, '兩個挑戰進度分開算,想玩哪個都可以', isEng ? '#4E8A5A' : '#B98A4F', 'rgba(255,255,255,0.9)', 22);
+      A.pill(ctx, W / 2, 156, '每個挑戰進度分開算,想玩哪個都可以', isEng ? '#4E8A5A' : '#B98A4F', 'rgba(255,255,255,0.9)', 22);
     }
   };
 
@@ -619,7 +623,7 @@
     enter: function (params) {
       const self = this;
       this.petId = params.pet || 'kidL';
-      this.tier = params.tier === 'math2' ? 'math2' : 'math';
+      this.tier = (CFG.mathTiers || ['math', 'math2']).indexOf(params.tier) >= 0 ? params.tier : 'math';   // math / math2 / mathspace(config.js mathTiers)
       this.note = '';
       this.scrollY = 0;
       this._pdown = false;
@@ -759,7 +763,7 @@
       this.nodes.forEach(function (n) { self.drawNode(ctx, t, n); });
       ctx.restore();
 
-      const title = this.tier === 'math2' ? '數學餐廳 · 二年級上學期' : '數學餐廳';
+      const title = this.tier === 'math2' ? '數學餐廳 · 二年級上學期' : this.tier === 'mathspace' ? '數學餐廳 · 拼拼轉轉' : '數學餐廳';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT;
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(title, W / 2, 74);

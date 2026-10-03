@@ -850,5 +850,76 @@
     return gridNumCompare200();
   };
 
-  window.PLS_GEN = { gen: gen, numZh: numZh, ri: ri, pick: pick, shuffle: shuffle };
+  // ── 拼拼轉轉:轉轉看(找出「只是轉了方向」的同一塊,翻面的不算)──────────────
+  // 形狀 = 方格座標 [[x,y],...]。只收「翻面之後轉不回原樣」的形狀(有左右之分,像 L 和 J),
+  // 不然翻面也會是正解;6 格的再要求四個方向都長得不一樣,才湊得出 3 個不同的翻面干擾。
+  const POLY_FAMILY = {
+    4: [[[0, 0], [0, 1], [0, 2], [1, 2]], [[1, 0], [2, 0], [0, 1], [1, 1]]],
+    5: [[[1, 0], [2, 0], [0, 1], [1, 1], [1, 2]], [[0, 0], [0, 1], [0, 2], [0, 3], [1, 3]],
+        [[0, 0], [0, 1], [1, 1], [1, 2], [1, 3]], [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]],
+        [[0, 1], [1, 0], [1, 1], [1, 2], [1, 3]], [[0, 0], [1, 0], [1, 1], [1, 2], [2, 2]]],
+    6: [[[0, 0], [0, 1], [1, 1], [2, 1], [2, 2], [3, 2]], [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2], [1, 2]],
+        [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2], [2, 3]], [[1, 0], [0, 1], [1, 1], [2, 1], [2, 2], [3, 2]],
+        [[0, 0], [1, 0], [1, 1], [1, 2], [1, 3], [2, 3]], [[0, 0], [0, 1], [0, 2], [0, 3], [1, 1], [1, 0]],
+        [[0, 0], [1, 0], [1, 1], [2, 1], [2, 2], [2, 3]], [[0, 1], [1, 1], [1, 0], [2, 0], [3, 0], [2, 1]]]
+  };
+  function polyNorm(c) {
+    const mx = Math.min.apply(null, c.map(function (p) { return p[0]; }));
+    const my = Math.min.apply(null, c.map(function (p) { return p[1]; }));
+    return c.map(function (p) { return [p[0] - mx, p[1] - my]; })
+      .sort(function (a, b) { return a[1] - b[1] || a[0] - b[0]; });
+  }
+  function polyRot(c, k) {        // 順時針轉 k 個 90 度
+    let r = c;
+    for (let i = 0; i < ((k % 4) + 4) % 4; i++) r = r.map(function (p) { return [-p[1], p[0]]; });
+    return polyNorm(r);
+  }
+  function polyFlip(c) { return polyNorm(c.map(function (p) { return [-p[0], p[1]]; })); }   // 左右翻面
+  function polyKey(c) { return polyNorm(c).map(function (p) { return p[0] + ',' + p[1]; }).join(';'); }
+  function polyFromKey(k) { return String(k).split(';').map(function (s) { return s.split(',').map(Number); }); }
+  function polyRotKeys(c) { const s = new Set(); for (let k = 0; k < 4; k++) s.add(polyKey(polyRot(c, k))); return s; }
+  function polyChiral(c) { return !polyRotKeys(c).has(polyKey(polyFlip(c))); }
+  const POLY = {};
+  Object.keys(POLY_FAMILY).forEach(function (n) {
+    POLY[n] = POLY_FAMILY[n].filter(function (c) { return polyChiral(c) && (n < 6 || polyRotKeys(c).size === 4); });
+  });
+  const POLY_COLORS = ['#F2A65A', '#7FB8E0', '#8FC9A8', '#E88A9E', '#B79BE0', '#E8C13B'];
+
+  // n 格形狀;choices = 選項數;other = 其中一個干擾換成「別的形狀」(比較簡單,入門關用)
+  function rotateQ(n, choices, other) {
+    const fam = POLY[n];
+    let base = pick(fam);
+    if (Math.random() < 0.5) base = polyFlip(base);
+    base = polyRot(base, ri(0, 3));
+    const tk = polyKey(base);
+    const rotKeys = Array.from(polyRotKeys(base)).filter(function (k) { return k !== tk; });
+    const answer = pick(rotKeys);
+    const mirror = shuffle(Array.from(polyRotKeys(polyFlip(base))));
+    const wrong = [];
+    if (other) {
+      const own = new Set(Array.from(polyRotKeys(base)).concat(mirror));
+      const others = fam.filter(function (c) { return !own.has(polyKey(c)); });
+      if (others.length) wrong.push(polyKey(polyRot(pick(others), ri(0, 3))));
+    }
+    mirror.forEach(function (k) { if (wrong.length < choices - 1) wrong.push(k); });
+    const options = shuffle([answer].concat(wrong));
+    return {
+      kind: 'rotate',
+      display: { target: tk, color: pick(POLY_COLORS) },
+      dedupKey: { t: tk, o: options.slice().sort().join('|') },   // 顏色只是裝飾,不算進簽名
+      say: '哪一塊跟上面是同一塊,只是轉了方向?翻面的不算喔',
+      answer: answer, options: options
+    };
+  }
+  gen.rotate4a = function () { return rotateQ(4, 3, true); };
+  gen.rotate4b = function () { return rotateQ(4, 3, false); };
+  gen.rotate5a = function () { return rotateQ(5, 3, true); };
+  gen.rotate5b = function () { return rotateQ(5, 3, false); };
+  gen.rotate6a = function () { return rotateQ(6, 3, false); };
+  gen.rotate6b = function () { return rotateQ(6, 4, false); };
+
+  window.PLS_GEN = {
+    gen: gen, numZh: numZh, ri: ri, pick: pick, shuffle: shuffle,
+    poly: { rot: polyRot, flip: polyFlip, key: polyKey, fromKey: polyFromKey, norm: polyNorm, family: POLY }
+  };
 })();

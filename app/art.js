@@ -317,6 +317,96 @@
       ctx.strokeStyle = '#E3CCA8'; ctx.lineWidth = 2;
       for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(i * 7, -16); ctx.quadraticCurveTo(i * 7 + 3, -8, i * 7, 4); ctx.stroke(); }
       ctx.fillStyle = 'rgba(180,120,50,0.4)'; el(ctx, -6, 12, 10, 4); ctx.fill(); el(ctx, 10, 13, 8, 3.4); ctx.fill();
+    },
+    // ── 2026-10 拼拼轉轉(mathspace)6 關的新食物:主題是「會轉、會捲」的點心 ──
+    lollipop: function (ctx) { // 彩虹棒棒糖
+      ctx.strokeStyle = '#F1E2C8'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 8); ctx.lineTo(0, 32); ctx.stroke();
+      ctx.fillStyle = '#FBE3EA'; el(ctx, 0, -8, 23, 23); ctx.fill();
+      [['#E8546B', 0], ['#92B8E0', Math.PI * 0.66], ['#F4CE5A', Math.PI * 1.33]].forEach(function (sw) {
+        ctx.strokeStyle = sw[0]; ctx.lineWidth = 3.4;
+        ctx.beginPath();
+        for (let a = 0; a <= Math.PI * 4.2; a += 0.18) {
+          const r = a * 1.6, x = Math.cos(a + sw[1]) * r, y = -8 + Math.sin(a + sw[1]) * r;
+          if (a === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; el(ctx, -9, -18, 6, 3.5); ctx.fill();
+      ctx.fillStyle = '#8FC9A8';
+      ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(-10, 8); ctx.lineTo(-9, 20); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(10, 8); ctx.lineTo(9, 20); ctx.closePath(); ctx.fill();
+    },
+    swissroll: function (ctx) { // 瑞士捲(切片)
+      ctx.fillStyle = '#B5733E'; el(ctx, 5, 2, 25, 23); ctx.fill();          // 側面厚度
+      ctx.fillStyle = '#C98A4E'; el(ctx, 0, 0, 25, 23); ctx.fill();          // 外皮
+      ctx.fillStyle = '#F4D59C'; el(ctx, 0, 0, 21, 19); ctx.fill();          // 蛋糕體
+      ctx.strokeStyle = '#FFF9EE'; ctx.lineWidth = 4.2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let a = 0.6; a <= Math.PI * 4.6; a += 0.16) {
+        const r = a * 1.3, x = Math.cos(a) * r, y = Math.sin(a) * r * 0.92;
+        if (a === 0.6) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.fillStyle = '#E8546B'; el(ctx, 0, -27, 7, 6); ctx.fill();          // 頂上一顆草莓
+      ctx.fillStyle = '#6FA86A'; el(ctx, 0, -32, 4, 2); ctx.fill();
+    },
+    cinnamonroll: function (ctx) { // 肉桂捲(俯視)
+      ctx.fillStyle = '#D9A060'; el(ctx, 0, 6, 29, 22); ctx.fill();
+      ctx.fillStyle = '#E8B878'; el(ctx, 0, 3, 27, 20); ctx.fill();
+      ctx.strokeStyle = '#A0602A'; ctx.lineWidth = 3.4; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let a = 0.4; a <= Math.PI * 5; a += 0.16) {
+        const r = a * 1.6, x = Math.cos(a) * r, y = 3 + Math.sin(a) * r * 0.74;
+        if (a === 0.4) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 2.6;         // 糖霜:兩道波浪
+      [-4, 8].forEach(function (y0) {
+        ctx.beginPath();
+        for (let x = -20; x <= 20; x += 2) {
+          const y = y0 + Math.sin(x / 4) * 3;
+          if (x === -20) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
+    },
+    pretzel: function (ctx) { // 蝴蝶餅
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      function knot() {
+        ctx.beginPath();
+        ctx.moveTo(-15, 22); ctx.bezierCurveTo(-42, 2, -26, -30, -4, -16); ctx.bezierCurveTo(8, -8, 10, 10, 15, 22);
+        ctx.moveTo(15, 22); ctx.bezierCurveTo(42, 2, 26, -30, 4, -16); ctx.bezierCurveTo(-8, -8, -10, 10, -15, 22);
+        ctx.moveTo(-17, 18); ctx.lineTo(17, 18);
+      }
+      ctx.strokeStyle = '#A8622A'; ctx.lineWidth = 10; knot(); ctx.stroke();
+      ctx.strokeStyle = '#C9803F'; ctx.lineWidth = 7; knot(); ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      [[-24, -6], [-12, -18], [20, -10], [10, -20], [-4, 14], [26, 4], [-28, 8]].forEach(function (p) {
+        ctx.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3);
+      });
+    },
+    churro: function (ctx) { // 吉拿棒(一端沾巧克力)
+      ctx.save(); ctx.rotate(-0.55);
+      ctx.fillStyle = '#C9873F'; rr(ctx, -32, -9, 64, 18, 9); ctx.fill();
+      ctx.fillStyle = '#E2A85E'; rr(ctx, -32, -7, 64, 9, 5); ctx.fill();
+      ctx.strokeStyle = '#A86A2C'; ctx.lineWidth = 1.6;
+      [-4, 1, 5].forEach(function (y) { ctx.beginPath(); ctx.moveTo(-28, y); ctx.lineTo(18, y); ctx.stroke(); });
+      ctx.fillStyle = '#6B3E26'; rr(ctx, 14, -10, 19, 20, 9); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)'; el(ctx, 22, -5, 5, 2.5); ctx.fill();
+      ctx.fillStyle = '#FFF6E6';
+      [[-24, -5], [-16, 3], [-8, -3], [0, 4], [6, -5], [-20, 6]].forEach(function (p) { ctx.fillRect(p[0], p[1], 2, 2); });
+      ctx.restore();
+    },
+    tanghulu: function (ctx) { // 糖葫蘆
+      ctx.strokeStyle = '#D8B98A'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-14, -34); ctx.lineTo(13, 34); ctx.stroke();
+      [[-10, -22], [-4, -6], [3, 10]].forEach(function (p) {
+        ctx.fillStyle = '#D63A35'; el(ctx, p[0], p[1], 11, 10); ctx.fill();
+        ctx.fillStyle = 'rgba(255,190,170,0.5)'; el(ctx, p[0], p[1], 11, 10); ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(255,235,200,0.75)'; ctx.lineWidth = 1.6; el(ctx, p[0], p[1], 11.5, 10.5); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.75)'; el(ctx, p[0] - 4, p[1] - 4, 3.2, 2.2); ctx.fill();
+      });
     }
   };
 

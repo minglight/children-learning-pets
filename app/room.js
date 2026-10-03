@@ -67,7 +67,7 @@
     ACT.drawAt(ctx, species, t, cx, footY, h / ACT.spanOf(species), o || { action: 'idle' });
   }
   // 記憶裡那一關現在還能不能去?能的話回 PLS.go 需要的參數(跟 screens.js tapNode 同一套規則)
-  // 數學要 math / math2 兩個獨立關卡池都找一次(不知道當初是哪一池給的回憶),找到哪池就連 tier 一起回。
+  // 數學要 mathTiers 每個獨立關卡池都找一次(不知道當初是哪一池給的回憶),找到哪池就連 tier 一起回。
   function levelJump(d, slot, m) {
     if (!m.lv || !CFG) return null;
     var eng = m.sub === 'english';
@@ -84,7 +84,7 @@
       }
       return null;
     }
-    var tiers = ['math', 'math2'];
+    var tiers = CFG.mathTiers || ['math', 'math2'];
     for (var ti = 0; ti < tiers.length; ti++) {
       var tlist = CFG[tiers[ti]] || [];
       var tidx = -1;

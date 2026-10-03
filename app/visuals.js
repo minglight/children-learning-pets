@@ -455,6 +455,73 @@
     });
   }
 
+  // ════════════════════════════════════════════════════
+  // 方格形狀(拼拼轉轉):cells = [[x,y],...]
+  // o.rot 繞中心轉(弧度)、o.flip 左右縮放(1 → -1 就是翻面動畫)、o.alpha 透明度
+  // ════════════════════════════════════════════════════
+  function polyDims(cells) {
+    let w = 0, h = 0;
+    cells.forEach(function (p) { w = Math.max(w, p[0] + 1); h = Math.max(h, p[1] + 1); });
+    return { w: w, h: h };
+  }
+  // 放進 boxW × boxH 的框裡,一格最大 maxUnit;spin = 會轉動的形狀用長邊算,轉到一半才不會超出框
+  function polyUnit(cells, boxW, boxH, maxUnit, spin) {
+    const d = polyDims(cells);
+    const cw = spin ? Math.max(d.w, d.h) : d.w, ch = spin ? Math.max(d.w, d.h) : d.h;
+    return Math.min(maxUnit || 48, boxW / cw, boxH / ch);
+  }
+  function drawPoly(ctx, cells, cx, cy, unit, color, o) {
+    o = o || {};
+    const d = polyDims(cells);
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (o.rot) ctx.rotate(o.rot);
+    if (o.flip != null) ctx.scale(o.flip, 1);
+    if (o.alpha != null) ctx.globalAlpha *= o.alpha;
+    const rad = unit * 0.18;
+    cells.forEach(function (p) {
+      const x = (p[0] - d.w / 2) * unit, y = (p[1] - d.h / 2) * unit;
+      ctx.fillStyle = color || '#F2A65A'; rr(ctx, x + 2, y + 2, unit - 4, unit - 4, rad); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)'; rr(ctx, x + 6, y + 5, unit - 12, unit * 0.26, rad * 0.6); ctx.fill();
+      ctx.strokeStyle = 'rgba(94,74,54,0.32)'; ctx.lineWidth = 2; rr(ctx, x + 2, y + 2, unit - 4, unit - 4, rad); ctx.stroke();
+    });
+    ctx.restore();
+  }
+  // 上課用的 visual:{ kind:'poly', shapes:[{ cells, rot?, flip?, color?, label?, anim?:'rotate'|'flip' }] }
+  // 幾塊並排;rot(轉幾個 90 度)/ flip(翻面)先套在 cells 上。anim 循環播放(用 PLS.t,不用另外記開始時間):
+  //   停 0.8 秒 → 1.2 秒轉 90 度(或翻面)→ 停 1.6 秒 → 重來。
+  function drawPolyVisual(ctx, v, box) {
+    const P = window.PLS_GEN && window.PLS_GEN.poly;
+    const list = v.shapes || [];
+    const n = list.length || 1, gap = 34, labelH = 40;
+    const slotW = (box.w - gap * (n - 1)) / n;
+    const t = (window.PLS && window.PLS.t) || 0;
+    list.forEach(function (sh, i) {
+      let cells = sh.cells;
+      if (P) {
+        if (sh.flip) cells = P.flip(cells);
+        if (sh.rot) cells = P.rot(cells, sh.rot);
+        cells = P.norm(cells);
+      }
+      const cx = box.x + slotW * i + gap * i + slotW / 2, cy = box.y + (box.h - labelH) / 2;
+      const unit = polyUnit(cells, slotW - 16, box.h - labelH - 16, 46, !!sh.anim);
+      const o = {};
+      if (sh.anim) {
+        const ph = (t % 3.6);
+        const k = ph < 0.8 ? 0 : ph < 2.0 ? (ph - 0.8) / 1.2 : 1;
+        const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        if (sh.anim === 'rotate') o.rot = e * Math.PI / 2;
+        else o.flip = 1 - 2 * e;
+      }
+      drawPoly(ctx, cells, cx, cy, unit, sh.color || '#F2A65A', o);
+      if (sh.label) {
+        ctx.fillStyle = '#8A6242'; ctx.font = 'bold 26px ' + FONT;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(sh.label, cx, box.y + box.h - labelH / 2);
+      }
+    });
+  }
+
   // ── 派發 ──────────────────────────────────────────────
   function draw(ctx, v, box) {
     if (!v) return;
@@ -469,6 +536,7 @@
     else if (v.kind === 'calendar') drawCalendar(ctx, v, box);
     else if (v.kind === 'vertical') drawVertical(ctx, v, box);
     else if (v.kind === 'groups') drawGroups(ctx, v, box);
+    else if (v.kind === 'poly') drawPolyVisual(ctx, v, box);
     ctx.restore();
   }
 
@@ -488,5 +556,5 @@
     return out;
   }
 
-  window.PLS_VIS = { draw: draw, instantiate: instantiate, drawCoin: drawCoin, drawBill: drawBill };
+  window.PLS_VIS = { draw: draw, instantiate: instantiate, drawCoin: drawCoin, drawBill: drawBill, drawPoly: drawPoly, polyUnit: polyUnit };
 })();

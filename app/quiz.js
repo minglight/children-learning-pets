@@ -36,7 +36,7 @@
       this.petId = params.pet;
       this.levelIdx = params.levelIdx;
       this.practice = !!params.practice;
-      this.tier = params.tier === 'math2' ? 'math2' : 'math';
+      this.tier = (CFG.mathTiers || ['math', 'math2']).indexOf(params.tier) >= 0 ? params.tier : 'math';   // math / math2 / mathspace(config.js mathTiers)
       this.lv = CFG[this.tier][this.levelIdx];
       this.qIndex = 0;
       this.firstTryCount = 0;
@@ -245,6 +245,7 @@
           else if (q.kind === 'visual') { hint = '一堆一堆數,再加起來'; }
           else if (q.kind === 'shape') { hint = '找找看:' + q.display.targetZh; }
           else if (q.kind === 'compose') { hint = '想像兩塊拼起來的樣子'; }
+          else if (q.kind === 'rotate') { hint = '像照鏡子的是翻面,不算喔'; }
           else if (q.kind === 'text') { hint = '再聽一次題目,慢慢想沒關係'; }
           this.bubbleText = hint;
           this.bubbleUntil = PLS.t + 3.5;
@@ -321,6 +322,10 @@
         }
       } else if (q.kind === 'compose') {
         A.drawPair(ctx, opt, cx, cy, 0.95);
+      } else if (q.kind === 'rotate') {
+        // 拼拼轉轉:選項是形狀 key(gen.js polyKey),顏色跟題目同一個,只看形狀
+        const cells = G.poly.fromKey(opt);
+        VIS.drawPoly(ctx, cells, cx, cy, VIS.polyUnit(cells, w - 44, h - 44, 34), q.display.color);
       } else if (q.kind === 'text') {
         const fit = A.fitText(ctx, String(opt), w - 34, h - 44, 46, 22);
         A.drawLines(ctx, fit.lines, fit.size, cx, cy, '#5E4A36');
@@ -378,6 +383,12 @@
         A.drawShape(ctx, q.display.target, cx, cy - 30, 1.25);
         ctx.font = '40px ' + FONT; ctx.fillStyle = '#8A6242';
         ctx.fillText('哪兩塊積木合起來,會變成它?', cx, cy + 96);
+      } else if (q.kind === 'rotate') {
+        const cells = G.poly.fromKey(q.display.target);
+        VIS.drawPoly(ctx, cells, cx, cy - 34, VIS.polyUnit(cells, QC.w - 200, QC.h - 120, 46), q.display.color);
+        ctx.font = '38px ' + FONT; ctx.fillStyle = '#8A6242';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('哪一塊只是轉了方向?翻面的不算', cx, QC.y + QC.h - 38);
       } else if (q.kind === 'repeatadd') {
         const chainFit = A.fitText(ctx, q.display.chain + '  =  ?', QC.w - 120, 110, 66, 42);
         A.drawLines(ctx, chainFit.lines, chainFit.size, cx, cy - 28, '#5E4A36');
@@ -480,7 +491,7 @@
       const self = this;
       this.petId = params.pet;
       this.levelIdx = params.levelIdx;
-      this.tier = params.tier === 'math2' ? 'math2' : 'math';
+      this.tier = (CFG.mathTiers || ['math', 'math2']).indexOf(params.tier) >= 0 ? params.tier : 'math';   // math / math2 / mathspace(config.js mathTiers)
       this.correct = params.correct;
       this.practice = params.practice;
       this.grow = params.grow || null;
@@ -535,7 +546,7 @@
     enter: function (params) {
       const self = this;
       this.petId = params.pet;
-      this.tier = params.tier === 'math2' ? 'math2' : 'math';
+      this.tier = (CFG.mathTiers || ['math', 'math2']).indexOf(params.tier) >= 0 ? params.tier : 'math';   // math / math2 / mathspace(config.js mathTiers)
       this.lv = CFG[this.tier][params.levelIdx];
       this.deluxe = !!params.deluxe;
       this.perfect = !!params.perfect;

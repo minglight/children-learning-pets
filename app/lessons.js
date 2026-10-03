@@ -45,5 +45,30 @@
     ]
   };
 
+  // ── 拼拼轉轉 sp1 轉轉看:轉一轉 vs 翻面(visual kind 'poly' 在 visuals.js;rot = 轉幾個 90 度、flip = 翻面、
+  //    anim 會循環播放「轉 90 度」或「翻面」的動畫)──
+  const POLY_L = [[0, 0], [0, 1], [0, 2], [1, 2]], POLY_S = [[1, 0], [2, 0], [0, 1], [1, 1]];
+  const C1 = '#F2A65A', C2 = '#7FB8E0';
+  L.sp1 = {
+    title: '轉一轉 vs 翻面',
+    steps: [
+      { t: 'show', text: '這是一塊積木。轉轉看要找的,是跟它「同一塊」的積木。',
+        visual: { kind: 'poly', shapes: [{ cells: POLY_L, color: C1 }] } },
+      { t: 'show', text: '把它轉一轉,方向變了,還是同一塊積木。',
+        visual: { kind: 'poly', shapes: [{ cells: POLY_L, color: C1, label: '原本' }, { cells: POLY_L, color: C1, label: '轉一轉', anim: 'rotate' }] } },
+      { t: 'show', text: '翻面就像照鏡子,左右顛倒,就變成另一塊了!',
+        visual: { kind: 'poly', shapes: [{ cells: POLY_L, color: C1, label: '原本' }, { cells: POLY_L, color: C1, label: '翻面', anim: 'flip' }] } },
+      { t: 'ask', text: '右邊這塊是轉一轉,還是翻面?',
+        visual: { kind: 'poly', shapes: [{ cells: POLY_L, color: C1, label: '原本' }, { cells: POLY_L, rot: 2, color: C1, label: '這一塊' }] },
+        options: ['轉一轉', '翻面', '不一樣的形狀'], answer: '轉一轉',
+        hint: '在心裡把右邊那塊轉半圈,是不是就變回原本的樣子了?', ok: '對!只是轉了方向,還是同一塊' },
+      { t: 'ask', text: '哪一塊跟原本是同一塊,只是轉了方向?',
+        visual: { kind: 'poly', shapes: [{ cells: POLY_S, color: C2, label: '原本' }, { cells: POLY_S, flip: true, color: C2, label: '甲' },
+          { cells: POLY_S, rot: 1, color: C2, label: '乙' }, { cells: POLY_S, flip: true, rot: 1, color: C2, label: '丙' }] },
+        options: ['甲', '乙', '丙'], answer: '乙',
+        hint: '甲和丙像照鏡子,左右顛倒了,是翻面的', ok: '對!乙只是轉了方向' }
+    ]
+  };
+
   window.PLS_LESSONS = L;
 })();

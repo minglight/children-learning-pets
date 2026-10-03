@@ -376,11 +376,18 @@
     d.advancedFrom = levelId || 'm8';
     save(d);
   }
+  // 數學全部關卡(依 config.js mathTiers:math → math2 → mathspace 的順序串起來)
+  function mathLevels() {
+    const C = window.PLS_CONFIG || {};
+    return (C.mathTiers || ['math', 'math2']).reduce(function (all, t) { return all.concat(C[t] || []); }, []);
+  }
   // 某關對這個小孩來說是「入門」還是「進階」(依 config.js math 陣列的序列位置比對 advancedFrom)
-  // math2(二年級上學期,獨立關卡池)不在這條序列裡,一律當「進階」(用 clearCapAdvanced,比較寬鬆的獎勵次數)。
+  // math 以外的獨立關卡池(math2 二年級上學期、mathspace 拼拼轉轉)不在這條序列裡,一律當「進階」
+  // (用 clearCapAdvanced,比較寬鬆的獎勵次數)。
   function levelTier(d, levelId) {
-    const math2 = (window.PLS_CONFIG && window.PLS_CONFIG.math2) || [];
-    if (math2.some(function (lv) { return lv.id === levelId; })) return 'advanced';
+    const C = window.PLS_CONFIG || {};
+    const others = (C.mathTiers || ['math', 'math2']).filter(function (t) { return t !== 'math'; });
+    if (others.some(function (t) { return (C[t] || []).some(function (lv) { return lv.id === levelId; }); })) return 'advanced';
     const math = (window.PLS_CONFIG && window.PLS_CONFIG.math) || [];
     const advIdx = math.findIndex(function (lv) { return lv.id === (d.advancedFrom || 'm8'); });
     const lvIdx = math.findIndex(function (lv) { return lv.id === levelId; });
@@ -420,11 +427,12 @@
     }
     return n;
   }
-  // v14:math2/english2(二年級上學期,獨立關卡池)加進來後,獎盃數字改成「兩個池子的破關數相加」——
+  // v14:math2/english2(二年級上學期,獨立關卡池)加進來後,獎盃數字改成「各池破關數相加」——
   //     否則已經破完基礎 10 關、正在玩二上的小孩,獎盃會卡在 10 不再往上動,好友也看不到二上的進度。
+  //     數學的池子照 config.js mathTiers(2026-10 多了 mathspace 拼拼轉轉)。
   function trophyNumber(d) {
-    return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.math) || [])
-      + trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.math2) || []);
+    const C = window.PLS_CONFIG || {};
+    return (C.mathTiers || ['math', 'math2']).reduce(function (n, t) { return n + trophyNumberFor(d, C[t] || []); }, 0);
   }
   function trophyNumberEnglish(d) {
     return trophyNumberFor(d, (window.PLS_CONFIG && window.PLS_CONFIG.english) || [])
@@ -645,7 +653,7 @@
     if (prev !== today()) { d.lastSeen = today(); save(d); }
     return gap;
   }
-  // 關卡短名(記憶用;數學/英文共用;數學要 math + math2 兩個池都找一次)。
+  // 關卡短名(記憶用;數學/英文共用;數學要 mathTiers 每個池都找一次)。
   // 泡泡是單行、台詞要壓在 20 字內,所以名字要短:「Unit3 這是什麼?」→「這是什麼」、「課6 買東西」→「買東西」
   // (去掉英文/課次前綴和句尾標點);「加法」這種 2 字名字加上短副標才分得出是哪一關 →「加法(10 以內)」。
   function shortLevelName(lv) {
@@ -659,7 +667,7 @@
   function levelLabel(subject, levelId) {
     var list = subject === 'english'
       ? ((window.PLS_CONFIG && window.PLS_CONFIG.english) || []).concat((window.PLS_CONFIG && window.PLS_CONFIG.english2) || [])
-      : ((window.PLS_CONFIG && window.PLS_CONFIG.math) || []).concat((window.PLS_CONFIG && window.PLS_CONFIG.math2) || []);
+      : mathLevels();
     for (var i = 0; i < list.length; i++) if (list[i].id === levelId) return shortLevelName(list[i]);
     return null;
   }
@@ -854,8 +862,7 @@
   // 回 { key, date, done, levelName }(levelName = 可以賺到這個食物的關卡,給小朋友提示)。
   function wishPool(d) {
     var pool = {};
-    var math = ((window.PLS_CONFIG && window.PLS_CONFIG.math) || [])
-      .concat((window.PLS_CONFIG && window.PLS_CONFIG.math2) || []);
+    var math = mathLevels();
     math.forEach(function (lv, i) {
       if (!lv.feast || !lv.feast.items) return;
       var r = d.levels[lv.id];
@@ -985,6 +992,7 @@
     bonusXp: bonusXp, getWish: getWish,
     // v13:聊天記憶
     lessonSeen: lessonSeen, markLessonSeen: markLessonSeen,
+    mathLevels: mathLevels,
     pushMemo: pushMemo, memoList: memoList, touchSeen: touchSeen, levelLabel: levelLabel
   };
 })();

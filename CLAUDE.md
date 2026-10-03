@@ -102,6 +102,11 @@
 - **每日額度(`daily.math`/`daily.english`)只在真的給獎勵時才扣**:關卡圖上寫的是「今天還可以賺 N 次食物」,沒過關 / 獎勵拿滿的那一次不算掉,小朋友可以馬上再挑戰(所以文案不要說「明天」)。
 - **破關獎盃**:房間右上角 `trophyBadge()`(`app/room.js`)顯示數學/英文各自「目前破到第幾關」,自己房間與好友拜訪畫面共用同一個繪製。
 
+## 數學的獨立關卡池 / 拼拼轉轉(`mathspace`,2026-10)
+- **數學有三個獨立關卡池**:`math`(基礎挑戰)、`math2`(二年級上學期)、`mathspace`(拼拼轉轉),清單在 `config.js mathTiers`。各池有自己的解鎖鏈(選挑戰畫面 `tierPick` 三張卡),共用 `map`/`quiz`/`feast`/`result` 畫面與 `daily.math` 額度,不是新科目、存檔結構不變。要列出「全部數學關卡」的地方(圖鑑、獎盃、許願池、關卡短名、寵物邀請跳關、寶物清單)一律走 `ST.mathLevels()`/`CFG.mathTiers`,**新增關卡池只要加進 `mathTiers`**,不要再寫 `CFG.math.concat(CFG.math2)`。`math` 以外的池在 `levelTier` 一律算「進階」。
+- **轉轉看(`kind: 'rotate'`,`gen.js rotate4a~rotate6b`)**:題目一塊方格形狀,選出「只是轉了方向」的同一塊,干擾是翻面(鏡像)的同一塊,入門關(a)其中一個干擾換成別的形狀。形狀只收「翻面後轉不回原樣」的(有左右之分),6 格的再要求四個方向都不同;形狀工具在 `PLS_GEN.poly`(`rot`/`flip`/`key`/`fromKey`),選項與答案是形狀 key 字串。繪製:`PLS_VIS.drawPoly`/`polyUnit`;上課用的 visual `{ kind:'poly', shapes:[{cells, rot?, flip?, label?, anim?:'rotate'|'flip'}] }`(anim 用 `PLS.t` 循環播放)。
+- 6 關 `sp1`~`sp6`:4 格 → 5 格 → 6 格、最後一關四選一;第一關 `sp1` 掛上課(`lessons.js L.sp1`:轉一轉 vs 翻面)。獎勵是 6 種新食物(`art.js` lollipop/swissroll/cinnamonroll/pretzel/churro/tanghulu,名字在 `screens.js FOOD_NAMES`)。七巧板(拖拉/旋轉/吸附)還沒做。
+
 ## 寵物聊天系統(v13,`app/config.js` talkCare + `app/room.js` 聊天引擎)
 - **起因**:小朋友回饋「寵物跟主人說話太少了,要有聊天的感覺」。舊版只有事件回應(餵食/陪玩/摸摸/升階/訪客)加兩句撒嬌,而且撒嬌條件是 `care.fed === 0` —— **餵過之後整天再也不說話**,進房間也不打招呼。完整企劃見 `docs/pet-chat-design.md`。
 - **說什麼(素材三層,全部集中在 `config.js` 的 `talkCare`)**:

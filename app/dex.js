@@ -12,11 +12,11 @@
   var FONT = A.FONT;
 
   // ── 建立穩定排序的全集目錄 ──────────────────────────────
-  // 食物:依 CFG.math + CFG.math2 關卡順序,先收 lv.bite,再收 lv.feast.items,去重。
+  // 食物:依數學關卡順序(config.js mathTiers:math → math2 → mathspace),先收 lv.bite,再收 lv.feast.items,去重。
   function buildFoodCatalog() {
     var seen = {};
     var list = [];
-    var math = (CFG.math || []).concat(CFG.math2 || []);
+    var math = ST.mathLevels();
     math.forEach(function (lv) {
       function add(k) {
         if (k && !seen[k]) { seen[k] = true; list.push(k); }
@@ -47,7 +47,7 @@
   function levelLabel(lv) { return lv.name + (lv.sub ? '·' + lv.sub : ''); }
   function buildFoodSourceMap() {
     var map = {};
-    (CFG.math || []).concat(CFG.math2 || []).forEach(function (lv) {
+    ST.mathLevels().forEach(function (lv) {
       function claim(k) { if (k && !map[k]) map[k] = levelLabel(lv); }
       if (lv.bite) claim(lv.bite);
       if (lv.feast && Array.isArray(lv.feast.items)) lv.feast.items.forEach(claim);
