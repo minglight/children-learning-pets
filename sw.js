@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v85';
+const VERSION = 'pls-v86';
 const ASSETS = [
   '.',
   'index.html',
@@ -41,7 +41,15 @@ const ASSETS = [
 
 self.addEventListener('install', function (e) {
   e.waitUntil(
-    caches.open(VERSION).then(function (c) { return c.addAll(ASSETS); }).then(function () { return self.skipWaiting(); })
+    // cache:'reload' 跳過瀏覽器 HTTP 快取:不然新 SW 可能把「新舊混著」的檔案存進新版快取(部分檔案是舊的 → 畫面缺東西)
+    caches.open(VERSION).then(function (c) {
+      return Promise.all(ASSETS.map(function (u) {
+        return fetch(new Request(u, { cache: 'reload' })).then(function (res) {
+          if (!res.ok) throw new Error('sw install: ' + u + ' ' + res.status);
+          return c.put(u, res);
+        });
+      }));
+    }).then(function () { return self.skipWaiting(); })
   );
 });
 
