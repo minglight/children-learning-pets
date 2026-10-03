@@ -9,13 +9,15 @@ window.PLS_CONFIG = {
   // 「入門」= advancedFrom 之前的關卡,「進階」= advancedFrom(含)之後;兩個門檻家長區可調(全域共用)。
   clearCapBasic: 3,      // 入門關卡:過幾次後不再給獎勵(預設；可在家長區調整)
   clearCapAdvanced: 10,  // 進階關卡:過幾次後不再給獎勵(預設；可在家長區調整)
-  // 2026-10:英文二上(english2,qa 玩法)的手寫題改成「單字、兩題一組」(以前整句描寫太長,描完也記不住):
-  //   ① 描寫:先唸單字、再一個一個唸字母(fish → f, i, s, h),照筆順骨架描;
-  //   ② 默寫:緊接著同一個單字,沒有虛線,只聽發音(可以看圖),自己寫,app/handwriting.js 比對每個字母像不像。
-  // 每關抽 qaSpellPairs 個單字;count=10 時就是 4 題手寫 + 6 題選擇,手寫題數跟以前一樣。
-  // 單字來源:關卡的 spellWords;沒有就用 bank 裡本身只有一個單字的題目(「Hello!」這種去掉標點)。
-  qaSpellPairs: 2,
-  // 默寫題的提示圖(只給意思、不洩漏拼字;沒列的單字就不放圖,顏色單字改用 bank 的 color 色塊)
+  // 2026-10:英文二上(english2,qa 玩法)的手寫題是「抄寫單字」(以前整句描寫太長;後來的描寫→默寫兩題一組也改掉了):
+  //   上方直接顯示單字(+中文/提示圖),下面空白四線格照著寫;題目出現先唸單字、再一個一個唸字母(fish → f, i, s, h)。
+  //   app/handwriting.js 比對每個字母像不像,寫錯兩次的格子才出現筆順虛線。
+  // 每關 qaHwCount 題手寫、每題不同單字;count=10 時就是 4 題手寫 + 6 題選擇。
+  // 單字池:這一課的字(關卡的 spellWords;沒有就用 bank 裡本身只有一個單字的題目)全部先放,
+  //   不夠才從同一個清單前面的關補(越近的課越先補),見 english.js hwWords()。
+  // hwOnly 的關(e2c3n 數字)不混選擇題:每題都是抄寫,一個字一次。
+  qaHwCount: 4,
+  // 抄寫題的提示圖(只給意思;沒列的單字就不放圖,顏色單字改用 bank 的 color 色塊)
   wordPics: {
     one: '1️⃣', two: '2️⃣', three: '3️⃣', four: '4️⃣', five: '5️⃣', six: '6️⃣', seven: '7️⃣', eight: '8️⃣', nine: '9️⃣', ten: '🔟',
     hi: '👋', hello: '👋',
@@ -273,11 +275,11 @@ window.PLS_CONFIG = {
         { en: 'nine', zh: '9' },
         { en: 'ten', zh: '10' }
       ] },
-    // Unit2 之後插一關「數字單字手寫」(2026-10 Hank 要求):one~ten 隨機抽 5 個,每個先描寫、再默寫(共 10 題,全是手寫)。
+    // Unit2 之後插一關「數字單字手寫」(2026-10 Hank 要求):one~ten 10 個字各抄寫一次(共 10 題,全是手寫)。
     // 寫的是英文單字,不是阿拉伯數字;中文欄放阿拉伯數字當提示。玩具用 toys.js 的「數字積木」。
-    // hwOnly = 不混選擇題;qaSpellPairs = 這關的組數。
+    // hwOnly = 不混選擇題,每題都是抄寫,不從別課補字。
     { id: 'e2c3n', name: 'Unit2 數字單字手寫', sub: 'one~ten', play: 'qa', count: 10,
-      hwOnly: true, qaSpellPairs: 5,
+      hwOnly: true,
       toyU: '數字積木', toyArtU: 'numberblocks',
       bank: [
         { en: 'one', zh: '1' }, { en: 'two', zh: '2' }, { en: 'three', zh: '3' }, { en: 'four', zh: '4' }, { en: 'five', zh: '5' },
@@ -323,7 +325,7 @@ window.PLS_CONFIG = {
         { en: "It's a jet.", zh: '這是一架噴射機。' }
       ] },
     { id: 'e2c5', name: 'Unit4 這是什麼顏色?', sub: 'What Color Is It?‧顏色', play: 'qa', count: 10,
-      noColorHint: true,   // 選項/手寫題都不放顏色圓點:題目「紅色」旁邊就畫紅點等於送答案(2026-10 Hank 要求拿掉)
+      noColorHint: true,   // 選擇題選項不放顏色圓點:題目「紅色」旁邊就畫紅點等於送答案(2026-10 Hank 要求拿掉)。抄寫題照放(單字已經寫在上面,圓點只是意思)
       toyU: '挖土機', toyArtU: 'digger',
       // 這課本身的新顏色單字只有 6 個(課本就是教這 6 個,不再多加);
       // 額外用「My School Bag」已經用過的同一種句型「[名詞] is [顏色].」(例如
@@ -351,24 +353,9 @@ window.PLS_CONFIG = {
         { en: 'The pen is black.', zh: '筆是黑色的。', color: '#3A3A3A' },
         { en: 'The marker is white.', zh: '彩色筆是白色的。', color: '#F2F2ED' }
       ] },
-    // Unit4 之後插一關「顏色單字手寫」(2026-10 Hank 要求):6 個顏色單字隨機抽 5 個,每個先描寫、再默寫。
-    // 這關保留顏色圓點當提示圖(圖只告訴他是哪個顏色,不給拼字);玩具用 toys.js 的「蠟筆盒」。
-    { id: 'e2c5n', name: 'Unit4 顏色單字手寫', sub: 'red‧blue‧green… 寫寫看', play: 'qa', count: 10,
-      hwOnly: true, qaSpellPairs: 5,
-      toyU: '蠟筆盒', toyArtU: 'crayonbox',
-      spellWords: [
-        { en: 'red', zh: '紅色', color: '#E4574B' }, { en: 'blue', zh: '藍色', color: '#4A7FC1' },
-        { en: 'green', zh: '綠色', color: '#4F9E5C' }, { en: 'yellow', zh: '黃色', color: '#E8C13B' },
-        { en: 'black', zh: '黑色', color: '#3A3A3A' }, { en: 'white', zh: '白色', color: '#F2F2ED' }
-      ],
-      bank: [
-        { en: 'red', zh: '紅色', color: '#E4574B' }, { en: 'blue', zh: '藍色', color: '#4A7FC1' },
-        { en: 'green', zh: '綠色', color: '#4F9E5C' }, { en: 'yellow', zh: '黃色', color: '#E8C13B' },
-        { en: 'black', zh: '黑色', color: '#3A3A3A' }, { en: 'white', zh: '白色', color: '#F2F2ED' }
-      ] },
     { id: 'e2c6', name: 'My School Bag 我的書包', sub: '介紹書包裡的文具', play: 'qa', count: 10,
       toyU: '公主裙', toyArtU: 'dress',
-      // bank 全是句子,手寫題(描寫→默寫)改從這課句子裡出現的單字抽
+      // bank 全是句子,抄寫題改從這課句子裡出現的單字抽
       spellWords: [
         { en: 'school', zh: '學校' }, { en: 'bag', zh: '書包' },
         { en: 'book', zh: '書' }, { en: 'pen', zh: '筆' }, { en: 'pencil', zh: '鉛筆' },
@@ -607,30 +594,3 @@ window.PLS_CONFIG = {
     cappedPass: ['這關的積分已經集滿囉~', '積分點滿了,去別關賺積分吧!']
   }
 };
-
-// ── english2:每個選擇題單元後面自動接一關「單字練習」(2026-10 Hank 要求)──────────────
-// 單字來源跟 english.js spellPool 同一套:關卡的 spellWords,沒有就取 bank 裡只有一個單字的題目。
-// 做法:複製上一關(同 bank、同玩具)→ hwOnly(全手寫,不混選擇題)、最多 5 組「描寫→默寫」。
-// 已經有自己手寫關的單元(下一關本來就是 hwOnly,例如 e2c3n 數字、e2c5n 顏色)不重複產生。
-// id = 原關 id + 'w'(進度以 id 為鍵,插關不影響舊進度)。
-(function () {
-  const list = window.PLS_CONFIG.english2, out = [];
-  list.forEach(function (lv, i) {
-    out.push(lv);
-    const next = list[i + 1];
-    if (lv.hwOnly || (next && next.hwOnly) || lv.play !== 'qa') return;
-    const src = lv.spellWords || (lv.bank || []).map(function (b) {
-      const w = String(b.en || '').replace(/[!?.,]+$/, '');
-      return /^[A-Za-z]+$/.test(w) ? { en: w, zh: b.zh, color: b.color } : null;
-    }).filter(Boolean);
-    const seen = {}, words = src.filter(function (it) { const k = it.en.toLowerCase(); if (seen[k]) return false; seen[k] = true; return true; });
-    if (words.length < 2) return;
-    const pairs = Math.min(5, words.length);
-    const base = String(lv.name).replace(/[?？!！。.]+/g, '');
-    out.push(Object.assign({}, lv, {
-      id: lv.id + 'w', name: base + ' 單字練習', sub: '單字描寫＋默寫',
-      hwOnly: true, qaSpellPairs: pairs, count: pairs * 2
-    }));
-  });
-  window.PLS_CONFIG.english2 = out;
-})();
