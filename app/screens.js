@@ -682,7 +682,10 @@
       }
       const remain = ST.remainToday(d, 'math');
       const practice = ST.clearedToday(d, n.lv.id) || remain <= 0;
-      PLS.go('quiz', { pet: this.petId, levelIdx: n.i, practice: practice, tier: this.tier });
+      // 先教再考:這關有上課腳本、這個小孩還沒看過 → 先上課(上課畫面可跳過,看過就直接考試)
+      const hasLesson = !!(window.PLS_LESSONS && window.PLS_LESSONS[n.lv.id]);
+      PLS.go(hasLesson && !ST.lessonSeen(d, n.lv.id) ? 'lesson' : 'quiz',
+        { pet: this.petId, levelIdx: n.i, practice: practice, tier: this.tier });
     },
     drawNode: function (ctx, t, n) {
       const d = ST.load(this.petId);

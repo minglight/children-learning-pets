@@ -403,12 +403,17 @@
     const hourAngle = ((hour + minute / 60) / 12) * Math.PI * 2 - Math.PI / 2;
     const minAngle = (minute / 60) * Math.PI * 2 - Math.PI / 2;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = '#5E4A36'; ctx.lineWidth = Math.max(4, r * 0.07);
+    // v.hl(上課用):'hour' / 'min' 讓那一根針變亮變粗,另一根淡一點
+    const hlH = v.hl === 'hour', hlM = v.hl === 'min';
+    ctx.globalAlpha = hlM ? 0.35 : 1;
+    ctx.strokeStyle = hlH ? '#E2574C' : '#5E4A36'; ctx.lineWidth = Math.max(4, r * 0.07) * (hlH ? 1.5 : 1);
     ctx.beginPath(); ctx.moveTo(cx, cy);
     ctx.lineTo(cx + Math.cos(hourAngle) * r * 0.5, cy + Math.sin(hourAngle) * r * 0.5); ctx.stroke();
-    ctx.strokeStyle = '#D79B53'; ctx.lineWidth = Math.max(3, r * 0.045);
+    ctx.globalAlpha = hlH ? 0.35 : 1;
+    ctx.strokeStyle = hlM ? '#E2574C' : '#D79B53'; ctx.lineWidth = Math.max(3, r * 0.045) * (hlM ? 1.8 : 1);
     ctx.beginPath(); ctx.moveTo(cx, cy);
     ctx.lineTo(cx + Math.cos(minAngle) * r * 0.75, cy + Math.sin(minAngle) * r * 0.75); ctx.stroke();
+    ctx.globalAlpha = 1;
     ctx.fillStyle = '#5E4A36';
     ctx.beginPath(); ctx.arc(cx, cy, Math.max(3, r * 0.05), 0, Math.PI * 2); ctx.fill();
   }

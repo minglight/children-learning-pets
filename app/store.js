@@ -280,6 +280,15 @@
     if (window.PLS_CLOUD && PLS_CLOUD.markDirty) PLS_CLOUD.markDirty(d.slot || 'kidL');
   }
 
+  // 上課(先教再考)看過沒:d.lessons = { 關卡id: true }。欄位用到才建立,舊檔不用 migrate、不升 SCHEMA_VERSION。
+  function lessonSeen(d, id) { return !!(d.lessons && d.lessons[id]); }
+  function markLessonSeen(d, id) {
+    if (lessonSeen(d, id)) return;
+    if (!d.lessons || typeof d.lessons !== 'object') d.lessons = {};
+    d.lessons[id] = true;
+    save(d);
+  }
+
   // 關卡狀態:'cleared' | 'open' | 'locked'
   // 規則:第一關永遠開;之後「上一關 cleared(≥90%)」才開;config locked:true 一律鎖
   function levelState(d, list, idx) {
@@ -975,6 +984,7 @@
     // v5:驚喜加成 / 許願
     bonusXp: bonusXp, getWish: getWish,
     // v13:聊天記憶
+    lessonSeen: lessonSeen, markLessonSeen: markLessonSeen,
     pushMemo: pushMemo, memoList: memoList, touchSeen: touchSeen, levelLabel: levelLabel
   };
 })();

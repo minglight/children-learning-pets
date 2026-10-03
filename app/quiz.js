@@ -63,6 +63,18 @@
         },
         onTap: function () { PLS.go('map', { pet: self.petId, tier: self.tier }); }
       });
+      // 上課(先教再考):有上課腳本的關卡才有,想複習就按
+      if (window.PLS_LESSONS && window.PLS_LESSONS[this.lv.id]) {
+        PLS.addButton({
+          x: 130, y: 30, w: 84, h: 84,
+          draw: function (ctx) {
+            ctx.fillStyle = 'rgba(255,255,255,0.9)'; A.rr(ctx, 130, 30, 84, 84, 26); ctx.fill();
+            ctx.font = '44px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('📖', 172, 74);
+          },
+          onTap: function () { PLS.go('lesson', { pet: self.petId, levelIdx: self.levelIdx, practice: self.practice, tier: self.tier }); }
+        });
+      }
       // 喇叭(再聽一次)
       PLS.addButton({
         x: W - 114, y: 30, w: 84, h: 84,
