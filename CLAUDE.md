@@ -176,3 +176,11 @@
 ## 其他
 - 遵循 `~/.claude/CLAUDE.md` 全域規則（繁中、簡潔、破壞性操作需核准等）。
 - 讀檔用 `Read`、搜尋用 `Grep`/`Glob`、改檔用 `Edit`/`Write`。
+
+## 國語(`chinese` 關卡池 + 獨立科目 `chinese`,2026-10)
+- **房間多一張「國語教室」卡**(`room.js` NAV,卡片超過 4 張時縮成 70 高以免壓到成長卡),直接進 `map`(`tier: 'chinese'`,返回鈕回房間,沒有選挑戰那層)。關卡池 `config.js chinese`(5 關 `cn1`~`cn5`),**放在 `mathTiers` 裡**——所以圖鑑/獎盃/許願/關卡短名/寵物邀請跳關都自動算進去;但選挑戰畫面用 `screens.js TIER_GROUPS`(明列),國語不會出現在數學餐廳裡。
+- **獨立科目**:`config.js tierSubject` 把關卡池對到科目(沒列的一律 `math`),`ST.subjectOfTier(tier)` 取科目;`quiz`/`map`/`feast`/`room levelJump` 的每日額度(`daily.chinese`,用到才建立,`|| 0` 讀)、過關次數上限(`capFor`,國語照數學的入門/進階分層、池外一律「進階」)都走科目,**不再寫死 `'math'`**。每日上限 `dailyLimit` 兩科共用同一個設定、各自計數。
+- **題型 = 一般選擇題**(`kind: 'text'`,3 選項):`app/chinese.js` 的 `cnRadical1/cnRadical2`(部首,正向「這個字的部首」+反向「哪個字的部首是它」)、`cnRadicalMeaning`(部首猜意思)、`cnPickChar`(選字:同音/形近字句子挖空)、`cnMeasure`(選字:量詞)。**加字只改 chinese.js 的資料表**(`RADICALS`/`SEL`/`MEASURE`),每個出題器的不同題目數都 ≥ 50。題目回傳 `big: true`(選項字放大到 110px,`quiz.js drawTile`)與 `hint`(第二次答錯的提示)。
+- **新 visual**(`visuals.js`):`bigchar`(`{ text, sub }` 一個大字)、`chars`(`{ chars, mark, caption }` 一排字,mark 的部首紅字標在角落),給題目卡和上課用。部首字是 CJK 部首區字元(氵扌艹忄),iPad 字型有。
+- **現在是通用二年級內容,沒有照課本**(`chinese.js` 檔頭註明);之後 Hank 拍課本生字頁,再加「課本生字」關卡(新 gen + 資料表,掛在 `chinese` 陣列尾端)。`cn1`/`cn2` 掛上課(`lessons.js`)。
+- 食物 5 種新設計(中式點心 `art.js` tangyuan/mooncake/zongzi/doufu/scallionpancake,名字在 `screens.js FOOD_NAMES`)。

@@ -246,7 +246,7 @@
           else if (q.kind === 'shape') { hint = '找找看:' + q.display.targetZh; }
           else if (q.kind === 'compose') { hint = '想像兩塊拼起來的樣子'; }
           else if (q.kind === 'rotate') { hint = '像照鏡子的是翻面,不算喔'; }
-          else if (q.kind === 'text') { hint = '再聽一次題目,慢慢想沒關係'; }
+          else if (q.kind === 'text') { hint = q.hint || '再聽一次題目,慢慢想沒關係'; }
           this.bubbleText = hint;
           this.bubbleUntil = PLS.t + 3.5;
           PLS.say(q.say);
@@ -261,7 +261,7 @@
       this.qIndex++;
       if (this.qIndex >= CFG.questionsPerLevel) {
         const d = ST.load(this.petId);
-        const res = ST.recordRun(d, 'math', this.lv.id,
+        const res = ST.recordRun(d, ST.subjectOfTier(this.tier), this.lv.id,
           this.firstTryCount, CFG.questionsPerLevel, this.practice);
         if (res.feast) {
           // v5:1 個食物;滿分或豪華 → 2 個
@@ -327,7 +327,7 @@
         const cells = G.poly.fromKey(opt);
         VIS.drawPoly(ctx, cells, cx, cy, VIS.polyUnit(cells, w - 44, h - 44, 34), q.display.color);
       } else if (q.kind === 'text') {
-        const fit = A.fitText(ctx, String(opt), w - 34, h - 44, 46, 22);
+        const fit = A.fitText(ctx, String(opt), w - 34, h - 44, q.big ? 110 : 46, 22);   // q.big:單字/部首選項放大(國語)
         A.drawLines(ctx, fit.lines, fit.size, cx, cy, '#5E4A36');
       } else {
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -800,7 +800,7 @@
       ctx.fillStyle = this.deluxe ? '#C2591E' : '#9A7B5C';
       // v15:入門關卡預設 3 次後就不再給獎勵(進階 10 次),第 10 次才有豪華版——
       // 文案要老實講「還能拿幾次」,不要只寫「集滿 10 次」讓小朋友以為第 4~9 次也有東西。
-      var capN = ST.capFor(ST.load(this.petId), 'math', this.lv.id);
+      var capN = ST.capFor(ST.load(this.petId), ST.subjectOfTier(this.tier), this.lv.id);
       var capLeft = Math.max(0, capN - bClears);
       var capTxt;
       if (bClears >= dAt) capTxt = '豪華版已解鎖！共解了 ' + bClears + ' 次！';

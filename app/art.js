@@ -407,6 +407,61 @@
         ctx.strokeStyle = 'rgba(255,235,200,0.75)'; ctx.lineWidth = 1.6; el(ctx, p[0], p[1], 11.5, 10.5); ctx.stroke();
         ctx.fillStyle = 'rgba(255,255,255,0.75)'; el(ctx, p[0] - 4, p[1] - 4, 3.2, 2.2); ctx.fill();
       });
+    },
+    // ── 2026-10 國語(chinese)5 關的新食物:主題是中式點心 ──
+    tangyuan: function (ctx) { // 湯圓(一碗甜湯 + 三顆彩色湯圓)
+      ctx.fillStyle = '#C8D8E4'; ctx.beginPath(); ctx.moveTo(-30, -2); ctx.lineTo(30, -2); ctx.quadraticCurveTo(28, 26, 0, 28); ctx.quadraticCurveTo(-28, 26, -30, -2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#E8F0F6'; el(ctx, 0, -2, 31, 9); ctx.fill();
+      ctx.fillStyle = '#F2C47A'; el(ctx, 0, -2, 27, 7); ctx.fill();                       // 糖水
+      [[-13, -9, '#FFF6EE'], [12, -8, '#F8C3CF'], [0, -14, '#CBE8C9']].forEach(function (b) {
+        ctx.fillStyle = b[2]; el(ctx, b[0], b[1], 11, 11); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.7)'; el(ctx, b[0] - 3, b[1] - 4, 3.4, 2.4); ctx.fill();
+      });
+      ctx.fillStyle = '#B8523A'; ctx.fillRect(-1.5, -26, 3, 3); ctx.fillRect(8, -22, 3, 3);   // 一點桂花/芝麻
+      ctx.fillStyle = '#A9BDCB'; ctx.fillRect(-12, 26, 24, 4);                              // 碗底
+    },
+    mooncake: function (ctx) { // 月餅(花邊圓餅 + 中間一圈圖案)
+      ctx.fillStyle = '#A8622A';
+      for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; el(ctx, Math.cos(a) * 29, Math.sin(a) * 25 + 3, 6, 6); ctx.fill(); }
+      ctx.fillStyle = '#C47E3A'; el(ctx, 0, 3, 29, 25); ctx.fill();
+      ctx.fillStyle = '#D9953F'; el(ctx, 0, 1, 26, 22); ctx.fill();
+      ctx.strokeStyle = '#8A4C1E'; ctx.lineWidth = 2.4;
+      el(ctx, 0, 2, 17, 14); ctx.stroke();
+      for (let i = 0; i < 8; i++) {               // 花瓣
+        const a = i * Math.PI / 4;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * 5, 2 + Math.sin(a) * 4); ctx.lineTo(Math.cos(a) * 15, 2 + Math.sin(a) * 12); ctx.stroke();
+      }
+      ctx.fillStyle = '#8A4C1E'; el(ctx, 0, 2, 4, 3.4); ctx.fill();
+      ctx.fillStyle = 'rgba(255,230,170,0.5)'; el(ctx, -12, -10, 8, 3); ctx.fill();
+    },
+    zongzi: function (ctx) { // 粽子(三角形、綠葉、草繩)
+      ctx.fillStyle = '#5E9A52';
+      ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(30, 20); ctx.quadraticCurveTo(0, 30, -30, 20); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#78B466';
+      ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(30, 20); ctx.lineTo(8, 22); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#3F7A3A'; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(0, -30); ctx.lineTo(-6, 24); ctx.moveTo(0, -30); ctx.lineTo(10, 24); ctx.stroke();
+      ctx.strokeStyle = '#D8B98A'; ctx.lineWidth = 3.2; ctx.lineCap = 'round';           // 草繩
+      ctx.beginPath(); ctx.moveTo(-17, 3); ctx.quadraticCurveTo(0, 12, 17, 3); ctx.moveTo(-10, -12); ctx.quadraticCurveTo(0, -6, 10, -12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -32); ctx.lineTo(-6, -40); ctx.moveTo(0, -32); ctx.lineTo(7, -39); ctx.stroke();
+    },
+    doufu: function (ctx) { // 豆花(白嫩豆花 + 糖水 + 花生)
+      ctx.fillStyle = '#D9B98C'; ctx.beginPath(); ctx.moveTo(-31, -4); ctx.lineTo(31, -4); ctx.quadraticCurveTo(28, 28, 0, 30); ctx.quadraticCurveTo(-28, 28, -31, -4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#EAD2AA'; el(ctx, 0, -4, 32, 9); ctx.fill();
+      ctx.fillStyle = '#FFFDF7'; el(ctx, 0, -6, 27, 12); ctx.fill();                      // 豆花
+      ctx.fillStyle = 'rgba(214,160,80,0.65)'; el(ctx, 2, -6, 20, 7); ctx.fill();       // 糖水
+      ctx.fillStyle = '#E3B96E';
+      [[-12, -9], [-3, -13], [8, -10], [14, -5], [-9, -3]].forEach(function (p) { el(ctx, p[0], p[1], 4.4, 3.6); ctx.fill(); });
+      ctx.fillStyle = 'rgba(255,255,255,0.8)'; el(ctx, -14, -12, 4, 2); ctx.fill();
+    },
+    scallionpancake: function (ctx) { // 蔥油餅(酥脆圓餅,撒蔥花)
+      ctx.fillStyle = '#C98A3C'; el(ctx, 0, 6, 32, 24); ctx.fill();
+      ctx.fillStyle = '#E4AE5A'; el(ctx, 0, 2, 31, 23); ctx.fill();
+      ctx.strokeStyle = 'rgba(160,100,40,0.55)'; ctx.lineWidth = 1.8;
+      for (let r = 8; r < 30; r += 8) { ctx.beginPath(); ctx.ellipse(0, 2, r, r * 0.74, 0, 0.3, Math.PI * 1.8); ctx.stroke(); }   // 層層酥紋
+      ctx.fillStyle = '#6FA84F';
+      [[-14, -8], [-2, -12], [10, -4], [-18, 6], [4, 8], [16, 10], [-8, 14], [20, -12]].forEach(function (p) { ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(p[0] * 0.2); ctx.fillRect(-3.4, -1.1, 6.8, 2.2); ctx.restore(); });
+      ctx.fillStyle = 'rgba(255,240,200,0.45)'; el(ctx, -10, -9, 12, 3.4); ctx.fill();   // 高光
     }
   };
 

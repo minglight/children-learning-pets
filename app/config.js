@@ -184,9 +184,28 @@ window.PLS_CONFIG = {
     { id: 'sp6', name: '轉轉看(六)', sub: '6 格‧四選一', gen: 'rotate6b', icon: 'puzzle',
       bite: 'tanghulu', feast: { name: '糖葫蘆攤', basicName: '一串糖葫蘆', deluxeName: '糖葫蘆豪華一大把', items: ['tanghulu', 'tanghulu', 'tanghulu', 'tanghulu', 'tanghulu'] } }
   ],
-  // 數學的所有獨立關卡池(順序 = 選挑戰畫面的順序)。要列出「全部數學關卡」的地方(圖鑑、獎盃、許願、
+  // ── 國語(第四個獨立關卡池,2026-10 SEC-55)──────────────────────
+  // 房間多一張「國語教室」卡,獨立科目 'chinese'(每日額度 daily.chinese 跟數學分開算,存檔欄位用到才建立)。
+  // 走跟數學一樣的 map/quiz 畫面、拿食物;題目由 app/chinese.js 的 cn* 出題器產生(部首、選字都是一種題型,資料表在那個檔案)。
+  // 目前是通用二年級內容(沒有照課本);之後拍課本生字頁再補「課本生字」關卡。第一、二關掛上課(lessons.js cn1/cn2)。
+  // 食物 5 種新設計、主題是中式點心(art.js tangyuan~scallionpancake)。
+  chinese: [
+    { id: 'cn1', name: '部首認一認(一)', sub: '認識六種部首', gen: 'cnRadical1', icon: 'book',
+      bite: 'tangyuan', feast: { name: '湯圓碗', basicName: '一顆湯圓', deluxeName: '湯圓豪華大碗', items: ['tangyuan', 'tangyuan', 'tangyuan', 'tangyuan', 'tangyuan'] } },
+    { id: 'cn2', name: '部首認一認(二)', sub: '認識九種部首', gen: 'cnRadical2', icon: 'book',
+      bite: 'mooncake', feast: { name: '月餅禮盒', basicName: '一個月餅', deluxeName: '月餅豪華禮盒', items: ['mooncake', 'mooncake', 'mooncake', 'mooncake', 'mooncake'] } },
+    { id: 'cn3', name: '部首猜意思', sub: '看部首,猜跟什麼有關', gen: 'cnRadicalMeaning', icon: 'book',
+      bite: 'zongzi', feast: { name: '粽子串', basicName: '一顆粽子', deluxeName: '粽子豪華一大串', items: ['zongzi', 'zongzi', 'zongzi', 'zongzi', 'zongzi'] } },
+    { id: 'cn4', name: '選字(一)', sub: '同音字‧形近字', gen: 'cnPickChar', icon: 'book',
+      bite: 'doufu', feast: { name: '豆花碗', basicName: '一碗豆花', deluxeName: '豆花豪華大份', items: ['doufu', 'doufu', 'doufu', 'doufu', 'doufu'] } },
+    { id: 'cn5', name: '選字(二)', sub: '量詞‧哪一個字放進去', gen: 'cnMeasure', icon: 'book',
+      bite: 'scallionpancake', feast: { name: '蔥油餅攤', basicName: '一片蔥油餅', deluxeName: '蔥油餅豪華大份', items: ['scallionpancake', 'scallionpancake', 'scallionpancake', 'scallionpancake', 'scallionpancake'] } }
+  ],
+  // 關卡池 → 科目(每日額度/次數上限用)。沒列的池一律當 'math'。
+  tierSubject: { chinese: 'chinese' },
+  // 所有走答題畫面+食物獎勵的關卡池(含國語)。要列出「全部食物關卡」的地方(圖鑑、獎盃、許願、
   // 關卡短名、寵物邀請跳關)一律走這個清單,新增關卡池只要加在這裡。
-  mathTiers: ['math', 'math2', 'mathspace'],
+  mathTiers: ['math', 'math2', 'mathspace', 'chinese'],   // chinese = 國語(走同一套答題畫面+食物獎勵;選挑戰畫面用 screens.js TIER_GROUPS,國語不在數學餐廳裡)
 
   // ── 英文關卡(階梯,難度非常緩慢遞增)──────────────────
   // 英文獎勵是「玩具」。v9:全物種共用一套玩具(toyU / toyArtU),不再分寵物;

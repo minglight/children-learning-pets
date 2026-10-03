@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v87';
+const VERSION = 'pls-v88';
 const ASSETS = [
   '.',
   'index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   'icon-512.png',
   'app/config.js',
   'app/gen.js',
+  'app/chinese.js',
   'app/bank.js',
   'app/store.js',
   'app/cloud.js',

@@ -404,7 +404,12 @@
   // 依科目算過關次數上限:數學走上面的難易度分層,英文沒有分級設定、固定 10 次
   // (跟 deluxeAt() 剛好同值是巧合,語意不同,不要合併成同一個常數)。
   function capFor(d, subject, levelId) {
-    return subject === 'math' ? clearCapFor(d, levelId) : 10;
+    return (subject === 'math' || subject === 'chinese') ? clearCapFor(d, levelId) : 10;
+  }
+  // 關卡池(tier)屬於哪個科目(每日額度 daily[subject] 用):config.js tierSubject 沒列的一律 'math'。
+  function subjectOfTier(tier) {
+    const m = (window.PLS_CONFIG && window.PLS_CONFIG.tierSubject) || {};
+    return m[tier] || 'math';
   }
   // 這一關「現在」再解一次,recordRun 還會不會真的給積分(1 點)、真的會長大?
   // v18:食物不再設上限,光是「拿得到食物」不足以構成邀請理由——寵物只邀「去解會真的升級」的關,
@@ -994,6 +999,7 @@
     // v5:驚喜加成 / 許願
     bonusXp: bonusXp, getWish: getWish,
     // v13:聊天記憶
+    subjectOfTier: subjectOfTier,
     lessonSeen: lessonSeen, markLessonSeen: markLessonSeen,
     mathLevels: mathLevels,
     pushMemo: pushMemo, memoList: memoList, touchSeen: touchSeen, levelLabel: levelLabel

@@ -123,7 +123,9 @@
     onigiri: '飯糰', mango: '芒果', taiyaki: '鯛魚燒', hotdog: '熱狗', watermelon: '西瓜',
     donut: '甜甜圈', popcorn: '爆米花', macaron: '馬卡龍', mochi: '大福', potsticker: '煎餃',
     // 2026-10:拼拼轉轉(mathspace)6 關的新食物
-    lollipop: '棒棒糖', swissroll: '瑞士捲', cinnamonroll: '肉桂捲', pretzel: '蝴蝶餅', churro: '吉拿棒', tanghulu: '糖葫蘆'
+    lollipop: '棒棒糖', swissroll: '瑞士捲', cinnamonroll: '肉桂捲', pretzel: '蝴蝶餅', churro: '吉拿棒', tanghulu: '糖葫蘆',
+    // 2026-10:國語(chinese)5 關的新食物
+    tangyuan: '湯圓', mooncake: '月餅', zongzi: '粽子', doufu: '豆花', scallionpancake: '蔥油餅'
   };
   // 布置小窩:基礎版(解 1 次) / 豪華版(解 10 次)名稱
   const FOOD_BASIC_NAMES = {
@@ -634,7 +636,8 @@
       });
       const lastY = this.nodes.length ? this.nodes[this.nodes.length - 1].y : MAP_Y0;
       this.maxScroll = Math.max(0, (lastY + 150) - (H - 70));
-      backBtn('tierPick', { pet: this.petId });
+      if (this.tier === 'chinese') backBtn('room', { pet: this.petId });   // 國語沒有選挑戰那一層,直接回房間
+      else backBtn('tierPick', { pet: this.petId });
     },
     pointer: function (phase, x, y) {
       if (phase === 'down') {
@@ -684,7 +687,7 @@
         PLS.sfx.wrong();
         return;
       }
-      const remain = ST.remainToday(d, 'math');
+      const remain = ST.remainToday(d, ST.subjectOfTier(this.tier));
       const practice = ST.clearedToday(d, n.lv.id) || remain <= 0;
       // 先教再考:這關有上課腳本、這個小孩還沒看過 → 先上課(上課畫面可跳過,看過就直接考試)
       const hasLesson = !!(window.PLS_LESSONS && window.PLS_LESSONS[n.lv.id]);
@@ -722,7 +725,7 @@
       if (state === 'cleared') {
         const clears = ST.clearCount(d, n.lv.id);
         mastered = clears >= ST.deluxeAt();
-        capped = !mastered && clears >= ST.capFor(d, 'math', n.lv.id);
+        capped = !mastered && clears >= ST.capFor(d, ST.subjectOfTier(this.tier), n.lv.id);
         window.PLS_CLEARBADGE(ctx, x + 40, y - 42, clears, mastered);
       }
       if (state === 'locked') {
@@ -748,7 +751,7 @@
     draw: function (ctx, t) {
       drawWall(ctx, '#FBF1E2', 'rgba(214,178,146,0.14)');
       const d = ST.load(this.petId);
-      const remain = ST.remainToday(d, 'math');
+      const remain = ST.remainToday(d, ST.subjectOfTier(this.tier));
       const self = this;
 
       ctx.save();
@@ -763,7 +766,7 @@
       this.nodes.forEach(function (n) { self.drawNode(ctx, t, n); });
       ctx.restore();
 
-      const title = this.tier === 'math2' ? '數學餐廳 · 二年級上學期' : this.tier === 'mathspace' ? '數學餐廳 · 拼拼轉轉' : '數學餐廳';
+      const title = this.tier === 'math2' ? '數學餐廳 · 二年級上學期' : this.tier === 'mathspace' ? '數學餐廳 · 拼拼轉轉' : this.tier === 'chinese' ? '國語教室' : '數學餐廳';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '50px ' + FONT;
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(title, W / 2, 74);

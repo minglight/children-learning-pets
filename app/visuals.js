@@ -523,6 +523,54 @@
     });
   }
 
+
+  // ════════════════════════════════════════════════════
+  // 國語:大字(bigchar)與一排字(chars),給部首/選字題與上課用
+  //   { kind:'bigchar', text:'河', sub?:'三點水' }                      一個大字(sub = 下方小字說明)
+  //   { kind:'chars', chars:['河','海'], mark?:'氵', caption?:'都跟水有關' }  一排字,mark 的部首用紅色標出來
+  // ════════════════════════════════════════════════════
+  const CN_INK = '#5E4A36', CN_RED = '#C2453D';
+  function drawBigChar(ctx, v, box) {
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+    const subH = v.sub ? 30 : 0;
+    const size = Math.max(40, Math.min(box.h - subH, 150));
+    const tw = size * 1.15, th = size + 6;
+    ctx.fillStyle = 'rgba(194,69,61,0.07)';
+    rr(ctx, cx - tw / 2, cy - subH / 2 - th / 2, tw, th, 22); ctx.fill();
+    ctx.fillStyle = CN_INK; ctx.font = size * 0.86 + 'px ' + FONT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(v.text, cx, cy - subH / 2 + 3);
+    if (v.sub) {
+      ctx.font = '26px ' + FONT; ctx.fillStyle = '#A8927A';
+      ctx.fillText(v.sub, cx, box.y + box.h - 14);
+    }
+  }
+  function drawChars(ctx, v, box) {
+    const chars = v.chars || [];
+    const n = Math.max(1, chars.length);
+    const capH = v.caption ? 34 : 0;
+    const tile = Math.min(box.h - capH - 8, (box.w - 16 * (n - 1)) / n, 110);
+    const total = tile * n + 16 * (n - 1);
+    let x = box.x + (box.w - total) / 2;
+    const y = box.y + (box.h - capH - tile) / 2;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    chars.forEach(function (c) {
+      ctx.fillStyle = '#FFFFFF'; rr(ctx, x, y, tile, tile, 18); ctx.fill();
+      ctx.strokeStyle = '#EADBC6'; ctx.lineWidth = 2; rr(ctx, x, y, tile, tile, 18); ctx.stroke();
+      ctx.font = tile * 0.62 + 'px ' + FONT;
+      ctx.fillStyle = CN_INK; ctx.fillText(c, x + tile / 2, y + tile / 2 + 2);
+      if (v.mark) {   // 左上角標出共同的部首
+        ctx.font = tile * 0.26 + 'px ' + FONT; ctx.fillStyle = CN_RED;
+        ctx.textAlign = 'left'; ctx.fillText(v.mark, x + 8, y + tile * 0.2); ctx.textAlign = 'center';
+      }
+      x += tile + 16;
+    });
+    if (v.caption) {
+      ctx.font = '28px ' + FONT; ctx.fillStyle = '#8A6242';
+      ctx.fillText(v.caption, box.x + box.w / 2, box.y + box.h - 14);
+    }
+  }
+
   // ── 派發 ──────────────────────────────────────────────
   function draw(ctx, v, box) {
     if (!v) return;
@@ -538,6 +586,8 @@
     else if (v.kind === 'vertical') drawVertical(ctx, v, box);
     else if (v.kind === 'groups') drawGroups(ctx, v, box);
     else if (v.kind === 'poly') drawPolyVisual(ctx, v, box);
+    else if (v.kind === 'bigchar') drawBigChar(ctx, v, box);
+    else if (v.kind === 'chars') drawChars(ctx, v, box);
     ctx.restore();
   }
 

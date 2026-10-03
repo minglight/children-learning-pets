@@ -70,5 +70,39 @@
     ]
   };
 
+
+  // ── 國語 部首(一):認識部首 ──
+  function rad(mark, name, mean, chars) { return { kind: 'chars', mark: mark, chars: chars, caption: name + ' · 跟' + mean + '有關' }; }
+  L.cn1 = {
+    title: '認識部首',
+    steps: [
+      { t: 'show', text: '字的一邊常常有「部首」。部首會告訴我們,這個字跟什麼有關。', visual: { kind: 'bigchar', text: '河', sub: '「河」左邊的「氵」是部首' } },
+      { t: 'show', text: '氵叫「三點水」,有它的字,都跟水有關。', say: '三點水,有它的字,都跟水有關。', visual: rad('氵', '三點水', '水', ['河', '海', '洗', '湖']) },
+      { t: 'ask', text: '哪一個字有「三點水」?', visual: { kind: 'bigchar', text: '氵', sub: '三點水' },
+        options: ['海', '打', '吃'], answer: '海', hint: '三點水跟水有關,哪個字跟水有關?', say: '哪一個字有三點水?' },
+      { t: 'show', text: '扌叫「提手旁」,有它的字,都跟手有關。', say: '提手旁,有它的字,都跟手有關。', visual: rad('扌', '提手旁', '手', ['打', '拉', '提', '推']) },
+      { t: 'show', text: '口字旁跟嘴巴有關;木字旁跟樹木有關;草字頭跟花草有關;日字旁跟太陽有關。', say: '口字旁跟嘴巴有關。木字旁跟樹木有關。草字頭跟花草有關。日字旁跟太陽有關。',
+        visual: { kind: 'chars', chars: ['吃', '桌', '花', '晴'], caption: '口 · 木 · 艹 · 日' } },
+      { t: 'ask', text: '「花」的部首是什麼?', visual: { kind: 'bigchar', text: '花' },
+        options: ['艹', '木', '口'], answer: '艹', hint: '花是長在草地上的,跟花草有關。', say: '花的部首是什麼?' }
+    ]
+  };
+
+  // ── 國語 部首(二) ──
+  L.cn2 = {
+    title: '更多部首',
+    steps: [
+      { t: 'show', text: '言字旁跟說話有關:說、請、話、語。', say: '言字旁跟說話有關。說,請,話,語。', visual: rad('言', '言字旁', '說話', ['說', '請', '話', '語']) },
+      { t: 'show', text: '足字旁跟腳有關;女字旁跟女生有關;豎心旁跟心情有關。', say: '足字旁跟腳有關。女字旁跟女生有關。豎心旁跟心情有關。',
+        visual: { kind: 'chars', chars: ['跑', '媽', '快'], caption: '足 · 女 · 忄' } },
+      { t: 'ask', text: '「跳」的部首是什麼?', visual: { kind: 'bigchar', text: '跳' },
+        options: ['足', '言', '女'], answer: '足', hint: '跳要用到腳,跟腳有關。', say: '跳的部首是什麼?' },
+      { t: 'show', text: '糸跟線有關;金跟金屬有關;火跟火有關;竹跟竹子有關;雨跟下雨有關。', say: '絞絲旁跟線有關。金字旁跟金屬有關。火字旁跟火有關。竹字頭跟竹子有關。雨字頭跟下雨有關。',
+        visual: { kind: 'chars', chars: ['紅', '錢', '燈', '筆', '雲'], caption: '糸 · 金 · 火 · 竹 · 雨' } },
+      { t: 'ask', text: '「雲」的部首是什麼?', visual: { kind: 'bigchar', text: '雲' },
+        options: ['雨', '火', '金'], answer: '雨', hint: '雲在天上,會下雨,跟下雨有關。', say: '雲的部首是什麼?' }
+    ]
+  };
+
   window.PLS_LESSONS = L;
 })();

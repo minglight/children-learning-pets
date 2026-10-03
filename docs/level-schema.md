@@ -80,3 +80,13 @@
 - `deluxeAt`(10)與 `clearCapBasic`(3)過去互相打架,`store.js` 的 `hitDeluxeMilestone` 已經放行第 10 次通關不受入門關卡上限卡住——**這個雷已經修好**,新增關卡不會踩到(`CLAUDE.md` 的說明已同步)。
 - 過關判定是 `store.passCheck()`:最多錯 `max(1, floor(count × (1 − passRate)))` 題。英文關卡 `count` 小於 10 也一樣是「錯 1 題以內」,設計 `count` 時不用擔心比例算出來變成一題都不能錯。
 - `gen`/`bank`/`play`/`wordPool`/`toyArtU`/`feast.items` 這些字串欄位目前**完全沒有 schema 驗證**,打錯字都是等玩家點進那關才在畫面/console 出錯,沒有載入期的自我檢查。日後如果想一次解決,可以在開機時加一段簡單的自檢(逐一確認 `CFG.math` 每筆的 `gen` 都存在於 `G.gen`、`CFG.english` 每筆的 `toyArtU` 都存在於 `TOYS`……),失敗就 `console.warn`,但這是額外投資,不是現在的阻礙。
+
+---
+
+## 六、新增國語關卡(`config.js` 的 `chinese` 陣列,`app/chinese.js` 出題)
+
+國語關卡走跟數學一樣的 `map`/`quiz`/`feast`(食物獎勵),差別:科目是 `'chinese'`(`daily.chinese` 額度獨立,見 CLAUDE.md「國語」)。
+- [ ] **題目由 `chinese.js` 的出題器產生**:資料表(`RADICALS` 部首、`SEL` 選字句子、`MEASURE` 量詞)加一筆就多一題;每個出題器的不同題目數要 ≥ 回合題數(10)的 5 倍(`PLS_CHINESE.sizes()` 在 console 看)。
+- [ ] **選項要「只有一個對」**:選字的干擾字放進去必須不通順(同一句只能有一個答案);量詞的干擾要確定不能用(「一隻魚」「一把椅子」這種也通的不要放)。部首表裡每個字只能屬於一個部首。
+- [ ] **新關卡加在 `chinese` 陣列尾端**、`id` 全新(`cn6`…);`bite`/`feast.items` 用新設計的食物(art.js + `screens.js FOOD_NAMES` 兩處都要補)。
+- [ ] 想先教再考:在 `lessons.js` 加同 id 的 key(格式見檔頭)。

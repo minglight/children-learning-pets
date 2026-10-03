@@ -157,7 +157,8 @@
       ctx.fillStyle = dead ? '#EDE6DC' : right ? '#D8EFE2' : '#FFFFFF';
       A.rr(ctx, x, y, w, h, 28); ctx.fill();
       ctx.restore();
-      const fit = A.fitText(ctx, String(this.opts[k]), w - 34, h - 44, 46, 22);
+      const big = this.opts.every(function (o) { return String(o).length <= 2 && !/^\d+$/.test(String(o)); });   // 單字/部首選項放大(國語)
+      const fit = A.fitText(ctx, String(this.opts[k]), w - 34, h - 44, big ? 110 : 46, 22);
       A.drawLines(ctx, fit.lines, fit.size, x + w / 2, y + h / 2, right ? '#2F7D5C' : '#5E4A36');
       ctx.restore();
     },

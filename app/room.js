@@ -91,8 +91,9 @@
       for (var j = 0; j < tlist.length; j++) if (tlist[j].id === m.lv) { tidx = j; break; }
       if (tidx < 0) continue;
       if (ST.levelState(d, tlist, tidx) === 'locked') return null;
-      if (!ST.canEarnNow(d, 'math', m.lv)) return null;
-      return { screen: 'quiz', params: { pet: slot, levelIdx: tidx, practice: false, tier: tiers[ti] }, subject: 'math', levelId: m.lv };
+      var subj = ST.subjectOfTier(tiers[ti]);   // 數學各池 = 'math',國語 = 'chinese'
+      if (!ST.canEarnNow(d, subj, m.lv)) return null;
+      return { screen: 'quiz', params: { pet: slot, levelIdx: tidx, practice: false, tier: tiers[ti] }, subject: subj, levelId: m.lv };
     }
     return null;
   }
@@ -420,6 +421,10 @@
       ctx.fillStyle = '#B79B7E'; el(ctx, x, y - 8, 8, 8); ctx.fill();
       ctx.beginPath(); ctx.moveTo(x - 13, y + 13); ctx.quadraticCurveTo(x, y - 2, x + 13, y + 13); ctx.fill();
     },
+    chinese: function (ctx, x, y) {
+      ctx.fillStyle = '#B15A4A'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '700 32px ' + FONT; ctx.fillText('國', x, y + 2);
+    },
     abc: function (ctx, x, y) {
       ctx.fillStyle = '#5E8A86'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.font = '700 27px ' + FONT; ctx.fillText('Aa', x, y + 1);
@@ -620,6 +625,10 @@
           sub: function () { const r = ST.remainToday(ST.load(pid), 'english'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以拿 ' + r + ' 個玩具' : '今天玩具拿夠了,可以練習'; },
           action: function () { PLS.go('tierPick', { pet: pid, subject: 'english' }); } }
       ];
+      // 國語教室(2026-10):獨立科目 'chinese',直接進關卡地圖(沒有選挑戰那一層)
+      NAV.splice(2, 0, { bg: '#FBE9E4', line: '#B15A4A', icon: ICON.chinese, title: '國語教室',
+        sub: function () { const r = ST.remainToday(ST.load(pid), 'chinese'); return ST.isTest() ? '測試版 · 不限次數' : r > 0 ? '今天還可以賺 ' + r + ' 次食物' : '今天賺夠了,可以練習'; },
+        action: function () { PLS.go('map', { pet: pid, tier: 'chinese' }); } });
       NAV.push({ go: 'emenu', bg: '#E5F0EF', line: '#3F8A84', icon: ICON.abc,   title: '字母手寫練習', sub: function () { return '選字母 · 描字母 · 看筆順'; } });
       // v11:好友雲端同步(選用附加功能)— cloud.js 沒載入/未設定時 PLS_FRIENDS 不存在,這張卡不會被加進去。
       if (window.PLS_FRIENDS) {
@@ -629,7 +638,8 @@
           action: function () { window.PLS_FRIENDS.open(pid); }
         });
       }
-      const NTOP = 168, NSTEP = 98, NH = 86;
+      // 卡片超過 4 張(國語 + 好友)時縮小,才不會壓到下面的成長卡(GROWTH_CARD.y = 560)
+      const NTOP = 168, NSTEP = NAV.length > 4 ? 76 : 98, NH = NAV.length > 4 ? 70 : 86;
       NAV.forEach(function (it, i) {
         const y = NTOP + i * NSTEP;
         PLS.addButton({
