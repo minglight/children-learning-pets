@@ -281,10 +281,13 @@
   }
 
   // 上課(先教再考)看過沒:d.lessons = { 關卡id: true }。欄位用到才建立,舊檔不用 migrate、不升 SCHEMA_VERSION。
-  function lessonSeen(d, id) { return !!(d.lessons && d.lessons[id]); }
+  // 匯入檔裡的 lessons 可能不是物件(null / 字串 / 陣列…):讀的時候一律當沒看過,寫的時候重建成 {}。
+  // 陣列要特別擋:陣列上加 'g2c8' 這種屬性,JSON.stringify 會整個丟掉,看過的課就永遠存不進去。
+  function lessonsObj(d) { return d.lessons && typeof d.lessons === 'object' && !Array.isArray(d.lessons); }
+  function lessonSeen(d, id) { return !!(lessonsObj(d) && d.lessons[id] === true); }
   function markLessonSeen(d, id) {
     if (lessonSeen(d, id)) return;
-    if (!d.lessons || typeof d.lessons !== 'object') d.lessons = {};
+    if (!lessonsObj(d)) d.lessons = {};
     d.lessons[id] = true;
     save(d);
   }

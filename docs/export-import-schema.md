@@ -282,4 +282,6 @@
 ### 先教再考(2026-10,schema 版本不變)
 - 小孩存檔新增**選填**欄位 `lessons`(物件,`{ 關卡id: true }`):這個小孩已看過(或跳過)哪些關卡的「上課」。沒有這個欄位 = 都沒看過。
 - **schema 版本不變、`migratePet()` 不需要新階梯**:欄位用到才由 `store.markLessonSeen()` 建立,`lessonSeen()` 讀不到一律當作沒看過;舊備份匯入後第一次點有上課腳本的關卡會再上一次課(可跳過)。
+- **匯出 / 匯入原樣帶過**:`exportAll()` 把整個小孩物件寫進匯出檔,`importAll()` → `migratePet()` 不會刪掉不認得的欄位,所以 `lessons` 會跟著備份走;雲端備份還原(`cloud.js` 呼叫 `importAll`)同一條路。
+- **匯入的防呆**:匯入檔缺 `lessons`、或值不是物件(`null`、字串、數字、陣列)都不會出錯——`lessonSeen()` 一律當作沒看過,`markLessonSeen()` 第一次寫入時重建成 `{}`(陣列也重建,不然加上去的屬性在 `JSON.stringify` 時會被丟掉)。2026-10-03 用 node 對六種值實測過 `importAll` → `markLessonSeen` → `exportAll`。
 - 上課腳本在 `app/lessons.js`(key = 關卡 id),不進存檔、不進匯出檔。
