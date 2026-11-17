@@ -1,0 +1,10 @@
+{
+  "name": "pls-tests",
+  "private": true,
+  "description": "寵物小學堂的測試工具(只在本機跑,不是 App 的一部分)。見 Makefile 的 test、test-rules、test-sync。",
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "3.0.4",
+    "firebase": "10.12.2",
+    "firebase-tools": "13.29.1"
+  }
+}

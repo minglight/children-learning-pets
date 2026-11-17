@@ -1,5 +1,5 @@
 // sw.js — 離線快取(cache-first)
-const VERSION = 'pls-v88';
+const VERSION = 'pls-v89';
 const ASSETS = [
   '.',
   'index.html',
@@ -12,6 +12,8 @@ const ASSETS = [
   'app/bank.js',
   'app/store.js',
   'app/cloud.js',
+  'app/sync-merge.js',
+  'app/family.js',
   'app/art.js',
   'app/pets.js',
   'app/actor.js',

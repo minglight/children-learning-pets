@@ -29,6 +29,8 @@
     PLS.currentName = name;
     PLS.current = PLS.screens[name];
     if (PLS.current && PLS.current.enter) PLS.current.enter(params);
+    // SEC-380:回到首頁是「安全時機」(沒有畫面拿著小孩存檔),這時跟家庭雲端同步
+    if (name === 'home' && window.PLS_FAMILY && window.PLS_FAMILY.safePoint) window.PLS_FAMILY.safePoint(params);
   };
 
   // ── 按鈕 ──────────────────────────────────────────────

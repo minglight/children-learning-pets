@@ -61,7 +61,7 @@
       return readyPromise;
     }
     try {
-      firebase.initializeApp(CFG.firebase);
+      if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(CFG.firebase);
       db = firebase.firestore();
       auth = firebase.auth();
       readyPromise = auth.signInAnonymously().then(function () {
@@ -70,7 +70,7 @@
             if (user) { uid = user.uid; if (unsub) unsub(); resolve(true); }
           });
         });
-      }).catch(function () { return false; });
+      }).catch(function () { readyPromise = null; return false; });   // 開機時離線:之後再呼叫 init() 會重試登入
     } catch (e) {
       readyPromise = Promise.resolve(false);
     }
@@ -170,6 +170,8 @@
             lastBackupAt: Date.now()
           };
           saveLocal(slot, newRec);
+          // SEC-380:好友身份剛建好 → 告訴家庭同步把它掛到家庭上(後台才查得到、家裡其他裝置才能沿用)
+          if (window.PLS_FAMILY && window.PLS_FAMILY.onLinked) window.PLS_FAMILY.onLinked(slot);
           return newRec;
         });
       });
@@ -435,8 +437,32 @@
     saveLocal(slot, rec);
   }
 
+  // ── SEC-380 家庭同步(app/family.js)用 ──
+  // ready():連上雲端後給 {db, uid, projectId};沒設定/離線給 null。
+  function ready() {
+    return init().then(function (ok) { return ok ? { db: db, uid: uid, projectId: PROJECT_ID } : null; })
+      .catch(function () { return null; });
+  }
+  // 這個小孩在這台裝置的好友身份(沒有就 null)
+  function getLink(slot) {
+    var rec = loadLocal(slot);
+    return rec.playerId ? { playerId: rec.playerId, friendCode: rec.friendCode || '', restoreCode: rec.restoreCode || '' } : null;
+  }
+  // 加入家庭時沿用家庭裡這個小孩的好友身份(好友代碼、還原碼都跟著同一個小孩走,不跟裝置走)
+  function adoptLink(slot, link) {
+    if (!link || !link.playerId) return;
+    var rec = loadLocal(slot);
+    if (rec.playerId === link.playerId) return;
+    saveLocal(slot, {
+      playerId: link.playerId, friendCode: link.friendCode || '', restoreCode: link.restoreCode || '',
+      // 來訪通知的已讀游標從現在算:那些紀錄別台多半已經顯示過,不要一次跳一大串舊通知
+      lastBackupAt: rec.lastBackupAt || null, lastVisitLogCheckAt: Date.now()
+    });
+  }
+
   window.PLS_CLOUD = {
     init: init,
+    ready: ready, getLink: getLink, adoptLink: adoptLink,
     isConfigured: function () { return configured; },
     ensureLinked: ensureLinked,
     getLocalInfo: getLocalInfo,

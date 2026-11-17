@@ -261,23 +261,76 @@
           raw = localStorage.getItem(KEY(slot));
         }
       }
-      if (!raw) return blank(slot, null);   // 全新小孩:尚未選寵物(species = null)
+      if (!raw) { const b = blank(slot, null); stamp(b, slot, null); return b; }   // 全新小孩:尚未選寵物(species = null)
       const d = migratePet(JSON.parse(raw), slot, LEGACY_SLOT[slot] || null);
       if (d.daily.date !== today()) d.daily = { date: today(), math: 0, english: 0, hw: 0 };  // 跨日歸零
       if (d.care.date !== today()) d.care = { date: today(), fed: 0, played: 0, xpToday: 0, careXp: 0 };   // v4:照顧計數跨日歸零(v8:含 xpToday;v15:含 careXp)
+      stamp(d, slot, raw);
       return d;
     } catch (e) { return blank(slot, null); }
   }
 
-  function save(d) {
+  // ── SEC-380 舊物件保護 ──
+  // 家庭同步換掉本機存檔(replaceSlot)時,畫面手上可能還拿著換之前 load() 的物件;它之後 save() 會把雲端進度蓋回去。
+  // 每次 load() 在物件上偷偷記「第幾代」與當時的原始內容(不可列舉,不進 JSON);save() 發現是舊一代的物件,
+  // 就用三方合併(當時內容 → 這個物件 → 現在的存檔)寫入,兩邊的改動都留下。
+  var gens = {};
+  function stamp(d, slot, raw) {
     try {
-      d._v = SCHEMA_VERSION;   // 蓋上 schema 版本戳記,讓日後升級可判斷來源版本做 migrate
-      d.pet = d.species || d.slot;   // 保持相容欄位同步
-      localStorage.setItem(KEY(d.slot || 'kidL'), JSON.stringify(d));
+      Object.defineProperty(d, '__gen', { value: gens[slot] || 0, writable: true, enumerable: false, configurable: true });
+      Object.defineProperty(d, '__raw', { value: raw, writable: true, enumerable: false, configurable: true });
     } catch (e) {}
+  }
+  function resolveStale(d) {
+    var slot = d.slot || 'kidL';
+    if (d.__gen === undefined || d.__gen === (gens[slot] || 0) || !window.PLS_MERGE) return d;
+    try {
+      var cur = load(slot);
+      var base = d.__raw ? JSON.parse(d.__raw) : JSON.parse(JSON.stringify(blank(slot, null)));   // 拿的時候還沒有存檔 → 以空白小孩為準
+      var merged = window.PLS_MERGE.merge3(base, JSON.parse(JSON.stringify(d)), JSON.parse(JSON.stringify(cur)));
+      d.__raw = JSON.stringify(d);   // 這個舊物件下次再存,只算這次之後的改動
+      merged.slot = slot;
+      return merged;
+    } catch (e) { return d; }
+  }
+  function saveQuiet(d) {
+    d = resolveStale(d);
+    try {
+      // 蓋上 schema 版本戳記,讓日後升級可判斷來源版本做 migrate。只升不降:多裝置同步時還沒更新的舊版
+      // 可能拿到新版寫的資料,不能把版本號改小(新版會誤以為要再 migrate 一次)。
+      d._v = Math.max(typeof d._v === 'number' ? d._v : 0, SCHEMA_VERSION);
+      d.pet = d.species || d.slot;   // 保持相容欄位同步
+      var json = JSON.stringify(d);
+      localStorage.setItem(KEY(d.slot || 'kidL'), json);
+      if (d.__gen !== undefined) d.__raw = json;   // 舊物件保護:之後只算這次存檔以後的改動
+    } catch (e) {}
+  }
+  function save(d) {
+    saveQuiet(d);
     // v11:好友雲端同步(選用附加功能)— 每次存檔都標記「待上傳」,由 cloud.js 背景節流合併備份。
     // cloud.js 未載入/未設定/離線時 markDirty 不存在或安靜失敗,完全不影響本機存檔。
     if (window.PLS_CLOUD && PLS_CLOUD.markDirty) PLS_CLOUD.markDirty(d.slot || 'kidL');
+    // SEC-380 家庭同步:同一份存檔推到家庭雲端(app/family.js),其他裝置下次回首頁就拿到。
+    if (window.PLS_FAMILY && PLS_FAMILY.markDirty) PLS_FAMILY.markDirty(d.slot || 'kidL');
+  }
+
+  // ── SEC-380 家庭同步用(app/family.js)──
+  // 用雲端版整份換掉本機這個小孩(經 migratePet 補欄位,不觸發再上傳),回傳換上去之後的存檔。
+  function replaceSlot(slot, data) {
+    var d = migratePet(JSON.parse(JSON.stringify(data || {})), slot, LEGACY_SLOT[slot] || null);
+    d.slot = slot;
+    gens[slot] = (gens[slot] || 0) + 1;   // 之前 load() 出去的物件都變成舊一代
+    saveQuiet(d);
+    return load(slot);
+  }
+  // 這個存檔有沒有「值得保留」的進度(選過寵物、過過關、有點數或成長、有珍藏)
+  function hasProgress(d) {
+    if (!d || typeof d !== 'object') return false;
+    if (d.species) return true;
+    if ((d.points || 0) > 0) return true;
+    if (d.growth && (d.growth.xp || 0) > 0) return true;
+    if (Array.isArray(d.collection) && d.collection.length) return true;
+    return !!(d.levels && Object.keys(d.levels).length);
   }
 
   // 上課(先教再考)看過沒:d.lessons = { 關卡id: true }。欄位用到才建立,舊檔不用 migrate、不升 SCHEMA_VERSION。
@@ -316,6 +369,7 @@
   }
   function setDailyLimit(n) {
     try { localStorage.setItem('pls.dailyLimit', String(n)); } catch (e) {}
+    settingsChanged();
   }
 
   function remainToday(d, subject) {
@@ -362,6 +416,7 @@
   }
   function setClearCapBasic(n) {
     try { localStorage.setItem('pls.clearCapBasic', String(n)); } catch (e) {}
+    settingsChanged();
   }
   function getClearCapAdvanced() {
     try {
@@ -371,6 +426,7 @@
   }
   function setClearCapAdvanced(n) {
     try { localStorage.setItem('pls.clearCapAdvanced', String(n)); } catch (e) {}
+    settingsChanged();
   }
   // 這個小孩「進階關卡」從第幾關(id)開始算(家長區可個別調整,預設沿用 config 裡的小二起點 'm8')
   function getAdvancedFrom(slot) { return load(slot).advancedFrom || 'm8'; }
@@ -902,9 +958,9 @@
     try {
       var arr = JSON.parse(localStorage.getItem('pls.prizes') || '[]');
       if (!Array.isArray(arr)) return [];
-      return arr.filter(function (p) { return p && p.name; }).map(function (p) {
+      return arr.filter(function (p) { return p && p.name; }).map(function (p, i) {
         return {
-          id: p.id || ('z' + Math.random().toString(36).slice(2, 9)),
+          id: p.id || ('z' + i),   // 固定的 id:全家設定同步要比對內容,每次讀都換隨機 id 會永遠「不一樣」
           name: String(p.name).slice(0, 24),
           cost: Math.max(1, parseInt(p.cost, 10) || 1)
         };
@@ -913,6 +969,7 @@
   }
   function setPrizes(arr) {
     try { localStorage.setItem('pls.prizes', JSON.stringify(Array.isArray(arr) ? arr : [])); } catch (e) {}
+    settingsChanged();
   }
 
   // 兌換獎品:扣本寵物積分,成功回 true(點數不足回 false)。
@@ -932,6 +989,33 @@
   }
   function setRewardsHidden(on) {
     try { localStorage.setItem('pls.rewardsHidden', on ? '1' : '0'); } catch (e) {}
+    settingsChanged();
+  }
+
+  // ── SEC-380 全家共用設定(家庭同步)──
+  // 家長在任何一台改了獎品目錄、隱藏獎品、每日上限、過關上限,都同步到同一個家庭的其他裝置。
+  // testMode 只是 QA 開關,刻意不同步。
+  var applyingSettings = false;
+  function settingsChanged() {
+    if (applyingSettings) return;
+    if (window.PLS_FAMILY && PLS_FAMILY.markSettingsDirty) PLS_FAMILY.markSettingsDirty();
+  }
+  function getSettings() {
+    return {
+      prizes: getPrizes(), rewardsHidden: rewardsHidden(), dailyLimit: getDailyLimit(),
+      clearCapBasic: getClearCapBasic(), clearCapAdvanced: getClearCapAdvanced()
+    };
+  }
+  function applySettings(o) {
+    if (!o || typeof o !== 'object') return;
+    applyingSettings = true;
+    try {
+      if (Array.isArray(o.prizes)) setPrizes(o.prizes);
+      if (typeof o.rewardsHidden === 'boolean') setRewardsHidden(o.rewardsHidden);
+      if (typeof o.dailyLimit === 'number') setDailyLimit(o.dailyLimit);
+      if (typeof o.clearCapBasic === 'number') setClearCapBasic(o.clearCapBasic);
+      if (typeof o.clearCapAdvanced === 'number') setClearCapAdvanced(o.clearCapAdvanced);
+    } finally { applyingSettings = false; }
   }
 
   // 匯出 / 匯入(家長區)— schema 細節見 docs/export-import-schema.md
@@ -975,6 +1059,8 @@
     DECO_N: DECO_N, decoOwned: decoOwned, ownsDeco: ownsDeco,
     setCollectionDeco: setCollectionDeco, setCurrentDeco: setCurrentDeco,
     load: load, save: save, levelState: levelState,
+    // SEC-380 家庭同步
+    replaceSlot: replaceSlot, hasProgress: hasProgress, getSettings: getSettings, applySettings: applySettings,
     remainToday: remainToday, recordRun: recordRun,
     exportAll: exportAll, importAll: importAll, today: today,
     isTest: isTest, setTest: setTest,

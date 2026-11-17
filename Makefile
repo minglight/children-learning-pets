@@ -49,3 +49,21 @@ debug: start
 
 admin: start
 	open "$(URL)/admin.html"
+
+## ── 測試(SEC-380 多裝置同步)──
+## 第一次要先裝測試工具:cd tests && npm install(需要 Java 跑 Firebase 模擬器)
+FB := tests/node_modules/.bin/firebase
+.PHONY: test test-unit test-rules test-sync
+test: test-unit test-rules test-sync
+
+## 純函式單元測試(合併規則)
+test-unit:
+	node --test tests/*.test.js
+
+## Firestore 規則(模擬器)
+test-rules:
+	$(FB) emulators:exec --only firestore --project demo-pets "node --test tests/rules.test.mjs"
+
+## 兩台模擬裝置跑真的 store.js / cloud.js / family.js(模擬器)
+test-sync:
+	$(FB) emulators:exec --only firestore,auth --project demo-pets "node --test tests/sync.test.mjs"

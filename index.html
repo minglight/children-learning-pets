@@ -152,7 +152,7 @@
   <div id="parent-panel">
     <button class="pbtn ghost" id="parent-close">關閉 ✕</button>
     <h2>家長區</h2>
-    <p class="hint">進度只存在這台裝置上。請定期「匯出進度」備份;換裝置或資料遺失時可匯入還原。</p>
+    <p class="hint">進度會自動同步到雲端:同一個家的裝置用下面的「家庭配對碼」綁在一起,兩個小孩在哪一台玩都是同一份進度。離線也能玩,連上網再補同步。想多一份保險,也可以「匯出進度」存成檔案。</p>
 
     <section>
       <h3>學習狀況</h3>
@@ -242,6 +242,18 @@
         <input type="file" id="import-file" accept="application/json">
       </div>
       <div id="parent-msg"></div>
+    </section>
+
+    <section>
+      <h3>多裝置同步(家庭配對碼)</h3>
+      <p class="hint" style="margin:0 0 12px">家裡每一台裝置都輸入同一組配對碼,兩個小孩的進度、點數,還有獎品清單、每日上限這些設定,在每一台都會一樣。配對碼只在家長區看得到,不要給小朋友的朋友。</p>
+      <div id="family-info"></div>
+      <h3 style="margin-top:16px">把這台加進別台的家庭</h3>
+      <p class="hint" style="margin:0 0 8px">輸入另一台家長區顯示的配對碼。加入後,這台會換成那個家庭的進度(如果那邊某個小孩還沒開始玩,就保留這台的);這台原本的進度會先備份到雲端,需要時可以請管理員還原。</p>
+      <div class="prow">
+        <input type="text" id="family-code-input" maxlength="10" placeholder="輸入 10 碼配對碼" style="width:200px;text-transform:uppercase">
+        <button class="pbtn ghost" id="family-join-btn">加入</button>
+      </div>
     </section>
 
     <section>
@@ -338,6 +350,7 @@
 <script src="app/gen.js"></script>
 <script src="app/chinese.js"></script>
 <script src="app/bank.js"></script>
+<script src="app/sync-merge.js"></script>
 <script src="app/store.js"></script>
 <!-- 好友雲端同步 / 自動備份(選用):Firebase compat SDK,固定版本以配合 sw.js 離線快取。
      app/cloud.js 對「SDK 載入失敗 / CFG.firebase 未設定 / 離線」全部 fail-soft,不影響本機遊戲。 -->
@@ -345,6 +358,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="app/cloud.js"></script>
+<script src="app/family.js"></script>
 <script src="app/art.js"></script>
 <script src="app/toys.js"></script>
 <script src="app/visuals.js"></script>
@@ -398,11 +412,13 @@
       const e = countLevels(d, CFG.english.concat(CFG.english2 || []));
       const row = document.createElement('div');
       row.className = 'stat-row';
-      row.innerHTML = '<b>' + kidLabel(slot, d) + '</b>' +
-        '<span>數學通關 ' + m.cleared + ' / ' + m.total + ' 關(玩過 ' + m.plays + ' 輪)</span>' +
-        '<span>英文通關 ' + e.cleared + ' / ' + e.total + ' 關(玩過 ' + e.plays + ' 輪)</span>' +
-        '<span>今日數學 ' + (d.daily.math || 0) + ' / ' + ST.getDailyLimit() + '・英文 ' + (d.daily.english || 0) + ' / ' + ST.getDailyLimit() + '</span>' +
-        '<span>積分 🪙 ' + ST.getPoints(d) + '</span>';
+      // 存檔可能是同家庭別台從雲端同步來的(SEC-380),名字等字串一律 textContent,不用 innerHTML
+      const cell = function (tag, text) { const el = document.createElement(tag); el.textContent = text; row.appendChild(el); };
+      cell('b', kidLabel(slot, d));
+      cell('span', '數學通關 ' + m.cleared + ' / ' + m.total + ' 關(玩過 ' + m.plays + ' 輪)');
+      cell('span', '英文通關 ' + e.cleared + ' / ' + e.total + ' 關(玩過 ' + e.plays + ' 輪)');
+      cell('span', '今日數學 ' + (d.daily.math || 0) + ' / ' + ST.getDailyLimit() + '・英文 ' + (d.daily.english || 0) + ' / ' + ST.getDailyLimit());
+      cell('span', '積分 🪙 ' + ST.getPoints(d));
       box.appendChild(row);
       const lbl = document.getElementById('name-label-' + slot);
       const sp = d.species && CFG.pets[d.species];
@@ -495,6 +511,55 @@
     });
   }
 
+  // ── 多裝置同步(SEC-380,app/family.js)──
+  function refreshFamilyInfo() {
+    const box = document.getElementById('family-info');
+    box.textContent = '';
+    if (!window.PLS_FAMILY) return;
+    const info = window.PLS_FAMILY.info();
+    const row = document.createElement('div');
+    row.className = 'stat-row';
+    row.appendChild(document.createTextNode('這個家庭的配對碼:'));
+    const codeEl = document.createElement('b');
+    codeEl.textContent = info.pairCode || '尚未產生(需連網)';
+    row.appendChild(codeEl);
+    const syncEl = document.createElement('span');
+    syncEl.textContent = info.lastSyncAt ? ('上次同步 ' + new Date(info.lastSyncAt).toLocaleString()) : '尚未同步';
+    row.appendChild(syncEl);
+    box.appendChild(row);
+    window.PLS_FAMILY.members().then(function (list) {
+      if (!list.length) return;
+      const m = document.createElement('div');
+      m.className = 'stat-row';
+      m.textContent = '已綁定的裝置:' + list.map(function (x) { return x.label + (x.me ? '(這台)' : ''); }).join('、');
+      box.appendChild(m);
+    });
+  }
+  const FAMILY_REASON_MSG = {
+    not_found: '找不到這組配對碼,請再檢查一次',
+    offline: '目前無法連線,請檢查網路',
+    empty: '請輸入配對碼',
+    same: '這台已經在這個家庭裡了'
+  };
+  document.getElementById('family-join-btn').addEventListener('click', function () {
+    if (!window.PLS_FAMILY) return;
+    const code = document.getElementById('family-code-input').value.trim();
+    if (!code) { msg.textContent = FAMILY_REASON_MSG.empty; return; }
+    if (!window.confirm('加入後,這台的兩個小孩會換成那個家庭的進度(原本的會先備份到雲端;那邊還沒開始玩的小孩會保留這台的)。獎品清單、每日上限這些設定也會換成那個家庭的。確定要加入嗎?')) return;
+    msg.textContent = '加入中…';
+    window.PLS_FAMILY.join(code).then(function (res) {
+      if (res.ok) {
+        msg.textContent = '已加入!這台現在跟家裡其他裝置同步。';
+        document.getElementById('family-code-input').value = '';
+        refreshStats(); refreshNicknames(); refreshCloudInfo(); refreshClearCaps(); refreshFamilyInfo();
+        document.getElementById('rewards-hide-toggle').checked = ST.rewardsHidden();
+        renderPrizes();
+      } else {
+        msg.textContent = FAMILY_REASON_MSG[res.reason] || '加入失敗,請稍後再試';
+      }
+    });
+  });
+
   // ── 獎品商店:目錄編輯 ──
   const prizeList = document.getElementById('prize-list');
   function addPrizeRow(name, cost) {
@@ -538,7 +603,7 @@
 
   window.PLS_PARENT = {
     open: function () {
-      refreshStats(); refreshNicknames(); refreshCloudInfo(); refreshClearCaps(); msg.textContent = '';
+      refreshStats(); refreshNicknames(); refreshCloudInfo(); refreshFamilyInfo(); refreshClearCaps(); msg.textContent = '';
       document.getElementById('test-toggle').checked = ST.isTest();
       document.getElementById('rewards-hide-toggle').checked = ST.rewardsHidden();
       renderPrizes();
@@ -904,6 +969,7 @@
 
   // ── 啟動 ──
   if (window.PLS_CLOUD) window.PLS_CLOUD.init();   // 提早匿名登入,不等到第一次好友/備份操作才連線
+  if (window.PLS_FAMILY) window.PLS_FAMILY.start();   // SEC-380:家庭同步(建家庭/拉最新進度),失敗時安靜不做事
   window.PLS.init(document.getElementById('game'));
   window.PLS.go('home');
 

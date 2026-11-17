@@ -9,8 +9,9 @@
 
 ## 專案性質
 - **純前端、單機 App**（HTML + Canvas + 原生 JS，PWA / 可離線）。
-- **核心玩法沒有後端、沒有伺服器、沒有帳號**。所有使用者資料的**權威來源永遠是裝置本機**（`localStorage`）。
-- **例外(v11,選用附加功能)**：好友雲端同步 / 自動備份 / 維運後台(`app/cloud.js`、`firestore.rules`、`admin.html`)是額外疊加的一層,詳見下方「好友雲端同步」章節。這層**完全 fail-soft**——沒設定 `CFG.firebase` 或離線時安靜不做事,絕不影響數學/英文/手寫/積分/電子雞養成等既有功能,也不改變上面「權威來源是本機」這條原則。
+- **核心玩法沒有後端、沒有伺服器、沒有帳號**。玩的時候一律讀寫裝置本機（`localStorage`），離線照樣能玩。
+- **例外(v11,選用附加功能)**：好友雲端同步 / 自動備份 / 維運後台(`app/cloud.js`、`firestore.rules`、`admin.html`)是額外疊加的一層,詳見下方「好友雲端同步」章節。這層**完全 fail-soft**——沒設定 `CFG.firebase` 或離線時安靜不做事,絕不影響數學/英文/手寫/積分/電子雞養成等既有功能。
+- **多裝置同步(SEC-380,2026-11,`app/family.js`)改了「權威來源」**:有網路時,**每個小孩的進度以雲端 `families/{fid}/kids/{slot}` 為準**,本機 `localStorage` 是快取＋離線時的工作副本;兩台都改過就三方合併(`app/sync-merge.js`),不會整份蓋掉。離線、Firebase 沒設定時行為跟以前一樣(本機就是全部)。詳見下方「多裝置同步」章節。
 
 ## 資料儲存（最重要）
 - 進度與設定**只能存在瀏覽器 cache**（`localStorage`，鍵名 `pls.*`，見 `app/store.js`）。
@@ -148,7 +149,7 @@
 ## 好友雲端同步 / 自動備份(選用附加功能,v11,`app/cloud.js`)
 - **身份錨點是「小孩存檔 slot」（`kidL`/`kidR`），不是物種**:物種(`species`)是小孩底下會換的屬性(換寵物/畢業都會變),雲端好友代碼/還原碼/暱稱一律跟著 slot 走,不跟著物種走。所有 `app/cloud.js` 的方法第一個參數都是 `slot`。
 - **小朋友暱稱**:`pet.childNickname`(schema v11,好友辨識用,獨立於寵物名字/種類;換寵物/畢業都不變)是本機 schema 的正式欄位,會隨「匯出進度」/「匯入進度」/還原碼一起搬家。`pet.giftsGiven` 是拜訪分享次數的小統計,不影響經驗值/點數。
-- **Firestore 集合**(`players`/`friendCodes`/`friends`/`visits`/`visitLog`/`backups`)的完整結構、權限規則、節流節奏見 **`docs/cloud-friends-schema.md`**(權威規格)與 `firestore.rules`。**Firestore 端不是進度的權威來源**,只是鏡射備份 + 唯讀拜訪快照,本機 `localStorage` 才是。
+- **Firestore 集合**(`players`/`friendCodes`/`friends`/`visits`/`visitLog`/`backups`)的完整結構、權限規則、節流節奏見 **`docs/cloud-friends-schema.md`**(權威規格)與 `firestore.rules`。`players`/`backups` 這些集合不是進度的權威來源,只是鏡射備份 + 唯讀拜訪快照;進度的權威來源是「多裝置同步」的 `families/*/kids/*`(見下方章節)。
 - **拜訪好友是互動式的**(`app/room.js` 房間左欄「好友」卡 → `window.PLS_FRIENDS.open(slot)` → `app/visit.js`):帶著自己的寵物走進朋友房間(重用 `app/room.js` 匯出的 `window.PLS_ROOM2` 共用繪製元件,不另外重畫一套房間美術),可以從自己背包(`inv.foods`/`inv.gold`/`inv.toys`)挑一項給朋友的寵物,**一次拜訪限一次**。寫入只會落在朋友的 `visitLog` 子集合,結構上(Firestore 規則層級)就不可能碰到朋友的 `status`/`points`/成長進度。
 - ⚠ **「給朋友的寵物吃/玩」不是「送禮物」**(v14 澄清,小朋友的原始設計意圖):挑的那樣東西是**當場給對方的寵物吃掉 / 陪牠玩**(所以 `visit.js` 有走過來吃三口 / 玩玩具的演出),**不會進到對方背包,也不從自己背包扣**。動到這塊時文案一律用「給牠吃 / 陪牠玩」,不要再寫成送禮/收禮。
 - **朋友家要看起來不一樣**:`visit.js` 跟 `room.js` 一樣查 `window.PLS_SCENE_ROOM[species]`,朋友養的物種有專屬場景就畫牠的;挑東西的介面就是自己房間那套背包托盤(食物/玩具兩個入口、7×2 格、數量徽章、金色食物金框)——**不要再退回「只放得下幾格」的排排站清單**,那會讓玩具永遠被食物擠掉。
@@ -158,6 +159,19 @@
 - **好友清單(`index.html`)每列要畫出朋友的寵物**(縮圖 + 成長階段 + 兩科獎盃 + 珍藏數):這些資料 `status` 快照本來就有,不露出來等於白同步。
 - **維運後台**(`admin.html`+`app/admin.js`,Email/Password 登入,跟小孩的匿名登入是不同帳號系統):**只有 `firestore.rules` 裡 `isAdmin()` 寫死的單一 email 能登入看到資料**,不是「每個家長都有 admin 權限」;一般家長全程匿名登入,不會意外拿到後台存取權。`admin.html`/`app/admin.js` 刻意不進 `sw.js` 的 `ASSETS`(不支援離線,後台本來就要即時連網)。
 - **改動這組功能的檢查清單**:動到 Firestore 欄位/集合 → 同步更新 `docs/cloud-friends-schema.md` 與 `firestore.rules`;動到本機 `childNickname`/`giftsGiven` 欄位結構 → 照最上面「向前/向後相容」章節走 `store.js` migration + `docs/export-import-schema.md`。
+
+## 多裝置同步(家庭配對碼,SEC-380,`app/family.js` + `app/sync-merge.js`)
+- **模型**:一個家庭 = 一組 10 碼配對碼(只在家長區看得到)。每台裝置第一次連上雲端就自動建一個家庭;家長在另一台輸入配對碼,那台就加進同一個家庭。**兩個小孩(`kidL`/`kidR`)各自同步、各自合併**,全家設定(獎品、每日上限、過關門檻、隱藏獎勵)跟著家庭走、最後寫的贏;`pls.testMode` 只留本機。
+- **雲端為準,rev 每次 +1**:`kids/{slot}` 存整份小孩存檔 + `rev`,規則強制每次寫入 rev 剛好 +1(交易裡讀寫)。本機記 `pls.sync.<projectId>.<slot>` = 上次同步的 rev 與 base(合併的共同祖先)。
+- **推送要能重做(憲法第 8 條)**:交易送出前本機先記 `pending = {wid, rev, data}`,雲端文件留最近 8 次寫入的 `wids`。推送其實成功、只是沒收到回應(iPad 切背景被凍結、斷線)時,下次看到自己的 wid 就把那版當 base,不會把這段的點數再加一次。
+- **只在安全時機拉資料**:開機、`PLS.go('home')`(`main.js` 尾端呼叫 `PLS_FAMILY.safePoint`)、在首頁時切回前景。玩到一半(不在首頁)只推不合併,遠端有新版就等回首頁再合併——避免畫面手上的物件被換掉。推送:存檔後 15 秒節流、每 90 秒、切到背景時。
+- **合併規則(`merge3(base, local, remote)`)**:計數類數字(點數、過關次數、成長值…)兩邊的差都加上去;`_v`/`bestRate` 取大;`cleared` 取 OR;帶日期的物件取日期新的;布林陣列逐格 OR;其他陣列聯集(`memo` 最多 20);`deco` 跟本機;其他純量本機贏。改合併規則要先在 `tests/sync-merge.test.js` 加情境。
+- **舊物件保護(`store.js`)**:`load()` 會在物件上記隱藏的 `__gen`/`__raw`;同步用 `replaceSlot()` 換掉存檔時 generation +1,之後有畫面拿舊物件 `save()`,會跟目前存檔三方合併而不是蓋掉。新增畫面照常 `ST.load`/`ST.save` 即可,不用管這件事。
+- **加入家庭時**:這台某個小孩有進度、雲端那個小孩還是空的 → 保留這台的;否則這台的先存成一筆歷史(`join-replaced`)再換成雲端的。先讀完兩個小孩、歷史都寫成功才改本機,中途失敗本機不動;加入後一律回首頁。
+- **開機連不上**(離線、網路抖):不建新家庭、不放棄;30 秒後的下一個安全時機重試(`cloud.js` 的匿名登入失敗也會重試)。只有規則明確拒絕讀自己的成員資格(被管理員移除)才重建家庭。
+- **歷史與還原**:雲端每小時最多記一筆 `hourly` 歷史,加上加入/還原時的保險版本;每筆帶 `expireAt`(30 天後),靠 Firestore TTL 自動清。玩到一半不套用還原,回首頁才換。管理員在 `admin.html`「家庭與存檔還原」用好友代碼或暱稱找人 → 打開家庭 → 看歷史 → 還原;還原會寫 `restoredAt`,各裝置下次同步看到就整份換成那一版(本機原本的先存成 `restore-replaced` 歷史)。
+- **Firestore 結構與規則**見 `docs/cloud-friends-schema.md`「家庭同步」。**改 `firestore.rules` 後要把整份貼到 Firebase Console**(`children-pet` 與 `children-pet-dev` 兩個專案都要),而且要**先貼規則、再 push 程式**,否則新程式寫家庭會被舊規則擋(fail-soft,不會壞,但不會同步)。兩個專案也要在 Firestore → TTL 對集合群組 `history` 的 `expireAt` 開自動刪除。
+- **測試**:`make test`(= `test-unit` 合併規則、`test-rules` 規則、`test-sync` 兩台模擬裝置+管理員走完整流程)。後兩個跑 Firebase 模擬器(`tests/` 底下 `npm install` 過、本機要有 Java 21),只連 `demo-pets` 假專案,不碰正式資料。
 
 ## QA 測試工具(`debug.html`)
 - **獨立頁面,刻意不進 `sw.js` 的 `ASSETS`**(跟 `admin.html` 同套模式,不支援離線),給 QA/開發用來一鍵灌測試資料(物種/成長階段/積分/背包/圖鑑/配件圖鑑/畢業珍藏/暱稱/關卡進度/測試模式)、跳進 App 內特定畫面、測試好友拜訪與來訪通知流程。

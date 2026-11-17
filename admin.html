@@ -24,11 +24,15 @@
   #dashboard-view { display: none; }
   .top-row { display: flex; justify-content: space-between; align-items: center; }
   #lookup-result p { margin: 4px 0; font-size: 14px; }
+  .small { font-size: 12px; padding: 4px 10px; margin: 0; }
+  .kid-box { border: 1px solid #EFE4D4; border-radius: 12px; padding: 12px 14px; margin: 10px 0; }
+  .kid-box h3 { font-size: 15px; margin: 0 0 6px; }
+  .muted { color: #8A7A64; font-size: 12px; }
 </style>
 </head>
 <body>
 <h1>寵物小學堂 · 維運後台</h1>
-<p class="hint">僅供管理員使用。不列出關卡/答題等學習細節;查詢還原碼時也不讀取實際備份內容,只做代碼轉交。</p>
+<p class="hint">僅供管理員使用。家庭存檔區只顯示摘要(寵物、成長、點數、過關數),不列答題細節;還原會把那個小孩在所有綁定裝置上的進度換成你選的那一版。</p>
 
 <div id="login-view" class="card">
   <label for="login-email">Email</label>
@@ -50,11 +54,24 @@
     <div class="counts" id="counts-row"></div>
     <div class="err" id="overview-err"></div>
     <table>
-      <thead><tr><th>小朋友暱稱</th><th>寵物種類</th><th>好友代碼</th><th>最後同步</th></tr></thead>
+      <thead><tr><th>小朋友暱稱</th><th>寵物種類</th><th>好友代碼</th><th>最後同步</th><th>家庭存檔</th></tr></thead>
       <tbody id="activity-body"></tbody>
     </table>
   </div>
 
+  <div class="card">
+    <h2>家庭與存檔還原(多裝置同步)</h2>
+    <p class="hint" style="margin:0 0 8px">有家長來說「進度不見了/被蓋掉了」:用小朋友的好友代碼(6 碼)或暱稱找到人 → 打開家庭 → 看那個小孩的歷史 → 還原到出事前那一版。每次還原前,現在的版本也會先存成一筆歷史(before-restore),還原錯了可以再還原回來。</p>
+    <label for="fam-q">好友代碼或小朋友暱稱</label>
+    <input type="text" id="fam-q" maxlength="12" placeholder="例:K7M2Q9 或 小明">
+    <div><button id="fam-search-btn">搜尋</button></div>
+    <div class="err" id="fam-err"></div>
+    <table id="fam-results" style="display:none">
+      <thead><tr><th>小朋友暱稱</th><th>寵物種類</th><th>好友代碼</th><th>最後同步</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="fam-view"></div>
+  </div>
   <div class="card">
     <h2>查詢還原碼(協助家長救回進度)</h2>
     <p class="hint" style="margin:0 0 8px">輸入小朋友的好友代碼,查到還原碼後轉交給家長,由家長自己在 App 的家長區操作還原。這裡只顯示還原碼,不讀取實際進度內容。</p>
@@ -70,6 +87,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app/admin-family.js"></script>
 <script src="app/admin.js"></script>
 </body>
 </html>

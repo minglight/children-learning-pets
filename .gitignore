@@ -1,3 +1,8 @@
 .server.pid
 # 課本翻拍照(210MB+、有版權),只是設計參考用,不進 repo/不上 GitHub Pages
 books/
+
+# 測試工具(tests/package.json)裝的套件,只在本機
+tests/node_modules/
+firebase-debug.log
+firestore-debug.log

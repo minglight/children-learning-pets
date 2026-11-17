@@ -120,6 +120,54 @@ backups/{restoreCode}               // doc ID 就是 10 碼還原碼本身,不�
 
 ---
 
+## 家庭同步(多裝置,v12,SEC-380,`app/family.js`)
+
+同一個家庭的每台裝置共用兩個小孩的進度。家庭靠 **10 碼配對碼**認,沒有帳號;每台裝置仍是自己的匿名登入,
+加入家庭就是在 `members` 下多一筆自己的 uid。
+
+```jsonc
+families/{fid}                          // 建立後不能改
+{ ownerUid, pairCode: "K7M2Q9XYZ1", createdAt }
+
+families/{fid}/members/{uid}            // 只能建自己的;只能改 lastSeenAt/label
+{ code: "<加入時用的配對碼>", joinedAt, lastSeenAt, label: "iPad" }
+
+families/{fid}/kids/{kidL|kidR}         // 進度的權威來源;rev 建立時 1,之後每次剛好 +1
+{ data: { ...整份小孩存檔,同 store.js pet blob }, rev, updatedAt, by: "<uid|admin>",
+  restoredAt: <epoch ms,管理員還原時才有>, link: { playerId, friendCode, restoreCode } | null,
+  wids: ["<最近 8 次寫入的 id>"] }   // 裝置認出「推送成功但沒收到回應」的自己,避免重複加點
+
+families/{fid}/kids/{slot}/history/{id} // 只能新增;只有管理員能刪
+{ rev, data, at, by, reason: "hourly" | "join-replaced" | "before-restore" | "restore-replaced",
+  expireAt: <Timestamp,30 天後> }   // Firestore TTL 政策(集合群組 history、欄位 expireAt)自動刪
+
+families/{fid}/settings/main            // 全家設定,最後寫的贏;rev 規則同上
+{ data: { prizes, rewardsHidden, dailyLimit, clearCapBasic, clearCapAdvanced }, rev, updatedAt, by }
+
+familyCodes/{pairCode}                  // 配對碼 → 家庭;登入就能 get,不能 list
+{ familyId }
+
+players/{id}.familyId                   // 選填:這個小孩的好友身份掛在哪個家庭(後台找人用)
+```
+
+**權限重點(`firestore.rules` v12)**
+- 讀 `families/**` 只有成員或管理員;`families` 的 list 只有管理員。
+- 加入家庭:建立 `members/{自己 uid}` 時必須 `familyCodes/{code}.familyId == fid`(知道配對碼才進得來),或自己就是 owner。
+- 同一個家庭的成員也算 `players` 的 owner(`isOwner()` 多認 `players.familyId` 的成員),所以兩台都能更新同一個小孩的好友身份與拜訪快照。`familyId` 只有原本的 owner 能改,而且只能改成自己是成員的家庭。
+- `kids`/`settings` 的 rev 必須剛好 +1,擋掉「拿舊版整份蓋回去」;管理員也照這條。
+- `kids`/`settings`/`history` 的 `by` 必須是寫的人自己的 uid(管理員寫 `'admin'`);`history` 一定要帶 `expireAt`;`members.label` 最多 20 字;`wids` 最多 10 筆。
+- 管理員(`isAdmin()`)可以讀家庭、讀歷史、寫還原(新增 `before-restore` 歷史 + 更新 kids),**這是後台第一次讀得到小孩的實際進度內容**——後台畫面只顯示摘要(暱稱、寵物、成長、點數、過關數),不列答題細節。
+
+**本機快取(`localStorage`,都依 `projectId` 分 key,不進匯出檔)**
+- `pls.fam.<projectId>` = `{ familyId, pairCode, lastSyncAt }`
+- `pls.sync.<projectId>.<kidL|kidR|settings>` = `{ rev, base, restoredAt, histAt, pending }`(`base` 是上次同步的整份,三方合併的共同祖先;`pending = {wid, rev, data}` 是送出中、還沒確認的那次寫入)
+- `pls.plink.<projectId>.<playerId>` = 這個好友身份已經掛上哪個家庭(省得每次都寫 `players`)
+
+**流程**:開機 → 匿名登入 → 確認家庭(沒有就建)→ 每個小孩拉/推/合併 → 設定拉/推。之後的同步時機、合併規則、
+舊物件保護、加入家庭與還原的細節見 `CLAUDE.md`「多裝置同步」。
+
+---
+
 ## 兩種代碼、為什麼分開
 
 | | 好友代碼 friendCode | 還原碼 restoreCode |
@@ -246,7 +294,9 @@ doc 已存在時 `create` 規則天然不適用,等於「今天已經拜訪過�
   admin 讀取權限,只有本人裝置能讀寫自己的備份)、任何關卡/答題等學習細節(`status` 快照只有
   `species`/`name`/`stage`/`growDeco`/`points`,不含 `levels`/`inv`)。admin 的還原流程是「查到還原碼 →
   轉交家長 → 家長自己在 App 的家長區輸入還原碼」,維運者本人不會經手小孩的實際進度內容。
-- `admin.html` / `app/admin.js` **不放進 `sw.js` 的 `ASSETS`**,不支援離線,也不從任何小孩看得到的畫面
+- **家庭與存檔還原(v12)**:admin 另外可以讀 `families/**`、寫還原(見上方「家庭同步」)。這是唯一讀得到小孩實際進度的地方;
+  畫面只顯示摘要。還原前現在的版本會先存成 `before-restore` 歷史,還原錯了可以再還原回來。
+- `admin.html` / `app/admin.js` / `app/admin-family.js` **不放進 `sw.js` 的 `ASSETS`**,不支援離線,也不從任何小孩看得到的畫面
   連結過去——後台本來就需要即時連網查詢最新資料。
 
 ---
@@ -263,7 +313,9 @@ doc 已存在時 `create` 規則天然不適用,等於「今天已經拜訪過�
 
 ## 每次改動這組功能後的驗證清單
 
-- [ ] 動到 `players` / `friendCodes` / `friends` / `visits` / `visitLog` / `backups` 任一集合的欄位 → 已同步更新本檔的結構說明。
+- [ ] 跑 `make test`(合併、規則、兩台裝置整合)全綠。
+- [ ] 動到 `firestore.rules` → 整份貼到 Firebase Console(`children-pet`、`children-pet-dev` 都要),**先貼規則再 push**。
+- [ ] 動到 `players` / `friendCodes` / `friends` / `visits` / `visitLog` / `backups` / `families/**` / `familyCodes` 任一集合的欄位 → 已同步更新本檔的結構說明。
 - [ ] 動到欄位存取權限 → 已同步更新 `firestore.rules`,並重新檢查 `isOwner()` 的 `get()` 有沒有踩到
       「同一個 batch 裡的 get() 看不到同批次其他文件」這個限制(見 `firestore.rules` 檔頭註解)。
 - [ ] 用一份雲端功能上線前的舊版「匯出進度」JSON 檔測試匯入 → 應該完全正常(雲端連結資訊不在匯出檔裡)。
@@ -274,6 +326,10 @@ doc 已存在時 `create` 規則天然不適用,等於「今天已經拜訪過�
 ---
 
 ## 版本歷史
+
+### v12(2026-11,多裝置同步 SEC-380)
+- 新增 `families`(+`members`/`kids`/`history`/`settings`)與 `familyCodes`;`players` 多選填 `familyId`,
+  `isOwner()` 多認家庭成員;後台多「家庭與存檔還原」。進度權威來源從本機改成雲端 `kids/*`(本機是快取)。
 
 ### v1(2026-08,初版)
 - 建立 `players` / `players/private/meta` / `friendCodes` / `players/friends` / `players/visits` / `backups`

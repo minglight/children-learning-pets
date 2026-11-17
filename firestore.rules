@@ -1,6 +1,9 @@
 // firestore.rules — 好友雲端同步 / 自動備份的存取控制(唯一的安全邊界;沒有 Cloud Functions)。
 // 詳細資料模型見 docs/cloud-friends-schema.md;程式端寫入邏輯見 app/cloud.js。
 //
+// v12(家庭同步,SEC-380):新增 families/familyCodes(多裝置共用同一份小孩存檔、admin 可看歷史與還原);
+//   players 的擁有者擴大成「建立者 + 同一個家庭的成員」。
+//
 // v11(電子雞化整合):身份錨點是「小朋友(slot)」不是「物種(species)」——物種會隨換寵物/畢業改變,
 //   所以 players.species 從「建立後不可變更」改成「可變更」(仍驗證型別/長度,不再鎖死 rabbit/hamster
 //   兩個值,因為現在有 8 種可養物種、未來還可能再加)。
@@ -21,9 +24,15 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'minglight0811@gmail.com';
     }
     function isSignedIn() { return request.auth != null; }
+    // v12(家庭同步):同一個家庭的裝置是共同擁有者 — players.familyId 指到的家庭成員也算 owner,
+    //   這樣小孩換到家裡另一台玩,好友狀態、好友清單、來訪紀錄、還原碼備份都照常能讀寫。
+    function isMember(fid) {
+      return isSignedIn() && fid is string &&
+        exists(/databases/$(database)/documents/families/$(fid)/members/$(request.auth.uid));
+    }
     function isOwner(playerId) {
-      return isSignedIn() &&
-        get(/databases/$(database)/documents/players/$(playerId)).data.ownerUid == request.auth.uid;
+      let p = get(/databases/$(database)/documents/players/$(playerId)).data;
+      return isSignedIn() && (p.ownerUid == request.auth.uid || ('familyId' in p && isMember(p.familyId)));
     }
     function shortStr(v) { return v is string && v.size() <= 6; }
     function isSpecies(v) { return v is string && v.size() >= 1 && v.size() <= 20; }
@@ -43,11 +52,14 @@ service cloud.firestore {
         && isFriendCode(request.resource.data.friendCode)
         && request.resource.data.status is map
         && request.resource.data.keys().hasOnly(
-             ['ownerUid', 'species', 'childNickname', 'petName', 'friendCode', 'status', 'createdAt']);
+             ['ownerUid', 'species', 'childNickname', 'petName', 'friendCode', 'status', 'createdAt', 'familyId'])
+        && (!('familyId' in request.resource.data) || isMember(request.resource.data.familyId));
       // 只能改 childNickname / petName / species / status;ownerUid、friendCode 建立後不可變更。
       // species 允許變更(換寵物/畢業會改變外觀,身份錨點是 playerId/slot,不是 species)。
+      // v12:家庭成員也能更新;familyId 只有原建立裝置(ownerUid)能設定/改掉,而且要是它自己所在的家庭。
       allow update: if isSignedIn()
-        && resource.data.ownerUid == request.auth.uid
+        && (resource.data.ownerUid == request.auth.uid
+            || ('familyId' in resource.data && isMember(resource.data.familyId)))
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.friendCode == resource.data.friendCode
         && isSpecies(request.resource.data.species)
@@ -55,7 +67,9 @@ service cloud.firestore {
         && shortStr(request.resource.data.petName)
         && request.resource.data.status is map
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['species', 'childNickname', 'petName', 'status']);
+             .hasOnly(['species', 'childNickname', 'petName', 'status', 'familyId'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['familyId'])
+            || (resource.data.ownerUid == request.auth.uid && isMember(request.resource.data.familyId)));
       allow delete: if false;
 
       // 還原碼放在這裡,不放在上面公開的 players 文件裡,避免「拜訪」流程順帶洩漏還原碼。
@@ -143,6 +157,98 @@ service cloud.firestore {
         && request.resource.data.snapshot is map
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['snapshot', 'updatedAt']);
       allow delete: if false;
+    }
+
+    // ── v12 家庭同步(多裝置共用同一份小孩存檔)── 資料模型見 docs/cloud-friends-schema.md「家庭同步」。
+    // 家庭成員 = families/{fid}/members/{auth.uid} 存在。第一台自動建家庭;其他裝置持配對碼加入。
+    // 雲端的 kids/{slot} 是小孩存檔的正本,rev 每次只能 +1(擋住舊資料覆蓋新資料);admin 可讀全部、可還原。
+    match /familyCodes/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn()
+        && isRestoreCode(code)
+        && request.resource.data.keys().hasOnly(['familyId'])
+        && isMember(request.resource.data.familyId)
+        && get(/databases/$(database)/documents/families/$(request.resource.data.familyId)).data.pairCode == code;
+      allow update, delete: if false;
+    }
+
+    match /families/{fid} {
+      allow get: if isMember(fid) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && isRestoreCode(request.resource.data.pairCode)
+        && request.resource.data.keys().hasOnly(['ownerUid', 'pairCode', 'createdAt']);
+      allow update, delete: if false;
+
+      // 建立者直接加入;其他人要帶正確的配對碼(familyCodes/{code} 指回這個家庭)才能加入。
+      match /members/{memberUid} {
+        function validLabel() {
+          return !('label' in request.resource.data)
+            || (request.resource.data.label is string && request.resource.data.label.size() <= 20);
+        }
+        allow get, list: if isMember(fid) || isAdmin();
+        allow create: if isSignedIn()
+          && memberUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['code', 'joinedAt', 'lastSeenAt', 'label'])
+          && validLabel()
+          && isRestoreCode(request.resource.data.code)
+          && (get(/databases/$(database)/documents/families/$(fid)).data.ownerUid == request.auth.uid
+              || get(/databases/$(database)/documents/familyCodes/$(request.resource.data.code)).data.familyId == fid);
+        allow update: if isSignedIn()
+          && memberUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt', 'label'])
+          && validLabel();
+        allow delete: if (isSignedIn() && memberUid == request.auth.uid) || isAdmin();
+      }
+
+      // by 必須是寫的人自己(admin 寫 'admin');wids = 最近幾次寫入的 id,裝置用來認出「沒收到回應但其實寫進去了」的自己。
+      function byMe() {
+        return request.resource.data.by == request.auth.uid || (isAdmin() && request.resource.data.by == 'admin');
+      }
+      match /kids/{slot} {
+        function validKid() {
+          return request.resource.data.keys().hasOnly(['data', 'rev', 'updatedAt', 'by', 'restoredAt', 'link', 'wids'])
+            && (!('wids' in request.resource.data) || (request.resource.data.wids is list && request.resource.data.wids.size() <= 10))
+            && request.resource.data.data is map
+            && request.resource.data.rev is int
+            && byMe();
+        }
+        allow get, list: if isMember(fid) || isAdmin();
+        allow create: if isMember(fid) && slot in ['kidL', 'kidR'] && validKid() && request.resource.data.rev == 1;
+        allow update: if (isMember(fid) || isAdmin()) && validKid()
+          && request.resource.data.rev == resource.data.rev + 1;
+        allow delete: if false;
+
+        // 存檔歷史:只能新增,給 admin 還原用;只有 admin 能刪。expireAt(30 天後)給 Firestore TTL 自動清。
+        match /history/{hid} {
+          allow get, list: if isMember(fid) || isAdmin();
+          allow create: if (isMember(fid) || isAdmin())
+            && request.resource.data.keys().hasOnly(['rev', 'data', 'at', 'by', 'reason', 'expireAt'])
+            && request.resource.data.expireAt is timestamp
+            && byMe()
+            && request.resource.data.data is map
+            && request.resource.data.reason is string && request.resource.data.reason.size() <= 20;
+          allow update: if false;
+          allow delete: if isAdmin();
+        }
+      }
+
+      // 全家共用設定(獎品目錄、隱藏獎品、每日上限、過關上限),最後寫的贏,rev 一樣每次 +1。
+      match /settings/{doc} {
+        function validSettings() {
+          return request.resource.data.keys().hasOnly(['data', 'rev', 'updatedAt', 'by'])
+            && request.resource.data.data is map
+            && request.resource.data.rev is int
+            && byMe();
+        }
+        allow get: if isMember(fid) || isAdmin();
+        allow create: if isMember(fid) && doc == 'main' && validSettings() && request.resource.data.rev == 1;
+        allow update: if (isMember(fid) || isAdmin()) && validSettings()
+          && request.resource.data.rev == resource.data.rev + 1;
+        allow delete: if false;
+      }
     }
   }
 }
