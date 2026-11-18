@@ -169,8 +169,8 @@
 - **舊物件保護(`store.js`)**:`load()` 會在物件上記隱藏的 `__gen`/`__raw`;同步用 `replaceSlot()` 換掉存檔時 generation +1,之後有畫面拿舊物件 `save()`,會跟目前存檔三方合併而不是蓋掉。新增畫面照常 `ST.load`/`ST.save` 即可,不用管這件事。
 - **加入家庭時**:這台某個小孩有進度、雲端那個小孩還是空的 → 保留這台的;否則這台的先存成一筆歷史(`join-replaced`)再換成雲端的。先讀完兩個小孩、歷史都寫成功才改本機,中途失敗本機不動;加入後一律回首頁。
 - **開機連不上**(離線、網路抖):不建新家庭、不放棄;30 秒後的下一個安全時機重試(`cloud.js` 的匿名登入失敗也會重試)。只有規則明確拒絕讀自己的成員資格(被管理員移除)才重建家庭。
-- **歷史與還原**:雲端每小時最多記一筆 `hourly` 歷史,加上加入/還原時的保險版本;每筆帶 `expireAt`(30 天後),靠 Firestore TTL 自動清。玩到一半不套用還原,回首頁才換。管理員在 `admin.html`「家庭與存檔還原」用好友代碼或暱稱找人 → 打開家庭 → 看歷史 → 還原;還原會寫 `restoredAt`,各裝置下次同步看到就整份換成那一版(本機原本的先存成 `restore-replaced` 歷史)。
-- **Firestore 結構與規則**見 `docs/cloud-friends-schema.md`「家庭同步」。**改 `firestore.rules` 後要把整份貼到 Firebase Console**(`children-pet` 與 `children-pet-dev` 兩個專案都要),而且要**先貼規則、再 push 程式**,否則新程式寫家庭會被舊規則擋(fail-soft,不會壞,但不會同步)。兩個專案也要在 Firestore → TTL 對集合群組 `history` 的 `expireAt` 開自動刪除。
+- **歷史與還原**:雲端每小時最多記一筆 `hourly` 歷史,加上加入/還原時的保險版本;每筆帶 `expireAt`(30 天後)。過期的由後台在「看歷史」時順手刪(`PLS_ADMIN_FAMILY.pruneExpired`;Firestore TTL 要開帳單才能用,免費方案不能開)。玩到一半不套用還原,回首頁才換。管理員在 `admin.html`「家庭與存檔還原」用好友代碼或暱稱找人 → 打開家庭 → 看歷史 → 還原;還原會寫 `restoredAt`,各裝置下次同步看到就整份換成那一版(本機原本的先存成 `restore-replaced` 歷史)。
+- **Firestore 結構與規則**見 `docs/cloud-friends-schema.md`「家庭同步」。**改 `firestore.rules` 後要把整份貼到 Firebase Console**(`children-pet` 與 `children-pet-dev` 兩個專案都要),而且要**先貼規則、再 push 程式**,否則新程式寫家庭會被舊規則擋(fail-soft,不會壞,但不會同步)。以後如果升級成付費方案(Blaze),可以在 Google Cloud Console → Firestore → Time-to-live 對集合群組 `history` 的 `expireAt` 開 TTL,後台清理照留著也沒關係。
 - **測試**:`make test`(= `test-unit` 合併規則、`test-rules` 規則、`test-sync` 兩台模擬裝置+管理員走完整流程)。後兩個跑 Firebase 模擬器(`tests/` 底下 `npm install` 過、本機要有 Java 21),只連 `demo-pets` 假專案,不碰正式資料。
 
 ## QA 測試工具(`debug.html`)

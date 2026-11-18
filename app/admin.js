@@ -175,7 +175,10 @@
 
   function showHistory(fid, slot, box) {
     box.textContent = '載入中…';
-    AF.loadHistory(db, fid, slot, 50).then(function (list) {
+    // 先順手清過期歷史(清不掉不影響看歷史)
+    AF.pruneExpired(db, fid, slot).catch(function () { return 0; }).then(function () {
+      return AF.loadHistory(db, fid, slot, 50);
+    }).then(function (list) {
       box.textContent = '';
       if (!list.length) { box.appendChild(el('p', '還沒有歷史(每小時最多留一筆)', 'muted')); return; }
       const table = document.createElement('table');

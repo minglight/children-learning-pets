@@ -16,7 +16,7 @@
   const PUSH_THROTTLE_MS = 15000;
   const FLUSH_INTERVAL_MS = 90000;
   const HISTORY_EVERY_MS = 3600000;     // 同一個小孩每小時最多留一筆歷史(admin 還原用)
-  const HISTORY_KEEP_MS = 30 * 86400000;   // 歷史保留 30 天:expireAt 給 Firestore TTL 自動清(憲法第 9 條)
+  const HISTORY_KEEP_MS = 30 * 86400000;   // 歷史保留 30 天:過期的由後台 pruneExpired 清(憲法第 9 條)
   const RETRY_START_MS = 30000;        // 開機連雲端失敗後,最快多久再試一次
   const WID_KEEP = 8;                  // 雲端文件記最近幾次寫入的 id(推送成功但沒收到回應時,認得出自己那次)
 

@@ -76,6 +76,19 @@
       });
   }
 
+  // 清掉過期(expireAt 已過)的歷史。Firestore TTL 要開帳單(Blaze)才能用,免費方案改由後台開歷史時順手清;
+  // 規則只讓 admin 刪歷史。一次最多清 200 筆,剩下的下次再清。回傳清掉幾筆。
+  function pruneExpired(db, fid, slot) {
+    var now = root.firebase.firestore.Timestamp.fromMillis(Date.now());
+    return db.collection('families').doc(fid).collection('kids').doc(slot).collection('history')
+      .where('expireAt', '<', now).limit(200).get().then(function (qs) {
+        if (qs.empty) return 0;
+        var batch = db.batch();
+        qs.forEach(function (d) { batch.delete(d.ref); });
+        return batch.commit().then(function () { return qs.size; });
+      });
+  }
+
   // 還原成某一筆歷史:先把現在的雲端版存成一筆 before-restore(還原錯了可以再還原回來),
   // 再寫入歷史版、rev+1、restoredAt=現在 → 各裝置下次同步看到 restoredAt 變新,整份換成這一版。
   function restore(db, fid, slot, histId) {
@@ -95,6 +108,6 @@
     });
   }
 
-  var api = { summary: summary, findPlayers: findPlayers, loadFamily: loadFamily, loadHistory: loadHistory, restore: restore };
+  var api = { summary: summary, findPlayers: findPlayers, loadFamily: loadFamily, loadHistory: loadHistory, pruneExpired: pruneExpired, restore: restore };
   root.PLS_ADMIN_FAMILY = api;
 })(typeof window !== 'undefined' ? window : globalThis);

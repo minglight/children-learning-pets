@@ -139,7 +139,7 @@ families/{fid}/kids/{kidL|kidR}         // 進度的權威來源;rev 建立時 1
 
 families/{fid}/kids/{slot}/history/{id} // 只能新增;只有管理員能刪
 { rev, data, at, by, reason: "hourly" | "join-replaced" | "before-restore" | "restore-replaced",
-  expireAt: <Timestamp,30 天後> }   // Firestore TTL 政策(集合群組 history、欄位 expireAt)自動刪
+  expireAt: <Timestamp,30 天後> }   // 過期的由 admin 後台看歷史時刪(pruneExpired);TTL 要 Blaze 才能開
 
 families/{fid}/settings/main            // 全家設定,最後寫的贏;rev 規則同上
 { data: { prizes, rewardsHidden, dailyLimit, clearCapBasic, clearCapAdvanced }, rev, updatedAt, by }

@@ -173,4 +173,11 @@ test('管理員用好友代碼找到家庭、看歷史、還原;兩台下次同�
   const after = await ADM.run(`return await PLS_ADMIN_FAMILY.loadHistory(db, '${link.familyId}', 'kidL');`);
   assert.ok(after.some((h) => h.reason === 'before-restore'));
   assert.ok(after.some((h) => h.reason === 'restore-replaced'));   // A 玩到一半那份,還原前先留下
+  // 過期歷史:後台看歷史時清掉,沒過期的留著
+  await ADM.run(`await db.collection('families').doc('${link.familyId}').collection('kids').doc('kidL').collection('history')
+    .add({ rev: 1, data: {}, at: 1, by: 'admin', reason: 'old', expireAt: firebase.firestore.Timestamp.fromMillis(Date.now() - 1000) });`);
+  assert.equal(await ADM.run(`return await PLS_ADMIN_FAMILY.pruneExpired(db, '${link.familyId}', 'kidL');`), 1);
+  const pruned = await ADM.run(`return await PLS_ADMIN_FAMILY.loadHistory(db, '${link.familyId}', 'kidL');`);
+  assert.equal(pruned.length, after.length);
+  assert.ok(!pruned.some((h) => h.reason === 'old'));
 });
